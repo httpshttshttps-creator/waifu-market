@@ -1,17 +1,17 @@
 :root {
   /* -- palette: an after-hours card stall, not a UI kit default -- */
-  --ink: #140f24;
-  --ink-glow: #241a42;
-  --surface: #201736;
-  --surface-raised: #2a2044;
+  --ink: #191307;
+  --ink-glow: #3d2b0c;
+  --surface: #241a0c;
+  --surface-raised: #302410;
   --paper: #f3ead9;
   --paper-shadow: #d9cdb2;
-  --gold: #f2b84b;
-  --gold-bright: #ffd27a;
-  --text: #f4eefc;
-  --text-dim: #a99bcf;
-  --text-faint: #6f6390;
-  --line: rgba(244, 238, 252, 0.1);
+  --gold: #f5b731;
+  --gold-bright: #ffd966;
+  --text: #fdf6e8;
+  --text-dim: #cbb686;
+  --text-faint: #8c7947;
+  --line: rgba(253, 246, 232, 0.1);
   --danger: #f2495c;
 
   /* -- type -- */
