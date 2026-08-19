@@ -1,9 +1,5 @@
 import { CHARACTERS } from "../data/characters.js";
 
-// Set this (in a .env file, see .env.example) once the bot's API is
-// deployed and reachable, e.g. https://your-bot.up.railway.app.
-// Left empty, everything below quietly falls back to the mock catalog -
-// handy for iterating on layout/design without a live backend.
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 const MOCK_STARTING_BALANCE = 500;
@@ -38,9 +34,6 @@ function imageUrl(fileId) {
   return `${API_BASE}/api/market/image/${fileId}`;
 }
 
-// Deterministic placeholder gradient per character id - shown behind the
-// real photo while it loads, and used on its own if a character has no
-// photo yet (or the photo fails to load).
 const GRADIENT_PALETTE = [
   ["#3A2E63", "#7B4FA6"],
   ["#4A1F3D", "#B9457A"],
@@ -85,6 +78,45 @@ export async function fetchBalance() {
   }
   const data = await apiFetch("/api/market/balance");
   return data.balance;
+}
+
+function normalizeOwnedCard(card) {
+  return {
+    id: card.id,
+    name: card.name,
+    series: card.series,
+    rarity: card.rarity_name || "Unranked",
+    imageUrl: imageUrl(card.image_file_id),
+    gradient: gradientFor(card.id),
+    quantity: card.quantity,
+  };
+}
+
+export async function fetchProfile() {
+  if (!API_BASE) {
+    await delay(FAKE_LATENCY_MS);
+    return {
+      name: "Player",
+      balance: MOCK_STARTING_BALANCE,
+      cardCount: CHARACTERS.length,
+      cards: CHARACTERS.map((character) => ({
+        id: character.id,
+        name: character.name,
+        series: character.series,
+        rarity: character.rarity,
+        imageUrl: null,
+        gradient: character.gradient,
+        quantity: 1,
+      })),
+    };
+  }
+  const data = await apiFetch("/api/market/profile");
+  return {
+    name: data.name,
+    balance: data.balance,
+    cardCount: data.card_count,
+    cards: data.cards.map(normalizeOwnedCard),
+  };
 }
 
 export async function purchaseCharacter(id, currentBalance) {
