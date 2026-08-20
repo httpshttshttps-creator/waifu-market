@@ -9,6 +9,8 @@ import Toast from "./components/Toast.jsx";
 import BottomNav from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
+import LeaderboardTab from "./components/LeaderboardTab.jsx";
+import TaskTab from "./components/TaskTab.jsx";
 
 export default function App() {
   const { haptic, notify } = useTelegram();
@@ -136,7 +138,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app-shell__inner">
-        {activeTab === "home" ? (
+        {activeTab === "home" && (
           <>
             <ProfileHeader name={profile.name} balance={balance} cardCount={profile.cardCount} />
             {profileLoading ? (
@@ -145,7 +147,9 @@ export default function App() {
               <OwnedGrid cards={profile.cards} />
             )}
           </>
-        ) : (
+        )}
+
+        {activeTab === "market" && (
           <>
             <Header balance={balance} />
             <FilterBar
@@ -167,6 +171,10 @@ export default function App() {
             )}
           </>
         )}
+
+        {activeTab === "leaderboard" && <LeaderboardTab />}
+
+        {activeTab === "task" && <TaskTab notify={notify} />}
       </div>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />

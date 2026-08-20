@@ -4,7 +4,7 @@ import { CHARACTERS } from "../data/characters.js";
 // deployed and reachable, e.g. https://your-bot.up.railway.app.
 // Left empty, everything below quietly falls back to the mock catalog -
 // handy for iterating on layout/design without a live backend.
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 const MOCK_STARTING_BALANCE = 500;
 const FAKE_LATENCY_MS = 250;
@@ -13,11 +13,13 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getInitData() {
+export function getInitData() {
   return typeof window !== "undefined" ? window.Telegram?.WebApp?.initData ?? "" : "";
 }
 
-async function apiFetch(path, options = {}) {
+// Shared by every API module (market, leaderboard, tasks) so auth
+// headers and error handling stay consistent in one place.
+export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -33,7 +35,7 @@ async function apiFetch(path, options = {}) {
   return response.json();
 }
 
-function imageUrl(fileId) {
+export function imageUrl(fileId) {
   if (!fileId) return null;
   return `${API_BASE}/api/market/image/${fileId}`;
 }
