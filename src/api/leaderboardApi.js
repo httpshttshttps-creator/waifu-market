@@ -29,3 +29,17 @@ export async function fetchRichest() {
   if (!API_BASE) return MOCK_RICHEST;
   return apiFetch("/api/leaderboard/richest");
 }
+
+export async function fetchPlayerProfile(userId) {
+  if (!API_BASE) {
+    const mock = MOCK_RICHEST.find((row) => row.user_id === userId);
+    return {
+      user_id: userId,
+      display_name: mock?.display_name ?? `Player ${userId}`,
+      balance: mock?.balance ?? 0,
+      card_count: 0,
+      cards: [],
+    };
+  }
+  return apiFetch(`/api/leaderboard/profile/${userId}`);
+}

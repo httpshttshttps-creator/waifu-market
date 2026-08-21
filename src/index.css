@@ -1,18 +1,18 @@
 :root {
   /* -- palette: an after-hours card stall, not a UI kit default -- */
-  --ink: #191307;
-  --ink-glow: #3d2b0c;
-  --surface: #241a0c;
-  --surface-raised: #302410;
+  --ink: #170707;
+  --ink-glow: #3d0f10;
+  --surface: #241010;
+  --surface-raised: #331515;
   --paper: #f3ead9;
   --paper-shadow: #d9cdb2;
-  --gold: #f5b731;
-  --gold-bright: #ffd966;
-  --text: #fdf6e8;
-  --text-dim: #cbb686;
-  --text-faint: #8c7947;
-  --line: rgba(253, 246, 232, 0.1);
-  --danger: #f2495c;
+  --gold: #d62839;
+  --gold-bright: #ff4d5e;
+  --text: #fdeceb;
+  --text-dim: #d9a8a3;
+  --text-faint: #93615c;
+  --line: rgba(253, 236, 235, 0.1);
+  --danger: #ff8c42;
 
   /* -- type -- */
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -171,7 +171,7 @@ button {
 .filter-chip[data-active="true"] {
   background: var(--gold);
   border-color: var(--gold);
-  color: #1c1408;
+  color: #fff2f0;
 }
 
 .search-input {
@@ -401,7 +401,7 @@ button {
   font-size: 12.5px;
   cursor: pointer;
   background: var(--gold);
-  color: #1c1408;
+  color: #fff2f0;
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
@@ -545,6 +545,11 @@ button {
 .confirm-sheet__actions {
   display: flex;
   gap: 10px;
+  position: sticky;
+  bottom: 0;
+  background: var(--surface-raised);
+  padding-top: 12px;
+  margin-top: 4px;
 }
 
 .sheet-button {
@@ -565,7 +570,7 @@ button {
 
 .sheet-button--confirm {
   background: var(--gold);
-  color: #1c1408;
+  color: #fff2f0;
 }
 
 .sheet-button--confirm:disabled {
@@ -774,7 +779,7 @@ button {
 
 .leaderboard-toggle button[data-active="true"] {
   background: var(--gold);
-  color: #1c1408;
+  color: #fff2f0;
   border-color: var(--gold);
 }
 
@@ -796,6 +801,29 @@ button {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
+}
+
+.leaderboard-row--player {
+  width: 100%;
+  border: 1px solid var(--line);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.leaderboard-row--player:hover,
+.leaderboard-row--player:active {
+  border-color: var(--gold);
+  background: var(--surface-raised);
+}
+
+.leaderboard-row__title--player {
+  color: var(--gold-bright);
+  text-decoration: underline;
+  text-decoration-color: var(--text-faint);
+  text-underline-offset: 2px;
 }
 
 .leaderboard-row__head {
@@ -877,7 +905,7 @@ button {
   border-radius: var(--radius-md);
   border: 1px solid var(--gold);
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: #1c1408;
+  color: #fff2f0;
   font-weight: 800;
   font-size: 14px;
   cursor: pointer;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchTopSeries, fetchSeriesCharacters, fetchRichest } from "../api/leaderboardApi.js";
 import { getRarityTier } from "../data/rarities.js";
+import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
 
 function SeriesRow({ rank, row }) {
   const [expanded, setExpanded] = useState(false);
@@ -53,13 +54,17 @@ function SeriesRow({ rank, row }) {
   );
 }
 
-function RichestRow({ rank, row }) {
+function RichestRow({ rank, row, onSelectPlayer }) {
   return (
-    <div className="leaderboard-row leaderboard-row--flat">
+    <button
+      type="button"
+      className="leaderboard-row leaderboard-row--flat leaderboard-row--player"
+      onClick={() => onSelectPlayer(row.user_id)}
+    >
       <span className="leaderboard-row__rank">#{rank}</span>
-      <span className="leaderboard-row__title">{row.display_name}</span>
+      <span className="leaderboard-row__title leaderboard-row__title--player">{row.display_name}</span>
       <span className="leaderboard-row__count">{row.balance} VɎ</span>
-    </div>
+    </button>
   );
 }
 
@@ -67,6 +72,7 @@ export default function LeaderboardTab() {
   const [mode, setMode] = useState("constellations");
   const [series, setSeries] = useState(null);
   const [richest, setRichest] = useState(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
   useEffect(() => {
     if (mode === "constellations" && series === null) {
@@ -112,9 +118,13 @@ export default function LeaderboardTab() {
         ) : richest.length === 0 ? (
           <p className="empty-state">Nobody has any VɎ yet.</p>
         ) : (
-          richest.map((row, index) => <RichestRow key={row.user_id} rank={index + 1} row={row} />)
+          richest.map((row, index) => (
+            <RichestRow key={row.user_id} rank={index + 1} row={row} onSelectPlayer={setSelectedPlayerId} />
+          ))
         )}
       </div>
+
+      <PlayerProfileSheet userId={selectedPlayerId} onClose={() => setSelectedPlayerId(null)} />
     </div>
   );
 }
