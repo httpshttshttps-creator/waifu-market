@@ -77,7 +77,7 @@ function TaskIcon({ active }) {
 const TABS = [
   { id: "home", label: "Home", Icon: HomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon },
-  { id: "leaderboard", label: "Ranks", Icon: TrophyIcon },
+  { id: "leaderboard", label: "Leaderboard", Icon: TrophyIcon },
   { id: "task", label: "Tasks", Icon: TaskIcon },
 ];
 
