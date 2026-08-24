@@ -542,6 +542,10 @@ button {
   letter-spacing: 0.03em;
 }
 
+.confirm-sheet__error--neutral {
+  color: var(--text-dim);
+}
+
 .confirm-sheet__actions {
   display: flex;
   gap: 10px;

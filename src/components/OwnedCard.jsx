@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { getRarityTier } from "../data/rarities.js";
 
-export default function OwnedCard({ character }) {
+export default function OwnedCard({ character, sellPrice, onSell }) {
   const [imageFailed, setImageFailed] = useState(false);
   const tier = getRarityTier(character.rarity);
   const [artFrom, artTo] = character.gradient;
   const chipBackground = tier.chipBackground ?? tier.accent;
   const showImage = character.imageUrl && !imageFailed;
+  const canSell = sellPrice > 0;
 
   const style = {
     "--card-accent": tier.accent,
@@ -40,6 +41,21 @@ export default function OwnedCard({ character }) {
           <span className="character-card__series">{character.series}</span>
         </div>
       </div>
+
+      {onSell && (
+        <div className="character-card__footer">
+          <span className="price-ticket">🏪 {canSell ? `${sellPrice} VɎ` : "—"}</span>
+          <button
+            type="button"
+            className="buy-button"
+            data-owned={!canSell}
+            disabled={!canSell}
+            onClick={() => canSell && onSell(character)}
+          >
+            Sell
+          </button>
+        </div>
+      )}
     </article>
   );
 }

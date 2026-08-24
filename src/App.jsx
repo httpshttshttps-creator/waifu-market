@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTelegram } from "./hooks/useTelegram.js";
-import { fetchCharacters, fetchBalance, fetchProfile, purchaseCharacter } from "./api/marketApi.js";
+import {
+  fetchCharacters,
+  fetchBalance,
+  fetchProfile,
+  purchaseCharacter,
+  fetchSellPrices,
+  sellCharacterToBot,
+} from "./api/marketApi.js";
 import Header from "./components/Header.jsx";
 import FilterBar from "./components/FilterBar.jsx";
 import CardGrid from "./components/CardGrid.jsx";
 import BuyConfirmSheet from "./components/BuyConfirmSheet.jsx";
+import SellConfirmSheet from "./components/SellConfirmSheet.jsx";
 import Toast from "./components/Toast.jsx";
 import BottomNav from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
@@ -24,12 +32,15 @@ export default function App() {
 
   const [profile, setProfile] = useState({ name: "", cardCount: 0, cards: [] });
   const [profileLoading, setProfileLoading] = useState(true);
+  const [sellPrices, setSellPrices] = useState({});
 
   const [activeRarity, setActiveRarity] = useState("All");
   const [query, setQuery] = useState("");
 
   const [selectedCharacter, setSelectedCharacter] = useState(null);
   const [purchasePending, setPurchasePending] = useState(false);
+  const [sellCandidate, setSellCandidate] = useState(null);
+  const [sellPending, setSellPending] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
   // Listings, balance, and the owned-cards collection all live in the
@@ -43,11 +54,12 @@ export default function App() {
   const isFirstLoad = useRef(true);
 
   const refreshAll = useCallback(() => {
-    return Promise.all([fetchCharacters(), fetchBalance(), fetchProfile()]).then(
-      ([characterList, latestBalance, profileData]) => {
+    return Promise.all([fetchCharacters(), fetchBalance(), fetchProfile(), fetchSellPrices()]).then(
+      ([characterList, latestBalance, profileData, sellPriceMap]) => {
         setCharacters(characterList);
         setBalance(latestBalance);
         setProfile(profileData);
+        setSellPrices(sellPriceMap);
         setLoading(false);
         setProfileLoading(false);
       }
@@ -135,6 +147,37 @@ export default function App() {
     setSelectedCharacter(null);
   }
 
+  function openSellConfirm(character) {
+    haptic("light");
+    setSellCandidate(character);
+  }
+
+  function closeSellConfirm() {
+    if (sellPending) return;
+    setSellCandidate(null);
+  }
+
+  async function confirmSell() {
+    if (!sellCandidate) return;
+    setSellPending(true);
+    const result = await sellCharacterToBot(sellCandidate.id);
+
+    if (result.ok) {
+      setBalance(result.newBalance);
+      setToastMessage(`🏪 Sold ${sellCandidate.name} for ${result.price} VɎ`);
+      notify("success");
+      // Re-pull everything - the card's quantity (or the card itself,
+      // if that was the last copy) needs to reflect in the Home tab.
+      refreshAll();
+    } else {
+      setToastMessage("❓ Couldn't sell that card - it may no longer be yours.");
+      notify("error");
+    }
+
+    setSellPending(false);
+    setSellCandidate(null);
+  }
+
   return (
     <div className="app-shell">
       <div className="app-shell__inner">
@@ -144,7 +187,7 @@ export default function App() {
             {profileLoading ? (
               <p className="empty-state">Loading your collection…</p>
             ) : (
-              <OwnedGrid cards={profile.cards} />
+              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} />
             )}
           </>
         )}
@@ -185,6 +228,15 @@ export default function App() {
         pending={purchasePending}
         onConfirm={confirmPurchase}
         onCancel={closeConfirm}
+      />
+
+      <SellConfirmSheet
+        character={sellCandidate}
+        price={sellCandidate ? sellPrices[sellCandidate.rarity] || 0 : 0}
+        balance={balance}
+        pending={sellPending}
+        onConfirm={confirmSell}
+        onCancel={closeSellConfirm}
       />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />

@@ -147,3 +147,41 @@ export async function purchaseCharacter(id, currentBalance) {
     return { ok: false, reason: err.message };
   }
 }
+
+// Rarity name -> sell-to-bot price. Used to show each owned card what
+// selling it straight to the bot (instead of listing it on the market)
+// would pay out.
+const MOCK_SELL_PRICES = {
+  Unranked: 5,
+};
+
+export async function fetchSellPrices() {
+  if (!API_BASE) {
+    await delay(FAKE_LATENCY_MS / 2);
+    return MOCK_SELL_PRICES;
+  }
+  const rows = await apiFetch("/api/market/sell-prices");
+  const map = {};
+  for (const row of rows) {
+    map[row.rarity_name] = row.price;
+  }
+  return map;
+}
+
+export async function sellCharacterToBot(characterId) {
+  if (!API_BASE) {
+    await delay(FAKE_LATENCY_MS);
+    const price = MOCK_SELL_PRICES.Unranked;
+    return { ok: true, price, newBalance: MOCK_STARTING_BALANCE + price };
+  }
+
+  try {
+    const data = await apiFetch("/api/market/sell", {
+      method: "POST",
+      body: JSON.stringify({ character_id: characterId }),
+    });
+    return { ok: true, price: data.price, newBalance: data.new_balance };
+  } catch (err) {
+    return { ok: false, reason: err.message };
+  }
+}
