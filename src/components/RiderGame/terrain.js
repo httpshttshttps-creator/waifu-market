@@ -118,6 +118,26 @@ function featureRollingHills(state, t) {
   }
 }
 
+// Sharp, angular mountain-peak terrain - straight ramp segments meeting
+// at distinct vertices (uphill/downhill legs), rather than smooth curves.
+// Every uphill leg gets its own boost zone, so cresting any peak here
+// gives real air, not just the scripted gap/spike/blade features.
+function featureAngularPeaks(state, t) {
+  const peakCount = 2 + Math.floor(rand(0, 2 + t));
+  for (let i = 0; i < peakCount; i++) {
+    const upLen = rand(110, 220);
+    const upRise = rand(70, 150 + t * 60);
+    const boostStart = state.cursorX + upLen * 0.4;
+    appendRamp(state, upLen, upRise);
+    addBoost(state, boostStart, state.cursorX, 20 + upRise / 6);
+
+    const downLen = rand(110, 220);
+    const downDrop = rand(50, 120 + t * 50);
+    appendRamp(state, downLen, -downDrop);
+  }
+  appendFlat(state, rand(60, 140));
+}
+
 function featureGapJump(state, t) {
   const rampLen = rand(150, 210);
   const rampRise = rand(60, 95);
@@ -125,7 +145,7 @@ function featureGapJump(state, t) {
 
   const boostStart = state.cursorX + rampLen * 0.55;
   appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 13 + gapWidth / 46);
+  addBoost(state, boostStart, state.cursorX, 34 + gapWidth / 12);
 
   openGap(state, gapWidth, state.baseline + rand(-6, 6));
   appendRamp(state, 90, -28); // gentle downward-sloped landing ramp
@@ -142,7 +162,7 @@ function featureSpikeRow(state, t) {
   appendRamp(state, bumpLen * 0.5, -bumpRise);
 
   const spikeCount = 1 + Math.floor(rand(0, 2 + t * 2));
-  addBoost(state, boostStart, state.cursorX + 30, 9 + spikeCount * 1.6);
+  addBoost(state, boostStart, state.cursorX + 30, 26 + spikeCount * 5);
 
   appendFlat(state, 40);
   for (let i = 0; i < spikeCount; i++) {
@@ -163,7 +183,7 @@ function featureMovingPlatformGap(state, t) {
 
   const boostStart = state.cursorX + rampLen * 0.5;
   appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 12 + gapWidth / 50);
+  addBoost(state, boostStart, state.cursorX, 32 + gapWidth / 14);
 
   const platformX = state.cursorX + gapWidth / 2;
   const platformBaseY = state.baseline - rand(20, 50);
@@ -201,7 +221,7 @@ function featureRotatingBlade(state, t) {
   const rampRise = 40;
   const boostStart = state.cursorX + rampLen * 0.5;
   appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 15);
+  addBoost(state, boostStart, state.cursorX, 38);
 
   const flatLen = rand(200, 280);
   const bladeX = state.cursorX + flatLen / 2;
@@ -234,7 +254,8 @@ function featureLowTunnel(state, t) {
 }
 
 const FEATURES = [
-  { type: "hills", weight: 5, run: featureRollingHills },
+  { type: "hills", weight: 4, run: featureRollingHills },
+  { type: "peaks", weight: 4, run: featureAngularPeaks },
   { type: "gap", weight: 3, run: featureGapJump },
   { type: "spikes", weight: 3, run: featureSpikeRow },
   { type: "platform", weight: 2, run: featureMovingPlatformGap },

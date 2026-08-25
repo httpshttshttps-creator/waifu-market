@@ -1088,7 +1088,7 @@ button {
 /* ---------------- rider game ---------------- */
 
 .rider-game {
-  --neon-cyan: #4fe3ff;
+  --neon-gold: #f2c14e;
   --neon-magenta: #ff6ec7;
   min-height: calc(100dvh - 180px);
   display: flex;
@@ -1105,8 +1105,8 @@ button {
   gap: 14px;
   padding: 40px 12px;
   border-radius: var(--radius-lg);
-  background: radial-gradient(120% 100% at 50% 0%, rgba(139, 95, 224, 0.18), transparent 60%), rgba(8, 3, 20, 0.6);
-  border: 1px solid rgba(79, 227, 255, 0.25);
+  background: radial-gradient(120% 100% at 50% 0%, rgba(58, 15, 31, 0.5), transparent 60%), rgba(20, 6, 14, 0.6);
+  border: 1px solid rgba(242, 193, 78, 0.25);
 }
 
 .rider-game__intro-text {
@@ -1127,8 +1127,8 @@ button {
   margin-top: 10px;
   padding: 14px 32px;
   font-size: 15px;
-  background: linear-gradient(180deg, var(--neon-cyan), #2a8fb0);
-  box-shadow: 0 0 22px rgba(79, 227, 255, 0.45);
+  background: linear-gradient(180deg, var(--neon-gold), #b8863a);
+  box-shadow: 0 0 22px rgba(242, 193, 78, 0.45);
 }
 
 .rider-game__stage {
@@ -1181,7 +1181,7 @@ button {
 }
 
 .rider-game__result {
-  --card-accent: var(--neon-cyan);
+  --card-accent: var(--neon-gold);
 }
 
 .rider-game__result-title {
