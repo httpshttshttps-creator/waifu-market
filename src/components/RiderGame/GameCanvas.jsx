@@ -8,24 +8,29 @@ const { Engine, Body, Bodies, Composite, Constraint, Events } = Matter;
 // to rest on "ground" (real terrain AND the safe moving platforms), while
 // touching anything in "trap" ends the run immediately. The chassis
 // touching either ground or a trap also ends the run (you can't land on
-// your frame, same rule real Rider-style games use).
+// your frame).
 const CATEGORY_GROUND = 0x0002;
 const CATEGORY_BIKE = 0x0004;
 const CATEGORY_TRAP = 0x0008;
 
-// Tuned by feel, not by a physics spec - nudge these if the bike feels
-// too floaty/heavy once you've actually played it.
+// Tuned by feel. Propulsion and jump strength are deliberately decoupled:
+// forward speed stays modest and controllable, while leaving the ground
+// inside a "boost" zone (see terrain.js) guarantees a strong, obstacle-
+// specific launch instead of relying on fragile emergent ramp physics.
 const GRAVITY_Y = 1.0;
-const FORWARD_FORCE = 0.0048;
-const MAX_SPEED = 11.5;
-const REAR_WHEEL_SPIN = 0.55;
-const FRONT_WHEEL_SPIN = 0.38;
+const FORWARD_FORCE = 0.0032;
+const MAX_SPEED = 8.5;
+const REAR_WHEEL_SPIN = 0.5;
+const FRONT_WHEEL_SPIN = 0.35;
 const AIR_PITCH_TORQUE = 0.0016;
 const AUTO_LEVEL_GAIN = 0.05;
 const AUTO_LEVEL_DAMPING = 0.02;
-const FALL_DEATH_OFFSET = 480;
+const FALL_DEATH_OFFSET = 900; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.36;
 const CAMERA_LEAD_Y = 0.56;
+const FIXED_DT = 1000 / 60; // fixed physics step for smooth, frame-rate-independent motion
+const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/lag spike
+const EXPLOSION_DURATION = 750;
 
 function isWheel(body) {
   return body.label === "wheel";
@@ -42,11 +47,11 @@ function isTrap(body) {
 
 function createBike(x, y) {
   const group = Body.nextGroup(true);
-  const wheelRadius = 15;
-  const wheelBase = 46;
-  const rideHeight = 13;
+  const wheelRadius = 11;
+  const wheelBase = 34;
+  const rideHeight = 10;
 
-  const chassis = Bodies.rectangle(x, y, 58, 14, {
+  const chassis = Bodies.rectangle(x, y, 42, 10, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
     density: 0.0028,
     friction: 0.3,
@@ -111,11 +116,21 @@ function buildGroundSegment(p1, p2) {
 function buildTrapBody(trap, baseline) {
   switch (trap.type) {
     case "spike":
-      return Bodies.rectangle(trap.x, trap.y - trap.height / 2, trap.width * 0.62, trap.height, {
+      // Hitbox closely matches the drawn triangle - grazing it should count.
+      return Bodies.rectangle(trap.x, trap.y - trap.height / 2, trap.width * 0.85, trap.height, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
       });
+    case "pitfloor": {
+      const midX = (trap.x1 + trap.x2) / 2;
+      const width = trap.x2 - trap.x1;
+      return Bodies.rectangle(midX, trap.y, width, 50, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    }
     case "platform":
       return Bodies.rectangle(trap.x, trap.y, trap.width, trap.height, {
         isStatic: true,
@@ -130,7 +145,7 @@ function buildTrapBody(trap, baseline) {
         label: "trap",
       });
     case "blade":
-      return Bodies.circle(trap.x, trap.y, trap.radius * 0.55, {
+      return Bodies.circle(trap.x, trap.y, trap.radius * 0.85, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
@@ -153,42 +168,18 @@ function buildTrapBody(trap, baseline) {
 // ---------------- rendering ----------------
 
 function drawBackground(ctx, width, height) {
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#05010f");
-  gradient.addColorStop(1, "#0d0322");
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = "#0a0316";
   ctx.fillRect(0, 0, width, height);
 }
 
-function drawGrid(ctx, cameraX, cameraY, width, height) {
+function drawGround(ctx, terrain, cameraX, width) {
   ctx.save();
-  ctx.strokeStyle = "rgba(139, 95, 224, 0.14)";
-  ctx.lineWidth = 1;
-  const spacing = 60;
-  const startX = Math.floor(cameraX / spacing) * spacing;
-  for (let x = startX; x < cameraX + width + spacing; x += spacing) {
-    ctx.beginPath();
-    ctx.moveTo(x, cameraY - spacing);
-    ctx.lineTo(x, cameraY + height + spacing);
-    ctx.stroke();
-  }
-  const startY = Math.floor(cameraY / spacing) * spacing;
-  for (let y = startY; y < cameraY + height + spacing; y += spacing) {
-    ctx.beginPath();
-    ctx.moveTo(cameraX - spacing, y);
-    ctx.lineTo(cameraX + width + spacing, y);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawGround(ctx, terrain, cameraX, cameraY, width, height) {
-  ctx.save();
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 7;
   ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.shadowColor = "#4fe3ff";
-  ctx.shadowBlur = 14;
-  ctx.strokeStyle = "#4fe3ff";
+  ctx.shadowBlur = 26;
+  ctx.strokeStyle = "#7fedff";
 
   for (const span of terrain.spans) {
     if (span.length < 2) continue;
@@ -196,6 +187,7 @@ function drawGround(ctx, terrain, cameraX, cameraY, width, height) {
     const first = span[0];
     if (last.x < cameraX - 50 || first.x > cameraX + width + 50) continue;
 
+    // two passes: a soft wide glow underneath, a crisp bright line on top
     ctx.beginPath();
     ctx.moveTo(span[0].x, span[0].y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -203,12 +195,9 @@ function drawGround(ctx, terrain, cameraX, cameraY, width, height) {
 
     ctx.save();
     ctx.shadowBlur = 0;
-    const fillGradient = ctx.createLinearGradient(0, span[0].y, 0, cameraY + height + 100);
-    fillGradient.addColorStop(0, "rgba(40, 20, 70, 0.85)");
-    fillGradient.addColorStop(1, "rgba(8, 4, 18, 0.95)");
-    ctx.fillStyle = fillGradient;
-    ctx.lineTo(last.x, cameraY + height + 100);
-    ctx.lineTo(first.x, cameraY + height + 100);
+    ctx.fillStyle = "#150a2c";
+    ctx.lineTo(last.x, last.y + 400);
+    ctx.lineTo(first.x, first.y + 400);
     ctx.closePath();
     ctx.fill();
     ctx.restore();
@@ -219,9 +208,9 @@ function drawGround(ctx, terrain, cameraX, cameraY, width, height) {
 function drawSpike(ctx, trap) {
   ctx.save();
   ctx.shadowColor = "#ff3d6e";
-  ctx.shadowBlur = 12;
-  ctx.strokeStyle = "#ff3d6e";
-  ctx.fillStyle = "rgba(255, 61, 110, 0.18)";
+  ctx.shadowBlur = 22;
+  ctx.strokeStyle = "#ff6a8f";
+  ctx.fillStyle = "rgba(255, 61, 110, 0.25)";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(trap.x, trap.y - trap.height);
@@ -233,13 +222,36 @@ function drawSpike(ctx, trap) {
   ctx.restore();
 }
 
+function drawPitFloor(ctx, trap) {
+  ctx.save();
+  ctx.shadowColor = "#ff3d6e";
+  ctx.shadowBlur = 20;
+  ctx.strokeStyle = "#ff6a8f";
+  ctx.fillStyle = "rgba(255, 61, 110, 0.22)";
+  ctx.lineWidth = 2;
+  const spikeWidth = 26;
+  const count = Math.max(1, Math.round((trap.x2 - trap.x1) / spikeWidth));
+  const step = (trap.x2 - trap.x1) / count;
+  for (let i = 0; i < count; i++) {
+    const cx = trap.x1 + step * (i + 0.5);
+    ctx.beginPath();
+    ctx.moveTo(cx, trap.y - 26);
+    ctx.lineTo(cx - step / 2, trap.y);
+    ctx.lineTo(cx + step / 2, trap.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPlatform(ctx, body) {
   ctx.save();
   ctx.shadowColor = "#6fe3b4";
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = "rgba(111, 227, 180, 0.25)";
-  ctx.strokeStyle = "#6fe3b4";
-  ctx.lineWidth = 2.5;
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = "rgba(111, 227, 180, 0.3)";
+  ctx.strokeStyle = "#8ffcd0";
+  ctx.lineWidth = 3;
   const { vertices } = body;
   ctx.beginPath();
   ctx.moveTo(vertices[0].x, vertices[0].y);
@@ -252,7 +264,7 @@ function drawPlatform(ctx, body) {
 
 function drawPendulum(ctx, trap, body) {
   ctx.save();
-  ctx.strokeStyle = "rgba(242, 184, 75, 0.55)";
+  ctx.strokeStyle = "rgba(242, 184, 75, 0.6)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(trap.anchorX, trap.anchorY);
@@ -260,8 +272,8 @@ function drawPendulum(ctx, trap, body) {
   ctx.stroke();
 
   ctx.shadowColor = "#f2b84b";
-  ctx.shadowBlur = 16;
-  ctx.fillStyle = "#f2b84b";
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = "#ffd989";
   ctx.beginPath();
   ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
   ctx.fill();
@@ -274,9 +286,9 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.translate(trap.x, trap.y);
   ctx.rotate(angle);
   ctx.shadowColor = "#ff6ec7";
-  ctx.shadowBlur = 18;
-  ctx.strokeStyle = "#ff6ec7";
-  ctx.lineWidth = 3.5;
+  ctx.shadowBlur = 28;
+  ctx.strokeStyle = "#ffa0dd";
+  ctx.lineWidth = 4;
   for (let i = 0; i < 4; i++) {
     ctx.rotate(Math.PI / 2);
     ctx.beginPath();
@@ -284,7 +296,7 @@ function drawBlade(ctx, trap, elapsed) {
     ctx.lineTo(trap.radius, 0);
     ctx.stroke();
   }
-  ctx.fillStyle = "rgba(255, 110, 199, 0.3)";
+  ctx.fillStyle = "rgba(255, 110, 199, 0.35)";
   ctx.beginPath();
   ctx.arc(0, 0, trap.radius * 0.35, 0, Math.PI * 2);
   ctx.fill();
@@ -294,10 +306,10 @@ function drawBlade(ctx, trap, elapsed) {
 function drawTunnel(ctx, body) {
   ctx.save();
   ctx.shadowColor = "#8b5fe0";
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = "rgba(139, 95, 224, 0.22)";
-  ctx.strokeStyle = "#8b5fe0";
-  ctx.lineWidth = 2.5;
+  ctx.shadowBlur = 20;
+  ctx.fillStyle = "rgba(139, 95, 224, 0.28)";
+  ctx.strokeStyle = "#b79dff";
+  ctx.lineWidth = 3;
   const { vertices } = body;
   ctx.beginPath();
   ctx.moveTo(vertices[0].x, vertices[0].y);
@@ -314,7 +326,7 @@ function drawBike(ctx, bike, gasHeld) {
   ctx.save();
   ctx.strokeStyle = gasHeld ? "#ffffff" : "#4fe3ff";
   ctx.shadowColor = gasHeld ? "#ffffff" : "#4fe3ff";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 20;
   ctx.lineWidth = 3;
   for (const wheel of [rearWheel, frontWheel]) {
     ctx.beginPath();
@@ -334,26 +346,41 @@ function drawBike(ctx, bike, gasHeld) {
   ctx.translate(chassis.position.x, chassis.position.y);
   ctx.rotate(chassis.angle);
   ctx.shadowColor = "#ff6ec7";
-  ctx.shadowBlur = 14;
-  ctx.strokeStyle = "#ff6ec7";
-  ctx.lineWidth = 5;
+  ctx.shadowBlur = 22;
+  ctx.strokeStyle = "#ffa0dd";
+  ctx.lineWidth = 4.5;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(-29, 0);
-  ctx.lineTo(29, 0);
+  ctx.moveTo(-21, 0);
+  ctx.lineTo(21, 0);
   ctx.stroke();
 
   ctx.strokeStyle = "#fff2f0";
   ctx.shadowColor = "#fff2f0";
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.moveTo(6, 0);
-  ctx.lineTo(16, -16);
+  ctx.moveTo(4, 0);
+  ctx.lineTo(12, -12);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(-10, 0);
-  ctx.lineTo(-4, -14);
+  ctx.moveTo(-7, 0);
+  ctx.lineTo(-3, -10);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawExplosion(ctx, particles) {
+  ctx.save();
+  for (const p of particles) {
+    const alpha = Math.max(0, 1 - p.age / p.life);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -383,9 +410,29 @@ function drawHud(ctx, seconds, width) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.shadowColor = "#4fe3ff";
-  ctx.shadowBlur = 8;
+  ctx.shadowBlur = 12;
   ctx.fillText(label, width / 2, 14 + 18);
   ctx.restore();
+}
+
+function createExplosionParticles(x, y) {
+  const colors = ["#ff6ec7", "#4fe3ff", "#ffd989", "#ffffff"];
+  const particles = [];
+  for (let i = 0; i < 26; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 3 + Math.random() * 4,
+      life: 400 + Math.random() * 350,
+      age: 0,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+  return particles;
 }
 
 // ---------------- component ----------------
@@ -408,7 +455,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
     const baseline = 420;
     const terrain = createTerrainState(baseline);
-    const bike = createBike(160, baseline - 120);
+    const bike = createBike(160, baseline - 100);
     Composite.add(world, [
       bike.chassis,
       bike.rearWheel,
@@ -490,12 +537,17 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     // mark the bike as airborne while it's still resting on the other.
     let groundContacts = 0;
     let crashed = false;
+    let gameOverFired = false;
+    let explosionStartedAt = null;
+    let explosionParticles = [];
+    let pendingScore = 0;
 
     function triggerCrash(elapsedSeconds) {
       if (crashed) return;
       crashed = true;
-      const finalScore = Math.max(0, Math.floor(elapsedSeconds));
-      onGameOverRef.current(finalScore);
+      pendingScore = Math.max(0, Math.floor(elapsedSeconds));
+      explosionStartedAt = performance.now();
+      explosionParticles = createExplosionParticles(bike.chassis.position.x, bike.chassis.position.y);
     }
 
     function handlePair(a, b, elapsedSeconds) {
@@ -556,50 +608,93 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     resize();
     window.addEventListener("resize", resize);
 
+    // ---------------- fixed-timestep physics step ----------------
+    let wasGrounded = false;
+
+    function stepPhysics(dtMs) {
+      elapsedRef += dtMs / 1000;
+
+      const grounded = groundContacts > 0;
+
+      if (gasRef.current) {
+        if (grounded) {
+          Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
+          Body.setAngularVelocity(bike.rearWheel, REAR_WHEEL_SPIN);
+          Body.setAngularVelocity(bike.frontWheel, FRONT_WHEEL_SPIN);
+        } else {
+          Body.setAngularVelocity(
+            bike.chassis,
+            Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, 0.15)
+          );
+        }
+      } else if (!grounded) {
+        const correction =
+          -bike.chassis.angle * AUTO_LEVEL_GAIN - bike.chassis.angularVelocity * AUTO_LEVEL_DAMPING;
+        Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity + correction);
+      }
+
+      if (bike.chassis.velocity.x > MAX_SPEED) {
+        Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
+      }
+
+      // Leaving the ground inside a boost zone guarantees a strong,
+      // obstacle-tuned minimum launch - see terrain.js's addBoost calls.
+      if (wasGrounded && !grounded) {
+        const bikeX = bike.chassis.position.x;
+        const activeBoost = terrain.boosts.find((b) => bikeX >= b.x1 && bikeX <= b.x2);
+        if (activeBoost) {
+          const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
+          const kick = activeBoost.power * (0.65 + 0.35 * speedFraction);
+          const targetVy = -kick;
+          if (bike.chassis.velocity.y > targetVy) {
+            Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: targetVy });
+          }
+        }
+      }
+      wasGrounded = grounded;
+
+      generateAhead(terrain, bike.chassis.position.x + 1500, elapsedRef);
+      buildNewTerrain();
+      pruneOldTerrain(bike.chassis.position.x);
+      updateMovingTraps(elapsedRef);
+
+      Engine.update(engine, dtMs);
+
+      if (bike.chassis.position.y > terrain.baseline + FALL_DEATH_OFFSET) {
+        triggerCrash(elapsedRef);
+      }
+    }
+
     // ---------------- main loop ----------------
     let rafId;
     let lastTime = performance.now();
+    let accumulator = 0;
     let cameraX = bike.chassis.position.x;
     let cameraY = bike.chassis.position.y;
 
     function tick(now) {
-      const dt = Math.min(now - lastTime, 34);
+      const frameTime = Math.min(now - lastTime, 250);
       lastTime = now;
 
       if (!crashed) {
-        elapsedRef += dt / 1000;
-
-        const grounded = groundContacts > 0;
-        if (gasRef.current) {
-          if (grounded) {
-            Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
-            Body.setAngularVelocity(bike.rearWheel, REAR_WHEEL_SPIN);
-            Body.setAngularVelocity(bike.frontWheel, FRONT_WHEEL_SPIN);
-          } else {
-            Body.setAngularVelocity(
-              bike.chassis,
-              Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dt, 0.15)
-            );
-          }
-        } else if (!grounded) {
-          const correction =
-            -bike.chassis.angle * AUTO_LEVEL_GAIN - bike.chassis.angularVelocity * AUTO_LEVEL_DAMPING;
-          Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity + correction);
+        accumulator += frameTime;
+        let steps = 0;
+        while (accumulator >= FIXED_DT && steps < MAX_STEPS_PER_FRAME) {
+          stepPhysics(FIXED_DT);
+          accumulator -= FIXED_DT;
+          steps++;
         }
-
-        if (bike.chassis.velocity.x > MAX_SPEED) {
-          Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
+      } else {
+        const explosionAge = now - explosionStartedAt;
+        for (const p of explosionParticles) {
+          p.age = explosionAge;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += 0.15;
         }
-
-        generateAhead(terrain, bike.chassis.position.x + 1500, elapsedRef);
-        buildNewTerrain();
-        pruneOldTerrain(bike.chassis.position.x);
-        updateMovingTraps(elapsedRef);
-
-        Engine.update(engine, dt);
-
-        if (bike.chassis.position.y > terrain.baseline + FALL_DEATH_OFFSET) {
-          triggerCrash(elapsedRef);
+        if (explosionAge > EXPLOSION_DURATION && !gameOverFired) {
+          gameOverFired = true;
+          onGameOverRef.current(pendingScore);
         }
       }
 
@@ -617,8 +712,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.translate(-cameraX, -cameraY);
-      drawGrid(ctx, cameraX, cameraY, viewWidth, viewHeight);
-      drawGround(ctx, terrain, cameraX, cameraY, viewWidth, viewHeight);
+      drawGround(ctx, terrain, cameraX, viewWidth);
 
       for (const trap of terrain.traps) {
         const runtime = trapRuntime.get(trap);
@@ -627,13 +721,15 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (trap.anchorX !== undefined && trap.anchorX < cameraX - 400) continue;
 
         if (trap.type === "spike") drawSpike(ctx, trap);
+        else if (trap.type === "pitfloor") drawPitFloor(ctx, trap);
         else if (trap.type === "platform" && runtime) drawPlatform(ctx, runtime.body);
         else if (trap.type === "pendulum" && runtime) drawPendulum(ctx, trap, runtime.body);
         else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
         else if (trap.type === "tunnel" && runtime) drawTunnel(ctx, runtime.body);
       }
 
-      drawBike(ctx, bike, gasRef.current);
+      if (crashed) drawExplosion(ctx, explosionParticles);
+      else drawBike(ctx, bike, gasRef.current);
       ctx.restore();
 
       ctx.save();
@@ -643,13 +739,13 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       ctx.restore();
 
-      if (!crashed) rafId = requestAnimationFrame(tick);
+      if (!gameOverFired) rafId = requestAnimationFrame(tick);
     }
 
     rafId = requestAnimationFrame(tick);
 
     return () => {
-      crashed = true;
+      gameOverFired = true;
       cancelAnimationFrame(rafId);
       canvas.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointerup", onPointerUp);
