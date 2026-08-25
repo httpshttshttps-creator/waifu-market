@@ -74,9 +74,26 @@ function TaskIcon({ active }) {
   );
 }
 
+function GameIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="7" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
+      <circle cx="17" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
+      <path
+        d="M9.2 15.5h5.6M9.5 15 12 8h3.5l2 3"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 const TABS = [
   { id: "home", label: "Home", Icon: HomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon },
+  { id: "game", label: "Ride", Icon: GameIcon },
   { id: "leaderboard", label: "Leaderboard", Icon: TrophyIcon },
   { id: "task", label: "Tasks", Icon: TaskIcon },
 ];

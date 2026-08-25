@@ -1084,3 +1084,111 @@ button {
   cursor: pointer;
   font-size: 14px;
 }
+
+/* ---------------- rider game ---------------- */
+
+.rider-game {
+  --neon-cyan: #4fe3ff;
+  --neon-magenta: #ff6ec7;
+  min-height: calc(100dvh - 180px);
+  display: flex;
+  flex-direction: column;
+}
+
+.rider-game__intro {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px 12px;
+  border-radius: var(--radius-lg);
+  background: radial-gradient(120% 100% at 50% 0%, rgba(139, 95, 224, 0.18), transparent 60%), rgba(8, 3, 20, 0.6);
+  border: 1px solid rgba(79, 227, 255, 0.25);
+}
+
+.rider-game__intro-text {
+  max-width: 320px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.rider-game__intro-text--dim {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.rider-game__start {
+  margin-top: 10px;
+  padding: 14px 32px;
+  font-size: 15px;
+  background: linear-gradient(180deg, var(--neon-cyan), #2a8fb0);
+  box-shadow: 0 0 22px rgba(79, 227, 255, 0.45);
+}
+
+.rider-game__stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid rgba(79, 227, 255, 0.3);
+  box-shadow: 0 0 30px rgba(79, 227, 255, 0.12);
+  background: #05010f;
+  touch-action: none;
+}
+
+.rider-game__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.rider-game__quit {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(10, 4, 24, 0.65);
+  color: #fdeceb;
+  font-size: 15px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.rider-game__hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(10, 4, 24, 0.6);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.rider-game__result {
+  --card-accent: var(--neon-cyan);
+}
+
+.rider-game__result-title {
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  margin: 4px 0 16px;
+}

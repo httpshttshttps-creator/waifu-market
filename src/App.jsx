@@ -19,6 +19,7 @@ import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
 import TaskTab from "./components/TaskTab.jsx";
+import RiderGame from "./components/RiderGame/index.jsx";
 
 export default function App() {
   const { haptic, notify } = useTelegram();
@@ -216,6 +217,8 @@ export default function App() {
         )}
 
         {activeTab === "leaderboard" && <LeaderboardTab />}
+
+        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
         {activeTab === "task" && <TaskTab notify={notify} />}
       </div>

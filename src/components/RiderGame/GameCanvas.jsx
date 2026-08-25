@@ -1,0 +1,676 @@
+import { useEffect, useRef } from "react";
+import Matter from "matter-js";
+import { createTerrainState, generateAhead, pruneBehind, GAP_PRUNE_MARGIN } from "./terrain.js";
+
+const { Engine, Body, Bodies, Composite, Constraint, Events } = Matter;
+
+// Collision categories - kept simple: the bike's wheels are only allowed
+// to rest on "ground" (real terrain AND the safe moving platforms), while
+// touching anything in "trap" ends the run immediately. The chassis
+// touching either ground or a trap also ends the run (you can't land on
+// your frame, same rule real Rider-style games use).
+const CATEGORY_GROUND = 0x0002;
+const CATEGORY_BIKE = 0x0004;
+const CATEGORY_TRAP = 0x0008;
+
+// Tuned by feel, not by a physics spec - nudge these if the bike feels
+// too floaty/heavy once you've actually played it.
+const GRAVITY_Y = 1.0;
+const FORWARD_FORCE = 0.0048;
+const MAX_SPEED = 11.5;
+const REAR_WHEEL_SPIN = 0.55;
+const FRONT_WHEEL_SPIN = 0.38;
+const AIR_PITCH_TORQUE = 0.0016;
+const AUTO_LEVEL_GAIN = 0.05;
+const AUTO_LEVEL_DAMPING = 0.02;
+const FALL_DEATH_OFFSET = 480;
+const CAMERA_LEAD_X = 0.36;
+const CAMERA_LEAD_Y = 0.56;
+
+function isWheel(body) {
+  return body.label === "wheel";
+}
+function isChassis(body) {
+  return body.label === "chassis";
+}
+function isGround(body) {
+  return body.collisionFilter.category === CATEGORY_GROUND;
+}
+function isTrap(body) {
+  return body.collisionFilter.category === CATEGORY_TRAP;
+}
+
+function createBike(x, y) {
+  const group = Body.nextGroup(true);
+  const wheelRadius = 15;
+  const wheelBase = 46;
+  const rideHeight = 13;
+
+  const chassis = Bodies.rectangle(x, y, 58, 14, {
+    collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
+    density: 0.0028,
+    friction: 0.3,
+    frictionAir: 0.014,
+    label: "chassis",
+  });
+
+  const rearWheel = Bodies.circle(x - wheelBase / 2, y + rideHeight, wheelRadius, {
+    collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
+    friction: 0.96,
+    frictionStatic: 1.4,
+    density: 0.012,
+    label: "wheel",
+  });
+
+  const frontWheel = Bodies.circle(x + wheelBase / 2, y + rideHeight, wheelRadius, {
+    collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
+    friction: 0.96,
+    frictionStatic: 1.4,
+    density: 0.012,
+    label: "wheel",
+  });
+
+  const rearAxle = Constraint.create({
+    bodyA: chassis,
+    pointA: { x: -wheelBase / 2, y: rideHeight },
+    bodyB: rearWheel,
+    stiffness: 1,
+    damping: 0.25,
+    length: 0,
+  });
+
+  const frontAxle = Constraint.create({
+    bodyA: chassis,
+    pointA: { x: wheelBase / 2, y: rideHeight },
+    bodyB: frontWheel,
+    stiffness: 1,
+    damping: 0.25,
+    length: 0,
+  });
+
+  return { chassis, rearWheel, frontWheel, rearAxle, frontAxle, wheelRadius };
+}
+
+function buildGroundSegment(p1, p2) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const length = Math.hypot(dx, dy) + 2;
+  const angle = Math.atan2(dy, dx);
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  const thickness = 46;
+  return Bodies.rectangle(midX, midY + thickness / 2, length, thickness, {
+    isStatic: true,
+    angle,
+    friction: 0.92,
+    collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
+    label: "ground",
+  });
+}
+
+function buildTrapBody(trap, baseline) {
+  switch (trap.type) {
+    case "spike":
+      return Bodies.rectangle(trap.x, trap.y - trap.height / 2, trap.width * 0.62, trap.height, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "platform":
+      return Bodies.rectangle(trap.x, trap.y, trap.width, trap.height, {
+        isStatic: true,
+        friction: 0.9,
+        collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
+        label: "ground",
+      });
+    case "pendulum":
+      return Bodies.circle(trap.anchorX, trap.anchorY + trap.length, trap.radius, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "blade":
+      return Bodies.circle(trap.x, trap.y, trap.radius * 0.55, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "tunnel": {
+      const midX = (trap.x1 + trap.x2) / 2;
+      const length = trap.x2 - trap.x1;
+      const ceilingThickness = 40;
+      return Bodies.rectangle(midX, baseline - trap.clearance - ceilingThickness / 2, length, ceilingThickness, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    }
+    default:
+      return null;
+  }
+}
+
+// ---------------- rendering ----------------
+
+function drawBackground(ctx, width, height) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "#05010f");
+  gradient.addColorStop(1, "#0d0322");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+}
+
+function drawGrid(ctx, cameraX, cameraY, width, height) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(139, 95, 224, 0.14)";
+  ctx.lineWidth = 1;
+  const spacing = 60;
+  const startX = Math.floor(cameraX / spacing) * spacing;
+  for (let x = startX; x < cameraX + width + spacing; x += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(x, cameraY - spacing);
+    ctx.lineTo(x, cameraY + height + spacing);
+    ctx.stroke();
+  }
+  const startY = Math.floor(cameraY / spacing) * spacing;
+  for (let y = startY; y < cameraY + height + spacing; y += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(cameraX - spacing, y);
+    ctx.lineTo(cameraX + width + spacing, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGround(ctx, terrain, cameraX, cameraY, width, height) {
+  ctx.save();
+  ctx.lineWidth = 4;
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "#4fe3ff";
+  ctx.shadowBlur = 14;
+  ctx.strokeStyle = "#4fe3ff";
+
+  for (const span of terrain.spans) {
+    if (span.length < 2) continue;
+    const last = span[span.length - 1];
+    const first = span[0];
+    if (last.x < cameraX - 50 || first.x > cameraX + width + 50) continue;
+
+    ctx.beginPath();
+    ctx.moveTo(span[0].x, span[0].y);
+    for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.shadowBlur = 0;
+    const fillGradient = ctx.createLinearGradient(0, span[0].y, 0, cameraY + height + 100);
+    fillGradient.addColorStop(0, "rgba(40, 20, 70, 0.85)");
+    fillGradient.addColorStop(1, "rgba(8, 4, 18, 0.95)");
+    ctx.fillStyle = fillGradient;
+    ctx.lineTo(last.x, cameraY + height + 100);
+    ctx.lineTo(first.x, cameraY + height + 100);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawSpike(ctx, trap) {
+  ctx.save();
+  ctx.shadowColor = "#ff3d6e";
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = "#ff3d6e";
+  ctx.fillStyle = "rgba(255, 61, 110, 0.18)";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(trap.x, trap.y - trap.height);
+  ctx.lineTo(trap.x - trap.width / 2, trap.y);
+  ctx.lineTo(trap.x + trap.width / 2, trap.y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlatform(ctx, body) {
+  ctx.save();
+  ctx.shadowColor = "#6fe3b4";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "rgba(111, 227, 180, 0.25)";
+  ctx.strokeStyle = "#6fe3b4";
+  ctx.lineWidth = 2.5;
+  const { vertices } = body;
+  ctx.beginPath();
+  ctx.moveTo(vertices[0].x, vertices[0].y);
+  for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPendulum(ctx, trap, body) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(242, 184, 75, 0.55)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(trap.anchorX, trap.anchorY);
+  ctx.lineTo(body.position.x, body.position.y);
+  ctx.stroke();
+
+  ctx.shadowColor = "#f2b84b";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#f2b84b";
+  ctx.beginPath();
+  ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBlade(ctx, trap, elapsed) {
+  const angle = elapsed * trap.speed * 3;
+  ctx.save();
+  ctx.translate(trap.x, trap.y);
+  ctx.rotate(angle);
+  ctx.shadowColor = "#ff6ec7";
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = "#ff6ec7";
+  ctx.lineWidth = 3.5;
+  for (let i = 0; i < 4; i++) {
+    ctx.rotate(Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(trap.radius, 0);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(255, 110, 199, 0.3)";
+  ctx.beginPath();
+  ctx.arc(0, 0, trap.radius * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTunnel(ctx, body) {
+  ctx.save();
+  ctx.shadowColor = "#8b5fe0";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "rgba(139, 95, 224, 0.22)";
+  ctx.strokeStyle = "#8b5fe0";
+  ctx.lineWidth = 2.5;
+  const { vertices } = body;
+  ctx.beginPath();
+  ctx.moveTo(vertices[0].x, vertices[0].y);
+  for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBike(ctx, bike, gasHeld) {
+  const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
+
+  ctx.save();
+  ctx.strokeStyle = gasHeld ? "#ffffff" : "#4fe3ff";
+  ctx.shadowColor = gasHeld ? "#ffffff" : "#4fe3ff";
+  ctx.shadowBlur = 10;
+  ctx.lineWidth = 3;
+  for (const wheel of [rearWheel, frontWheel]) {
+    ctx.beginPath();
+    ctx.arc(wheel.position.x, wheel.position.y, wheelRadius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(wheel.position.x, wheel.position.y);
+    ctx.lineTo(
+      wheel.position.x + Math.cos(wheel.angle) * wheelRadius,
+      wheel.position.y + Math.sin(wheel.angle) * wheelRadius
+    );
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(chassis.position.x, chassis.position.y);
+  ctx.rotate(chassis.angle);
+  ctx.shadowColor = "#ff6ec7";
+  ctx.shadowBlur = 14;
+  ctx.strokeStyle = "#ff6ec7";
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(-29, 0);
+  ctx.lineTo(29, 0);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#fff2f0";
+  ctx.shadowColor = "#fff2f0";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(6, 0);
+  ctx.lineTo(16, -16);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-10, 0);
+  ctx.lineTo(-4, -14);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawHud(ctx, seconds, width) {
+  ctx.save();
+  const label = `⏱ ${seconds}s`;
+  ctx.font = "700 20px 'IBM Plex Mono', monospace";
+  const textWidth = ctx.measureText(label).width;
+  const pillWidth = textWidth + 32;
+
+  ctx.fillStyle = "rgba(10, 4, 24, 0.65)";
+  ctx.strokeStyle = "rgba(79, 227, 255, 0.6)";
+  ctx.lineWidth = 1.5;
+  const pillX = width / 2 - pillWidth / 2;
+  const radius = 18;
+  ctx.beginPath();
+  ctx.moveTo(pillX + radius, 14);
+  ctx.arcTo(pillX + pillWidth, 14, pillX + pillWidth, 14 + 36, radius);
+  ctx.arcTo(pillX + pillWidth, 14 + 36, pillX, 14 + 36, radius);
+  ctx.arcTo(pillX, 14 + 36, pillX, 14, radius);
+  ctx.arcTo(pillX, 14, pillX + pillWidth, 14, radius);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#eafcff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#4fe3ff";
+  ctx.shadowBlur = 8;
+  ctx.fillText(label, width / 2, 14 + 18);
+  ctx.restore();
+}
+
+// ---------------- component ----------------
+
+export default function GameCanvas({ onGameOver, onQuit }) {
+  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const gasRef = useRef(false);
+  const onGameOverRef = useRef(onGameOver);
+  onGameOverRef.current = onGameOver;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    const ctx = canvas.getContext("2d");
+
+    const engine = Engine.create();
+    engine.gravity.y = GRAVITY_Y;
+    const world = engine.world;
+
+    const baseline = 420;
+    const terrain = createTerrainState(baseline);
+    const bike = createBike(160, baseline - 120);
+    Composite.add(world, [
+      bike.chassis,
+      bike.rearWheel,
+      bike.frontWheel,
+      bike.rearAxle,
+      bike.frontAxle,
+    ]);
+
+    const spanBuiltCount = new WeakMap();
+    let groundBodies = []; // { body, endX }
+    const trapRuntime = new Map(); // trap -> { body }
+    const builtTraps = new Set();
+
+    function buildNewTerrain() {
+      for (const span of terrain.spans) {
+        const built = spanBuiltCount.get(span) || 0;
+        if (built >= span.length - 1) continue;
+        for (let i = built; i < span.length - 1; i++) {
+          const body = buildGroundSegment(span[i], span[i + 1]);
+          Composite.add(world, body);
+          groundBodies.push({ body, endX: span[i + 1].x });
+        }
+        spanBuiltCount.set(span, span.length - 1);
+      }
+
+      for (const trap of terrain.traps) {
+        if (builtTraps.has(trap)) continue;
+        const body = buildTrapBody(trap, terrain.baseline);
+        if (body) {
+          Composite.add(world, body);
+          trapRuntime.set(trap, { body });
+        }
+        builtTraps.add(trap);
+      }
+    }
+
+    function pruneOldTerrain(frontierX) {
+      const cutoff = frontierX - GAP_PRUNE_MARGIN;
+      groundBodies = groundBodies.filter((entry) => {
+        if (entry.endX < cutoff) {
+          Composite.remove(world, entry.body);
+          return false;
+        }
+        return true;
+      });
+
+      const removedTraps = pruneBehind(terrain, frontierX);
+      for (const trap of removedTraps) {
+        const runtime = trapRuntime.get(trap);
+        if (runtime) {
+          Composite.remove(world, runtime.body);
+          trapRuntime.delete(trap);
+        }
+        builtTraps.delete(trap);
+      }
+    }
+
+    function updateMovingTraps(elapsed) {
+      for (const trap of terrain.traps) {
+        const runtime = trapRuntime.get(trap);
+        if (!runtime) continue;
+
+        if (trap.type === "platform") {
+          const y = trap.y - trap.height + Math.sin(elapsed * trap.speed) * trap.travel;
+          Body.setPosition(runtime.body, { x: trap.x, y });
+        } else if (trap.type === "pendulum") {
+          const angle = Math.sin(elapsed * trap.speed + trap.phase) * 1.15;
+          const x = trap.anchorX + Math.sin(angle) * trap.length;
+          const y = trap.anchorY + Math.cos(angle) * trap.length;
+          Body.setPosition(runtime.body, { x, y });
+        }
+      }
+    }
+
+    // ---------------- collisions ----------------
+    // A wheel resting on the seam between two ground segments has TWO
+    // simultaneous contact pairs - track ground contact as a reference
+    // count (not a Set), so one of those pairs ending doesn't wrongly
+    // mark the bike as airborne while it's still resting on the other.
+    let groundContacts = 0;
+    let crashed = false;
+
+    function triggerCrash(elapsedSeconds) {
+      if (crashed) return;
+      crashed = true;
+      const finalScore = Math.max(0, Math.floor(elapsedSeconds));
+      onGameOverRef.current(finalScore);
+    }
+
+    function handlePair(a, b, elapsedSeconds) {
+      if ((isWheel(a) && isGround(b)) || (isWheel(b) && isGround(a))) groundContacts++;
+      if ((isChassis(a) && (isGround(b) || isTrap(b))) || (isChassis(b) && (isGround(a) || isTrap(a)))) {
+        triggerCrash(elapsedSeconds);
+      }
+      if ((isWheel(a) && isTrap(b)) || (isWheel(b) && isTrap(a))) {
+        triggerCrash(elapsedSeconds);
+      }
+    }
+
+    let elapsedRef = 0;
+
+    const onCollisionStart = (event) => {
+      for (const pair of event.pairs) handlePair(pair.bodyA, pair.bodyB, elapsedRef);
+    };
+    const onCollisionEnd = (event) => {
+      for (const pair of event.pairs) {
+        const { bodyA, bodyB } = pair;
+        if ((isWheel(bodyA) && isGround(bodyB)) || (isWheel(bodyB) && isGround(bodyA))) {
+          groundContacts = Math.max(0, groundContacts - 1);
+        }
+      }
+    };
+    Events.on(engine, "collisionStart", onCollisionStart);
+    Events.on(engine, "collisionEnd", onCollisionEnd);
+
+    // ---------------- input ----------------
+    function onPointerDown(event) {
+      event.preventDefault();
+      gasRef.current = true;
+    }
+    function onPointerUp() {
+      gasRef.current = false;
+    }
+    function onKeyDown(event) {
+      if (event.code === "Space" || event.code === "ArrowUp") gasRef.current = true;
+    }
+    function onKeyUp(event) {
+      if (event.code === "Space" || event.code === "ArrowUp") gasRef.current = false;
+    }
+    canvas.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    // ---------------- sizing ----------------
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = container.clientWidth * dpr;
+      canvas.height = container.clientHeight * dpr;
+      canvas.style.width = `${container.clientWidth}px`;
+      canvas.style.height = `${container.clientHeight}px`;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // ---------------- main loop ----------------
+    let rafId;
+    let lastTime = performance.now();
+    let cameraX = bike.chassis.position.x;
+    let cameraY = bike.chassis.position.y;
+
+    function tick(now) {
+      const dt = Math.min(now - lastTime, 34);
+      lastTime = now;
+
+      if (!crashed) {
+        elapsedRef += dt / 1000;
+
+        const grounded = groundContacts > 0;
+        if (gasRef.current) {
+          if (grounded) {
+            Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
+            Body.setAngularVelocity(bike.rearWheel, REAR_WHEEL_SPIN);
+            Body.setAngularVelocity(bike.frontWheel, FRONT_WHEEL_SPIN);
+          } else {
+            Body.setAngularVelocity(
+              bike.chassis,
+              Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dt, 0.15)
+            );
+          }
+        } else if (!grounded) {
+          const correction =
+            -bike.chassis.angle * AUTO_LEVEL_GAIN - bike.chassis.angularVelocity * AUTO_LEVEL_DAMPING;
+          Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity + correction);
+        }
+
+        if (bike.chassis.velocity.x > MAX_SPEED) {
+          Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
+        }
+
+        generateAhead(terrain, bike.chassis.position.x + 1500, elapsedRef);
+        buildNewTerrain();
+        pruneOldTerrain(bike.chassis.position.x);
+        updateMovingTraps(elapsedRef);
+
+        Engine.update(engine, dt);
+
+        if (bike.chassis.position.y > terrain.baseline + FALL_DEATH_OFFSET) {
+          triggerCrash(elapsedRef);
+        }
+      }
+
+      const viewWidth = container.clientWidth;
+      const viewHeight = container.clientHeight;
+      const targetX = bike.chassis.position.x - viewWidth * CAMERA_LEAD_X;
+      const targetY = bike.chassis.position.y - viewHeight * CAMERA_LEAD_Y;
+      cameraX += (targetX - cameraX) * 0.08;
+      cameraY += (targetY - cameraY) * 0.06;
+
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground(ctx, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.translate(-cameraX, -cameraY);
+      drawGrid(ctx, cameraX, cameraY, viewWidth, viewHeight);
+      drawGround(ctx, terrain, cameraX, cameraY, viewWidth, viewHeight);
+
+      for (const trap of terrain.traps) {
+        const runtime = trapRuntime.get(trap);
+        if (trap.x !== undefined && trap.x < cameraX - 200) continue;
+        if (trap.x1 !== undefined && trap.x2 < cameraX - 200) continue;
+        if (trap.anchorX !== undefined && trap.anchorX < cameraX - 400) continue;
+
+        if (trap.type === "spike") drawSpike(ctx, trap);
+        else if (trap.type === "platform" && runtime) drawPlatform(ctx, runtime.body);
+        else if (trap.type === "pendulum" && runtime) drawPendulum(ctx, trap, runtime.body);
+        else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
+        else if (trap.type === "tunnel" && runtime) drawTunnel(ctx, runtime.body);
+      }
+
+      drawBike(ctx, bike, gasRef.current);
+      ctx.restore();
+
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr);
+      ctx.restore();
+
+      ctx.restore();
+
+      if (!crashed) rafId = requestAnimationFrame(tick);
+    }
+
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      crashed = true;
+      cancelAnimationFrame(rafId);
+      canvas.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("resize", resize);
+      Events.off(engine, "collisionStart", onCollisionStart);
+      Events.off(engine, "collisionEnd", onCollisionEnd);
+      Composite.clear(world, false);
+      Engine.clear(engine);
+    };
+  }, []);
+
+  return (
+    <div className="rider-game__stage" ref={containerRef}>
+      <canvas ref={canvasRef} className="rider-game__canvas" />
+      <button type="button" className="rider-game__quit" onClick={onQuit}>
+        ✕
+      </button>
+      <p className="rider-game__hint">Hold anywhere to accelerate</p>
+    </div>
+  );
+}
