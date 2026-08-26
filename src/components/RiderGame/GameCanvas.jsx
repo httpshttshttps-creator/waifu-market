@@ -494,7 +494,16 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
     const baseline = 420;
     const terrain = createTerrainState(baseline);
-    const bike = createBike(160, baseline - 100);
+    // Spawn resting almost exactly on the ground (wheels ~= wheelRadius
+    // above baseline, chassis further up by rideHeight) with only a tiny
+    // clearance gap - not high above it. A real fall from height meant
+    // the bike was briefly airborne right at spawn, and if the player
+    // holds gas from frame one (as the "hold to accelerate" prompt
+    // invites), the strong air-flip torque had just enough time to spin
+    // the bike into a bad angle before it ever touched down once,
+    // causing an instant crash. Numbers below match createBike's own
+    // wheelRadius (14) + rideHeight (12) - keep in sync if those change.
+    const bike = createBike(160, baseline - 32);
     Composite.add(world, [
       bike.chassis,
       bike.rearWheel,
@@ -648,15 +657,24 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     window.addEventListener("resize", resize);
 
     // ---------------- fixed-timestep physics step ----------------
-    // The bike spawns a little above the ground, so it starts genuinely
-    // airborne (falls the last few px onto the safe flat start zone).
+    // The bike now spawns resting almost exactly on the ground (see
+    // createBike call above), so it should never genuinely be airborne
+    // before its first real jump. `hasLandedOnce` is a defensive
+    // backstop, not the primary fix: it blocks the strong air-flip
+    // torque from ever applying before the bike has touched ground at
+    // least once, so even if some future change (or an edge case in
+    // terrain generation) ever left the bike briefly airborne at spawn
+    // again, holding gas immediately can't spin it into an instant
+    // crash before it's had a real landing.
     let wasGrounded = false;
+    let hasLandedOnce = false;
     const trail = [];
 
     function stepPhysics(dtMs) {
       elapsedRef += dtMs / 1000;
 
       const grounded = groundContacts > 0;
+      if (grounded) hasLandedOnce = true;
 
       if (grounded) {
         if (gasRef.current) {
@@ -671,7 +689,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
-      } else if (gasRef.current) {
+      } else if (gasRef.current && hasLandedOnce) {
         Body.setAngularVelocity(
           bike.chassis,
           Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, AIR_PITCH_MAX_SPIN)
