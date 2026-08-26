@@ -56,18 +56,26 @@ function appendFlat(state, length) {
 
 // Adds a ramp (positive rise = uphill/launch ramp, negative = downhill)
 // over `length` px, subdivided into GROUND_STEP-sized points so it still
-// reads as a smooth line at the stroke width we draw at.
+// reads as a smooth line at the stroke width we draw at. The rise is
+// clamped to a climbable angle (~28 degrees) regardless of what the
+// caller asks for - a bike with finite engine power can lose almost all
+// its speed grinding up anything steeper, which made some jumps
+// impossible no matter how fast you arrived.
+const MAX_RAMP_SLOPE_RATIO = 0.53; // rise/length ceiling, ~28 degrees
+
 function appendRamp(state, length, rise) {
+  const maxRise = length * MAX_RAMP_SLOPE_RATIO;
+  const clampedRise = Math.max(-maxRise, Math.min(maxRise, rise));
   const steps = Math.max(1, Math.round(length / GROUND_STEP));
   const startY = state.cursorY;
   let x = state.cursorX;
   for (let i = 1; i <= steps; i++) {
     x = state.cursorX + i * (length / steps);
-    const y = startY - (rise * i) / steps;
+    const y = startY - (clampedRise * i) / steps;
     state.points.push({ x, y });
   }
   state.cursorX = x;
-  state.cursorY = startY - rise;
+  state.cursorY = startY - clampedRise;
 }
 
 // Opens a gap of `width` px, flooring it with spikes so it's never a

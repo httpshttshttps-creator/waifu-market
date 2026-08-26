@@ -23,9 +23,10 @@ const CATEGORY_TRAP = 0x0008;
 // there's nothing fighting the constraint solver and no wheelie-inducing
 // instability from a forced spin.
 const GRAVITY_Y = 0.55;
-const FORWARD_FORCE = 0.0062;
-const MAX_SPEED = 15;
-const AIR_PITCH_TORQUE = 0.0016;
+const FORWARD_FORCE = 0.0105;
+const MAX_SPEED = 23;
+const AIR_PITCH_TORQUE = 0.03;
+const AIR_PITCH_MAX_SPIN = 7.5; // rad/s - fast enough for a real mid-air flip within normal hang time
 const AUTO_LEVEL_GAIN = 0.035;
 const AUTO_LEVEL_DAMPING = 0.018;
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
@@ -58,11 +59,11 @@ function isTrap(body) {
 
 function createBike(x, y) {
   const group = Body.nextGroup(true);
-  const wheelRadius = 11;
-  const wheelBase = 34;
-  const rideHeight = 10;
+  const wheelRadius = 14;
+  const wheelBase = 44;
+  const rideHeight = 12;
 
-  const chassis = Bodies.rectangle(x, y, 42, 10, {
+  const chassis = Bodies.rectangle(x, y, 52, 12, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
     density: 0.0028,
     friction: 0.3,
@@ -218,7 +219,7 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     const first = span[0];
     if (last.x < cameraX - 50 || first.x > cameraX + viewWidth + 50) continue;
 
-    ctx.fillStyle = "#170a12";
+    ctx.fillStyle = "#2b0e10";
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -393,20 +394,20 @@ function drawBike(ctx, bike) {
   ctx.lineWidth = 4.5;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(-21, 0);
-  ctx.lineTo(21, 0);
+  ctx.moveTo(-26, 0);
+  ctx.lineTo(26, 0);
   ctx.stroke();
 
   ctx.shadowBlur = 0;
   ctx.strokeStyle = "#eaf6ff";
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(4, 0);
-  ctx.lineTo(12, -12);
+  ctx.moveTo(5, 0);
+  ctx.lineTo(15, -15);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(-7, 0);
-  ctx.lineTo(-3, -10);
+  ctx.moveTo(-9, 0);
+  ctx.lineTo(-4, -13);
   ctx.stroke();
   ctx.restore();
 }
@@ -673,7 +674,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       } else if (gasRef.current) {
         Body.setAngularVelocity(
           bike.chassis,
-          Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, 0.15)
+          Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, AIR_PITCH_MAX_SPIN)
         );
       } else {
         const correction =
