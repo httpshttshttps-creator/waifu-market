@@ -13,29 +13,35 @@ const CATEGORY_GROUND = 0x0002;
 const CATEGORY_BIKE = 0x0004;
 const CATEGORY_TRAP = 0x0008;
 
-// Tuned by feel to match a "Rider"-style reference: floaty gravity, big
-// dramatic hang time on every ramp crest, modest controllable forward
-// speed. Propulsion and jump strength are deliberately decoupled: a
-// generic launch boost fires on ANY grounded->airborne transition (so
-// cresting an ordinary hill always gives real air), and obstacle-specific
-// "boost" zones from terrain.js layer on top of that to guarantee gaps
-// and hazards are always clearable.
-const GRAVITY_Y = 0.72;
-const FORWARD_FORCE = 0.0032;
-const MAX_SPEED = 8.5;
-const REAR_WHEEL_SPIN = 0.5;
-const FRONT_WHEEL_SPIN = 0.35;
+// ---------------- physics tuning ----------------
+// Gravity is intentionally light and top speed intentionally high, for
+// the long, floaty, far-travelling arcs the reference footage shows.
+// Propulsion is a direct forward force on the chassis (not wheel
+// friction) so it's never affected by how the wheels happen to be
+// spinning; wheel rotation itself is left entirely to Matter's own
+// friction/contact simulation - no code sets wheel angular velocity, so
+// there's nothing fighting the constraint solver and no wheelie-inducing
+// instability from a forced spin.
+const GRAVITY_Y = 0.55;
+const FORWARD_FORCE = 0.0062;
+const MAX_SPEED = 15;
 const AIR_PITCH_TORQUE = 0.0016;
-const AUTO_LEVEL_GAIN = 0.05;
-const AUTO_LEVEL_DAMPING = 0.02;
-const FALL_DEATH_OFFSET = 900; // generous last-resort net; the real catch is the pit's spike floor
+const AUTO_LEVEL_GAIN = 0.035;
+const AUTO_LEVEL_DAMPING = 0.018;
+const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.32;
-const CAMERA_LEAD_Y = 0.5;
+const CAMERA_FOLLOW_X = 0.09;
+const CAMERA_FOLLOW_Y = 0.08;
 const FIXED_DT = 1000 / 60; // fixed physics step for smooth, frame-rate-independent motion
 const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/lag spike
-const EXPLOSION_DURATION = 750;
-const GENERIC_LAUNCH_BOOST = 16; // baseline pop when leaving ground outside any scripted zone
-const TRAIL_LENGTH = 16; // rear-wheel light-trail particle count
+const EXPLOSION_DURATION = 700;
+// A launch is only ever boosted by MULTIPLYING the bike's actual (vx, vy)
+// at the moment it leaves the ground - never by overriding it outright -
+// so a boosted jump always continues in the direction the bike was
+// already travelling (following the ramp's slope) instead of just
+// popping straight up. See the grounded->airborne handling in the loop.
+const GENERIC_LAUNCH_MULTIPLIER = 1.15; // small extra pop on any ordinary ramp crest while gassing
+const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
 
 function isWheel(body) {
   return body.label === "wheel";
@@ -60,22 +66,22 @@ function createBike(x, y) {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
     density: 0.0028,
     friction: 0.3,
-    frictionAir: 0.014,
+    frictionAir: 0.012,
     label: "chassis",
   });
 
   const rearWheel = Bodies.circle(x - wheelBase / 2, y + rideHeight, wheelRadius, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
-    friction: 0.96,
-    frictionStatic: 1.4,
+    friction: 1.1,
+    frictionStatic: 1.6,
     density: 0.012,
     label: "wheel",
   });
 
   const frontWheel = Bodies.circle(x + wheelBase / 2, y + rideHeight, wheelRadius, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
-    friction: 0.96,
-    frictionStatic: 1.4,
+    friction: 1.1,
+    frictionStatic: 1.6,
     density: 0.012,
     label: "wheel",
   });
@@ -112,16 +118,15 @@ function buildGroundSegment(p1, p2) {
   return Bodies.rectangle(midX, midY + thickness / 2, length, thickness, {
     isStatic: true,
     angle,
-    friction: 0.92,
+    friction: 1,
     collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
     label: "ground",
   });
 }
 
-function buildTrapBody(trap, baseline) {
+function buildTrapBody(trap) {
   switch (trap.type) {
     case "spike":
-      // Hitbox closely matches the drawn triangle - grazing it should count.
       return Bodies.rectangle(trap.x, trap.y - trap.height / 2, trap.width * 0.85, trap.height, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
@@ -139,7 +144,7 @@ function buildTrapBody(trap, baseline) {
     case "platform":
       return Bodies.rectangle(trap.x, trap.y, trap.width, trap.height, {
         isStatic: true,
-        friction: 0.9,
+        friction: 1,
         collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
         label: "ground",
       });
@@ -155,22 +160,16 @@ function buildTrapBody(trap, baseline) {
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
       });
-    case "tunnel": {
-      const midX = (trap.x1 + trap.x2) / 2;
-      const length = trap.x2 - trap.x1;
-      const ceilingThickness = 40;
-      return Bodies.rectangle(midX, baseline - trap.clearance - ceilingThickness / 2, length, ceilingThickness, {
-        isStatic: true,
-        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
-        label: "trap",
-      });
-    }
     default:
       return null;
   }
 }
 
 // ---------------- rendering ----------------
+// Glow is done with modest shadowBlur values and as few extra save/
+// restore + shadow-state switches as possible - canvas shadowBlur is
+// expensive, and stacking many large-blur passes per frame is the
+// single biggest cause of a choppy-feeling game on real phones.
 
 function drawBackground(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
@@ -180,10 +179,6 @@ function drawBackground(ctx, width, height) {
   ctx.fillRect(0, 0, width, height);
 }
 
-// Cheap low-poly "mountain skyline" silhouette, parallax-scrolled slower
-// than the foreground so it reads as distant background, not more track.
-// Drawn in plain screen space (no camera translate) - only horizontal
-// scroll is derived from cameraX, for a cheap parallax effect.
 function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
   ctx.save();
   ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
@@ -207,43 +202,36 @@ function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
   ctx.restore();
 }
 
-function drawGround(ctx, terrain, cameraX, width) {
+// Ground fill always extends well below the current camera view, so a
+// span never reads as a thin floating ribbon with void underneath - and
+// at a gap's edges, two spans' fills naturally form facing canyon walls
+// around the pit floor.
+function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
   ctx.save();
   ctx.lineWidth = 7;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.shadowColor = "#f2c14e";
-  ctx.shadowBlur = 28;
-  ctx.strokeStyle = "#ffedb0";
 
   for (const span of terrain.spans) {
     if (span.length < 2) continue;
     const last = span[span.length - 1];
     const first = span[0];
-    if (last.x < cameraX - 50 || first.x > cameraX + width + 50) continue;
+    if (last.x < cameraX - 50 || first.x > cameraX + viewWidth + 50) continue;
 
-    // Finite-depth "torn cliff" fill under the ribbon (jagged bottom
-    // edge, not an endless void) - matches the reference's floating
-    // track-piece look.
-    ctx.save();
-    ctx.shadowBlur = 0;
     ctx.fillStyle = "#170a12";
     ctx.beginPath();
-    ctx.moveTo(span[0].x, span[0].y);
+    ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
-    const cliffDepth = 140;
-    let jagX = last.x;
-    while (jagX > first.x) {
-      const toothY = last.y + cliffDepth + (Math.sin(jagX * 0.15) * 10);
-      ctx.lineTo(jagX, toothY);
-      jagX -= 18;
-    }
+    ctx.lineTo(last.x, fillBottomY);
+    ctx.lineTo(first.x, fillBottomY);
     ctx.closePath();
     ctx.fill();
-    ctx.restore();
 
+    ctx.shadowColor = "#f2c14e";
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = "#ffedb0";
     ctx.beginPath();
-    ctx.moveTo(span[0].x, span[0].y);
+    ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
     ctx.stroke();
   }
@@ -253,7 +241,7 @@ function drawGround(ctx, terrain, cameraX, width) {
 function drawSpike(ctx, trap) {
   ctx.save();
   ctx.shadowColor = "#ff4d4d";
-  ctx.shadowBlur = 24;
+  ctx.shadowBlur = 10;
   ctx.strokeStyle = "#ff8080";
   ctx.fillStyle = "rgba(255, 77, 77, 0.28)";
   ctx.lineWidth = 2.5;
@@ -270,7 +258,7 @@ function drawSpike(ctx, trap) {
 function drawPitFloor(ctx, trap) {
   ctx.save();
   ctx.shadowColor = "#ff4d4d";
-  ctx.shadowBlur = 22;
+  ctx.shadowBlur = 8;
   ctx.strokeStyle = "#ff8080";
   ctx.fillStyle = "rgba(255, 77, 77, 0.25)";
   ctx.lineWidth = 2;
@@ -293,7 +281,7 @@ function drawPitFloor(ctx, trap) {
 function drawPlatform(ctx, body) {
   ctx.save();
   ctx.shadowColor = "#6fe3b4";
-  ctx.shadowBlur = 20;
+  ctx.shadowBlur = 10;
   ctx.fillStyle = "rgba(111, 227, 180, 0.3)";
   ctx.strokeStyle = "#8ffcd0";
   ctx.lineWidth = 3;
@@ -317,7 +305,7 @@ function drawPendulum(ctx, trap, body) {
   ctx.stroke();
 
   ctx.shadowColor = "#f2b84b";
-  ctx.shadowBlur = 26;
+  ctx.shadowBlur = 12;
   ctx.fillStyle = "#ffd989";
   ctx.beginPath();
   ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
@@ -331,7 +319,7 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.translate(trap.x, trap.y);
   ctx.rotate(angle);
   ctx.shadowColor = "#ff4d4d";
-  ctx.shadowBlur = 26;
+  ctx.shadowBlur = 12;
   ctx.strokeStyle = "#ff8080";
   ctx.fillStyle = "rgba(255, 77, 77, 0.35)";
   ctx.lineWidth = 2.5;
@@ -357,35 +345,17 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.restore();
 }
 
-function drawTunnel(ctx, body) {
-  ctx.save();
-  ctx.shadowColor = "#8b5fe0";
-  ctx.shadowBlur = 20;
-  ctx.fillStyle = "rgba(139, 95, 224, 0.28)";
-  ctx.strokeStyle = "#b79dff";
-  ctx.lineWidth = 3;
-  const { vertices } = body;
-  ctx.beginPath();
-  ctx.moveTo(vertices[0].x, vertices[0].y);
-  for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
 function drawTrail(ctx, trailPoints) {
   if (trailPoints.length < 2) return;
   ctx.save();
+  ctx.strokeStyle = "#ff6ec7";
+  ctx.lineCap = "round";
   for (let i = 1; i < trailPoints.length; i++) {
     const p0 = trailPoints[i - 1];
     const p1 = trailPoints[i];
     const alpha = i / trailPoints.length;
-    ctx.strokeStyle = `rgba(255, 110, 199, ${alpha * 0.55})`;
-    ctx.shadowColor = "#ff6ec7";
-    ctx.shadowBlur = 12;
+    ctx.globalAlpha = alpha * 0.5;
     ctx.lineWidth = 4 * alpha;
-    ctx.lineCap = "round";
     ctx.beginPath();
     ctx.moveTo(p0.x, p0.y);
     ctx.lineTo(p1.x, p1.y);
@@ -394,13 +364,11 @@ function drawTrail(ctx, trailPoints) {
   ctx.restore();
 }
 
-function drawBike(ctx, bike, gasHeld) {
+function drawBike(ctx, bike) {
   const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
 
   ctx.save();
-  ctx.strokeStyle = gasHeld ? "#ffffff" : "#bfe4ff";
-  ctx.shadowColor = "#3aa0ff";
-  ctx.shadowBlur = 20;
+  ctx.strokeStyle = "#bfe4ff";
   ctx.lineWidth = 3;
   for (const wheel of [rearWheel, frontWheel]) {
     ctx.beginPath();
@@ -420,7 +388,7 @@ function drawBike(ctx, bike, gasHeld) {
   ctx.translate(chassis.position.x, chassis.position.y);
   ctx.rotate(chassis.angle);
   ctx.shadowColor = "#3aa0ff";
-  ctx.shadowBlur = 22;
+  ctx.shadowBlur = 10;
   ctx.strokeStyle = "#5fb8ff";
   ctx.lineWidth = 4.5;
   ctx.lineCap = "round";
@@ -429,8 +397,8 @@ function drawBike(ctx, bike, gasHeld) {
   ctx.lineTo(21, 0);
   ctx.stroke();
 
+  ctx.shadowBlur = 0;
   ctx.strokeStyle = "#eaf6ff";
-  ctx.shadowColor = "#eaf6ff";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(4, 0);
@@ -449,8 +417,6 @@ function drawExplosion(ctx, particles) {
     const alpha = Math.max(0, 1 - p.age / p.life);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 18;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
     ctx.fill();
@@ -483,16 +449,14 @@ function drawHud(ctx, seconds, width) {
   ctx.fillStyle = "#fff3d6";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.shadowColor = "#f2c14e";
-  ctx.shadowBlur = 14;
   ctx.fillText(label, width / 2, 14 + 18);
   ctx.restore();
 }
 
 function createExplosionParticles(x, y) {
-  const colors = ["#ff6ec7", "#4fe3ff", "#ffd989", "#ffffff"];
+  const colors = ["#ff6ec7", "#5fb8ff", "#ffd989", "#ffffff"];
   const particles = [];
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 24; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 2 + Math.random() * 6;
     particles.push({
@@ -501,7 +465,7 @@ function createExplosionParticles(x, y) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       size: 3 + Math.random() * 4,
-      life: 400 + Math.random() * 350,
+      life: 380 + Math.random() * 320,
       age: 0,
       color: colors[Math.floor(Math.random() * colors.length)],
     });
@@ -557,7 +521,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       for (const trap of terrain.traps) {
         if (builtTraps.has(trap)) continue;
-        const body = buildTrapBody(trap, terrain.baseline);
+        const body = buildTrapBody(trap);
         if (body) {
           Composite.add(world, body);
           trapRuntime.set(trap, { body });
@@ -683,6 +647,8 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     window.addEventListener("resize", resize);
 
     // ---------------- fixed-timestep physics step ----------------
+    // The bike spawns a little above the ground, so it starts genuinely
+    // airborne (falls the last few px onto the safe flat start zone).
     let wasGrounded = false;
     const trail = [];
 
@@ -691,43 +657,44 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       const grounded = groundContacts > 0;
 
-      if (gasRef.current) {
-        if (grounded) {
+      if (grounded) {
+        if (gasRef.current) {
           Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
-          Body.setAngularVelocity(bike.rearWheel, REAR_WHEEL_SPIN);
-          Body.setAngularVelocity(bike.frontWheel, FRONT_WHEEL_SPIN);
-        } else {
-          Body.setAngularVelocity(
-            bike.chassis,
-            Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, 0.15)
-          );
         }
-      } else if (!grounded) {
+        // Wheel rotation is left entirely to Matter's friction/contact
+        // simulation - nothing here sets angular velocity on a wheel.
+        // The top-speed cap only applies while grounded/accelerating -
+        // clamping it in the air too would strip away the extra
+        // horizontal speed a boosted launch just gave the bike, robbing
+        // the jump of the distance it's supposed to have.
+        if (bike.chassis.velocity.x > MAX_SPEED) {
+          Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
+        }
+      } else if (gasRef.current) {
+        Body.setAngularVelocity(
+          bike.chassis,
+          Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, 0.15)
+        );
+      } else {
         const correction =
           -bike.chassis.angle * AUTO_LEVEL_GAIN - bike.chassis.angularVelocity * AUTO_LEVEL_DAMPING;
         Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity + correction);
       }
 
-      if (bike.chassis.velocity.x > MAX_SPEED) {
-        Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
-      }
-
-      // Leaving the ground inside a boost zone guarantees a strong,
-      // obstacle-tuned minimum launch (terrain.js's addBoost calls).
-      // Cresting ANY ordinary ramp while gassing it also pops you up -
-      // matches the reference's floaty, always-getting-air feel instead
-      // of only the scripted obstacles having real jumps.
-      if (wasGrounded && !grounded) {
+      // A boosted launch MULTIPLIES the bike's actual velocity vector at
+      // the instant it leaves the ground, preserving whatever direction
+      // it was already travelling in (which follows the ramp's slope) -
+      // so a bigger boost means further AND higher, never just "pop
+      // straight up and come straight back down".
+      if (wasGrounded && !grounded && bike.chassis.velocity.y < -0.2) {
         const bikeX = bike.chassis.position.x;
         const activeBoost = terrain.boosts.find((b) => bikeX >= b.x1 && bikeX <= b.x2);
-        const power = activeBoost ? activeBoost.power : gasRef.current ? GENERIC_LAUNCH_BOOST : 0;
-        if (power > 0) {
-          const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
-          const kick = power * (0.65 + 0.35 * speedFraction);
-          const targetVy = -kick;
-          if (bike.chassis.velocity.y > targetVy) {
-            Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: targetVy });
-          }
+        const multiplier = activeBoost ? activeBoost.multiplier : gasRef.current ? GENERIC_LAUNCH_MULTIPLIER : 1;
+        if (multiplier > 1) {
+          Body.setVelocity(bike.chassis, {
+            x: bike.chassis.velocity.x * multiplier,
+            y: bike.chassis.velocity.y * multiplier,
+          });
         }
       }
       wasGrounded = grounded;
@@ -735,7 +702,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       trail.push({ x: bike.rearWheel.position.x, y: bike.rearWheel.position.y });
       if (trail.length > TRAIL_LENGTH) trail.shift();
 
-      generateAhead(terrain, bike.chassis.position.x + 1500, elapsedRef);
+      generateAhead(terrain, bike.chassis.position.x + 1600, elapsedRef);
       buildNewTerrain();
       pruneOldTerrain(bike.chassis.position.x);
       updateMovingTraps(elapsedRef);
@@ -783,9 +750,9 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const viewWidth = container.clientWidth;
       const viewHeight = container.clientHeight;
       const targetX = bike.chassis.position.x - viewWidth * CAMERA_LEAD_X;
-      const targetY = bike.chassis.position.y - viewHeight * CAMERA_LEAD_Y;
-      cameraX += (targetX - cameraX) * 0.08;
-      cameraY += (targetY - cameraY) * 0.06;
+      const targetY = bike.chassis.position.y - viewHeight * 0.5;
+      cameraX += (targetX - cameraX) * CAMERA_FOLLOW_X;
+      cameraY += (targetY - cameraY) * CAMERA_FOLLOW_Y;
 
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -799,7 +766,9 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.translate(-cameraX, -cameraY);
-      drawGround(ctx, terrain, cameraX, viewWidth);
+
+      const fillBottomY = cameraY + viewHeight + 800;
+      drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY);
 
       for (const trap of terrain.traps) {
         const runtime = trapRuntime.get(trap);
@@ -812,14 +781,13 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         else if (trap.type === "platform" && runtime) drawPlatform(ctx, runtime.body);
         else if (trap.type === "pendulum" && runtime) drawPendulum(ctx, trap, runtime.body);
         else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
-        else if (trap.type === "tunnel" && runtime) drawTunnel(ctx, runtime.body);
       }
 
       if (crashed) {
         drawExplosion(ctx, explosionParticles);
       } else {
         drawTrail(ctx, trail);
-        drawBike(ctx, bike, gasRef.current);
+        drawBike(ctx, bike);
       }
       ctx.restore();
 
