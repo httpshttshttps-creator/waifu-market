@@ -65,15 +65,6 @@ function TrophyIcon({ active }) {
   );
 }
 
-function TaskIcon({ active }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <rect x="4.5" y="3.5" width="15" height="17" rx="2" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
-      <path d="M8 8.5h8M8 12h8M8 15.5h5" stroke="currentColor" strokeWidth={active ? 2.4 : 2} strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function GameIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -90,12 +81,26 @@ function GameIcon({ active }) {
   );
 }
 
+function ArenaIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M6 4.5 12 7l6-2.5-1 5-5 9.5-5-9.5-1-5Z"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinejoin="round"
+      />
+      <path d="M9 20h6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const TABS = [
   { id: "home", label: "Home", Icon: HomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon },
   { id: "game", label: "Ride", Icon: GameIcon },
   { id: "leaderboard", label: "Leaderboard", Icon: TrophyIcon },
-  { id: "task", label: "Tasks", Icon: TaskIcon },
+  { id: "arena", label: "Arena", Icon: ArenaIcon },
 ];
 
 export default function BottomNav({ active, onChange }) {

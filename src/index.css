@@ -1191,3 +1191,336 @@ button {
   font-size: 20px;
   margin: 4px 0 16px;
 }
+
+/* ---------------- leaderboard + tasks split (Update 2) ---------------- */
+/* Tasks used to be its own bottom-nav tab; it now lives in the bottom
+   third of this page so Arena could take that 5th nav slot instead. */
+
+.leaderboard-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 108px);
+  height: calc(100vh - 108px);
+}
+
+.leaderboard-page__top {
+  flex: 2 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.leaderboard-page__bottom {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px dashed var(--line);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.task-tab--compact {
+  padding-bottom: 4px;
+}
+
+.task-tab__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  margin: 0 0 10px;
+  color: var(--text);
+}
+
+.daily-claim-button--compact {
+  margin: 0 0 10px;
+  padding: 10px;
+  font-size: 13px;
+}
+
+/* ---------------- Arena tab (Update 2) ---------------- */
+
+.arena-tab {
+  padding-bottom: 8px;
+}
+
+.arena-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin: 14px 0 16px;
+}
+
+.arena-status__league {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.arena-status__trophies {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gold-bright);
+}
+
+.arena-banner {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.arena-banner--pending {
+  border-color: var(--gold);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.arena-banner[data-outcome="win"] {
+  border-color: #6FE3B4;
+  color: #6FE3B4;
+}
+
+.arena-banner[data-outcome="loss"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.arena-banner[data-outcome="draw"] {
+  border-color: var(--text-faint);
+  color: var(--text-dim);
+}
+
+.arena-banner__powers {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.arena-team-section {
+  margin-bottom: 18px;
+}
+
+.arena-team-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.arena-team-section__head h3 {
+  font-family: var(--font-display);
+  font-size: 14.5px;
+  margin: 0;
+}
+
+.arena-edit-btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.arena-edit-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.arena-team-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  cursor: pointer;
+}
+
+.arena-team-slot--empty {
+  aspect-ratio: 3 / 4;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 26px;
+}
+
+.arena-team-hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}
+
+/* ---------------- Fighter card (Update 2) ---------------- */
+
+.fighter-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--card-accent, var(--line));
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+
+.fighter-card[role="button"] {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.fighter-card[data-selected="true"] {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: -2px;
+}
+
+.fighter-card__art {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: linear-gradient(155deg, var(--surface-raised), var(--surface));
+}
+
+.fighter-card__element {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  font-size: 15px;
+  background: rgba(20, 15, 36, 0.7);
+  border-radius: 999px;
+  padding: 3px 6px;
+}
+
+.fighter-card__level {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--gold-bright);
+  background: rgba(20, 15, 36, 0.75);
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+.fighter-card__check {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  z-index: 2;
+  background: var(--gold);
+  color: #fff2f0;
+  border-radius: 999px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fighter-card__body {
+  padding: 8px 8px 0;
+}
+
+.fighter-card__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12.5px;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fighter-card__stats {
+  display: flex;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.fighter-card__footer {
+  padding: 0 8px 8px;
+}
+
+.fighter-card__maxed {
+  display: block;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--gold-bright);
+  padding: 6px 0;
+}
+
+.fighter-card__upgrade-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.fighter-card__upgrade-btn {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 4px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fighter-card__upgrade-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.fighter-card__upgrade-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fighter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.fighter-grid--scroll {
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-bottom: 4px;
+  margin-bottom: 16px;
+}
+
+.arena-sheet {
+  max-height: 85vh;
+  overflow-y: auto;
+}

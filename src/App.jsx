@@ -18,7 +18,7 @@ import BottomNav from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
-import TaskTab from "./components/TaskTab.jsx";
+import ArenaTab from "./components/ArenaTab.jsx";
 import RiderGame from "./components/RiderGame/index.jsx";
 
 export default function App() {
@@ -216,11 +216,11 @@ export default function App() {
           </>
         )}
 
-        {activeTab === "leaderboard" && <LeaderboardTab />}
+        {activeTab === "leaderboard" && <LeaderboardTab notify={notify} />}
 
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
-        {activeTab === "task" && <TaskTab notify={notify} />}
+        {activeTab === "arena" && <ArenaTab notify={notify} />}
       </div>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />
