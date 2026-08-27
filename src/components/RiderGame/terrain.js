@@ -71,11 +71,21 @@ function appendRamp(state, length, rise) {
   let x = state.cursorX;
   for (let i = 1; i <= steps; i++) {
     x = state.cursorX + i * (length / steps);
-    const y = startY - (clampedRise * i) / steps;
+    const targetY = startY - (clampedRise * i) / steps;
+    // Clamped relative to the ACTUAL previous point (not just this ramp's
+    // own start), so the joint where one ramp meets the next - e.g. an
+    // uphill leg immediately followed by a downhill leg - can never be a
+    // sharp instant corner either, even though each leg's own average
+    // slope already passed the MAX_RAMP_SLOPE_RATIO check above. A rigid
+    // two-wheel bike bridging a sharp peak/valley corner like that would
+    // "high-center" - the corner pokes up into the chassis even on
+    // otherwise gentle terrain - which is exactly what a sharp joint
+    // between two legal ramps could still produce without this.
+    const y = clampSlope(state.cursorY, targetY);
     state.points.push({ x, y });
+    state.cursorX = x;
+    state.cursorY = y;
   }
-  state.cursorX = x;
-  state.cursorY = startY - clampedRise;
 }
 
 // Opens a gap of `width` px, flooring it with spikes so it's never a
