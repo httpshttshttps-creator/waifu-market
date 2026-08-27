@@ -1,4 +1,4 @@
-import { apiFetch, API_BASE, imageUrl } from "./marketApi.js";
+import { apiFetch, API_BASE, imageUrl, gradientFor } from "./marketApi.js";
 
 // Small mock fallback so the Arena tab still renders something sensible
 // while iterating on layout without a live backend (same pattern the
@@ -48,7 +48,7 @@ function delay(ms) {
 }
 
 function normalizeCard(card) {
-  return { ...card, imageUrl: imageUrl(card.image_file_id) };
+  return { ...card, imageUrl: imageUrl(card.image_file_id), gradient: gradientFor(card.character_id) };
 }
 
 export async function fetchArenaLeagues() {

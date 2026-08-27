@@ -58,6 +58,8 @@ function gradientFor(characterId) {
   return GRADIENT_PALETTE[Math.abs(characterId) % GRADIENT_PALETTE.length];
 }
 
+export { gradientFor };
+
 function normalizeListing(listing) {
   return {
     id: listing.listing_id,

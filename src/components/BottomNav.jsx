@@ -1,3 +1,5 @@
+import { useTelegram } from "../hooks/useTelegram.js";
+
 function HomeIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -104,6 +106,13 @@ const TABS = [
 ];
 
 export default function BottomNav({ active, onChange }) {
+  const { haptic } = useTelegram();
+
+  function handleChange(tabId) {
+    if (tabId !== active) haptic?.("light");
+    onChange(tabId);
+  }
+
   return (
     <nav className="bottom-nav">
       {TABS.map((tab) => {
@@ -114,7 +123,7 @@ export default function BottomNav({ active, onChange }) {
             type="button"
             className="bottom-nav__item"
             data-active={isActive}
-            onClick={() => onChange(tab.id)}
+            onClick={() => handleChange(tab.id)}
           >
             <tab.Icon active={isActive} />
             <span>{tab.label}</span>

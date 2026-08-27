@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useTelegram } from "../hooks/useTelegram.js";
 import { fetchTopCollectors, fetchRichest } from "../api/leaderboardApi.js";
 import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
 import TaskPanel from "./TaskPanel.jsx";
+import { SkeletonRowList } from "./SkeletonRow.jsx";
 
 function PlayerRow({ rank, row, metric, onSelectPlayer }) {
   return (
@@ -21,6 +23,7 @@ function PlayerRow({ rank, row, metric, onSelectPlayer }) {
 // above the Collection/VɎ toggle) rather than a standalone bottom-nav
 // tab - that slot is Arena's now.
 export default function LeaderboardTab({ notify }) {
+  const { haptic } = useTelegram();
   const [mode, setMode] = useState("collectors");
   const [collectors, setCollectors] = useState(null);
   const [richest, setRichest] = useState(null);
@@ -36,19 +39,29 @@ export default function LeaderboardTab({ notify }) {
     }
   }, [mode, collectors, richest]);
 
+  function changeMode(nextMode) {
+    haptic?.("light");
+    setMode(nextMode);
+  }
+
+  function openTasks() {
+    haptic?.("light");
+    setShowTasks(true);
+  }
+
   return (
     <div className="leaderboard-tab">
       <h1 className="brand-title">🏆 LEADERBOARD & TASKS</h1>
 
-      <button type="button" className="leaderboard-tasks-button" onClick={() => setShowTasks(true)}>
+      <button type="button" className="leaderboard-tasks-button" onClick={openTasks}>
         📋 Tasks
       </button>
 
       <div className="leaderboard-toggle">
-        <button type="button" data-active={mode === "collectors"} onClick={() => setMode("collectors")}>
+        <button type="button" data-active={mode === "collectors"} onClick={() => changeMode("collectors")}>
           ✦ Collection
         </button>
-        <button type="button" data-active={mode === "richest"} onClick={() => setMode("richest")}>
+        <button type="button" data-active={mode === "richest"} onClick={() => changeMode("richest")}>
           💰 VɎ
         </button>
       </div>
@@ -56,7 +69,7 @@ export default function LeaderboardTab({ notify }) {
       <div className="leaderboard-list">
         {mode === "collectors" ? (
           collectors === null ? (
-            <p className="empty-state">Loading top collectors…</p>
+            <SkeletonRowList count={6} />
           ) : collectors.length === 0 ? (
             <p className="empty-state">No collections to rank yet.</p>
           ) : (
@@ -71,7 +84,7 @@ export default function LeaderboardTab({ notify }) {
             ))
           )
         ) : richest === null ? (
-          <p className="empty-state">Loading richest players…</p>
+          <SkeletonRowList count={6} />
         ) : richest.length === 0 ? (
           <p className="empty-state">Nobody has any VɎ yet.</p>
         ) : (

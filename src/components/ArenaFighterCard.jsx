@@ -5,14 +5,16 @@ export default function ArenaFighterCard({ card, selected, onClick, footer }) {
   const [imageFailed, setImageFailed] = useState(false);
   const element = getElementInfo(card.element);
   const showImage = card.imageUrl && !imageFailed;
+  const [artFrom, artTo] = card.gradient ?? ["#241E33", "#5C5378"];
 
-  const style = { "--card-accent": element.accent };
+  const style = { "--card-accent": element.accent, "--art-from": artFrom, "--art-to": artTo };
 
   return (
     <article
       className="fighter-card"
       style={style}
       data-selected={selected || undefined}
+      data-maxed={card.level >= (card.max_level ?? 15) || undefined}
       onClick={onClick}
       role={onClick ? "button" : undefined}
     >
