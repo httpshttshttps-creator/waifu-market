@@ -25,10 +25,9 @@ const CATEGORY_TRAP = 0x0008;
 const GRAVITY_Y = 0.55;
 const FORWARD_FORCE = 0.0105;
 const MAX_SPEED = 23;
-const AIR_PITCH_TORQUE = 0.03;
-const AIR_PITCH_MAX_SPIN = 2; // rad/s - fast enough for a real mid-air flip within normal hang time
-const AUTO_LEVEL_GAIN = 0.035;
-const AUTO_LEVEL_DAMPING = 0.018;
+const AIR_PITCH_TORQUE = 0.0015; // ramps up over ~1.2s of holding - a deliberate flip, not an instant snap
+const AIR_PITCH_MAX_SPIN = 1.8; // rad/s - a full flip takes ~3.5s of sustained holding
+const AUTO_LEVEL_DAMPING = 0.03; // only damps existing spin - does NOT pull back toward level
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.32;
 const CAMERA_FOLLOW_X = 0.09;
@@ -695,9 +694,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
           Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, AIR_PITCH_MAX_SPIN)
         );
       } else {
-        const correction =
-          -bike.chassis.angle * AUTO_LEVEL_GAIN - bike.chassis.angularVelocity * AUTO_LEVEL_DAMPING;
-        Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity + correction);
+        // Not holding gas in the air: just damp out any existing spin so
+        // the bike settles into coasting at whatever angle it currently
+        // has - it does NOT get pulled back toward level. In the
+        // reference footage a normal (non-flipping) jump holds its
+        // launch angle nearly perfectly through the whole arc; forcing
+        // it toward horizontal here would fight that and make landings
+        // feel wrong on any ramp that wasn't launched dead-flat.
+        Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity * (1 - AUTO_LEVEL_DAMPING));
       }
 
       // A boosted launch MULTIPLIES the bike's actual velocity vector at
