@@ -642,6 +642,8 @@ button {
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.03em;
+  text-align: center;
+  line-height: 1.2;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
 }
@@ -766,7 +768,7 @@ button {
 .leaderboard-toggle {
   display: flex;
   gap: 8px;
-  margin: 14px 0 18px;
+  margin: 0 0 18px;
 }
 
 .leaderboard-toggle button {
@@ -1192,31 +1194,21 @@ button {
   margin: 4px 0 16px;
 }
 
-/* ---------------- leaderboard + tasks split (Update 2) ---------------- */
-/* Tasks used to be its own bottom-nav tab; it now lives in the bottom
-   third of this page so Arena could take that 5th nav slot instead. */
+/* ---------------- Leaderboard & Tasks (Update 2) ---------------- */
+/* Tasks used to be its own bottom-nav tab; it's now a sheet opened from
+   this full-width button, so Arena could take that 5th nav slot instead. */
 
-.leaderboard-page {
-  display: flex;
-  flex-direction: column;
-  height: calc(100dvh - 108px);
-  height: calc(100vh - 108px);
-}
-
-.leaderboard-page__top {
-  flex: 2 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 8px;
-}
-
-.leaderboard-page__bottom {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px dashed var(--line);
-  margin-top: 10px;
-  padding-top: 10px;
+.leaderboard-tasks-button {
+  width: 100%;
+  margin: 14px 0 10px;
+  padding: 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gold);
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+  color: #fff2f0;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
 }
 
 .task-tab--compact {

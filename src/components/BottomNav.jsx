@@ -99,7 +99,7 @@ const TABS = [
   { id: "home", label: "Home", Icon: HomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon },
   { id: "game", label: "Ride", Icon: GameIcon },
-  { id: "leaderboard", label: "Leaderboard", Icon: TrophyIcon },
+  { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
   { id: "arena", label: "Arena", Icon: ArenaIcon },
 ];
 
