@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { createTerrainState, generateAhead, pruneBehind, GAP_PRUNE_MARGIN } from "./terrain.js";
+import { resumeAudio, updateEngine, playJump, playLand, playCrash, playScore, stopEngine } from "./sound.js";
 
 const { Engine, Body, Bodies, Composite, Constraint, Events } = Matter;
 
@@ -14,24 +15,29 @@ const CATEGORY_BIKE = 0x0004;
 const CATEGORY_TRAP = 0x0008;
 
 // ---------------- physics tuning ----------------
-// Gravity is intentionally light and top speed intentionally high, for
-// the long, floaty, far-travelling arcs the reference footage shows.
-// Propulsion is a direct forward force on the chassis (not wheel
-// friction) so it's never affected by how the wheels happen to be
-// spinning; wheel rotation itself is left entirely to Matter's own
-// friction/contact simulation - no code sets wheel angular velocity, so
-// there's nothing fighting the constraint solver and no wheelie-inducing
-// instability from a forced spin.
-const GRAVITY_Y = 0.55;
-const FORWARD_FORCE = 0.0105;
-const MAX_SPEED = 23;
-const AIR_PITCH_TORQUE = 0.0015; // ramps up over ~1.2s of holding - a deliberate flip, not an instant snap
-const AIR_PITCH_MAX_SPIN = 1.8; // rad/s - a full flip takes ~3.5s of sustained holding
-const AUTO_LEVEL_DAMPING = 0.03; // only damps existing spin - does NOT pull back toward level
+// Weight and momentum matter more than any single number here: gravity
+// is stronger and hang time shorter than earlier passes (falls read as
+// real falls, not a slow drift), top speed is much higher, and angular
+// momentum in the air is barely damped at all - once a flip is spinning,
+// it keeps spinning instead of politely stopping the moment gas is
+// released, matching how a real spinning mass behaves. Propulsion is a
+// direct forward force on the chassis (not wheel friction) so it's never
+// affected by how the wheels happen to be spinning; wheel rotation
+// itself is left entirely to Matter's own friction/contact simulation.
+const GRAVITY_Y = 0.68; // ~+24% over the previous pass - faster, more decisive falls
+const FORWARD_FORCE = 0.019; // scaled up for both the higher top speed AND the heavier chassis below
+const MAX_SPEED = 31; // ~+35% over the previous pass
+const AIR_PITCH_TORQUE = 0.0022; // ramps up over ~1.1s of holding - deliberate, not an instant snap
+const AIR_PITCH_MAX_SPIN = 2.4; // rad/s - more room to commit to a full flip on a big jump
+const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.32;
 const CAMERA_FOLLOW_X = 0.09;
 const CAMERA_FOLLOW_Y = 0.08;
+const CAMERA_MAX_ZOOM_OUT = 0.12; // fraction zoomed out at top speed
+const CAMERA_ZOOM_SMOOTHING = 0.05;
+const CAMERA_SHAKE_START_FRACTION = 0.7; // shake only kicks in above 70% of top speed
+const CAMERA_SHAKE_MAX_PX = 2.5;
 const FIXED_DT = 1000 / 60; // fixed physics step for smooth, frame-rate-independent motion
 const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/lag spike
 const EXPLOSION_DURATION = 700;
@@ -40,8 +46,10 @@ const EXPLOSION_DURATION = 700;
 // so a boosted jump always continues in the direction the bike was
 // already travelling (following the ramp's slope) instead of just
 // popping straight up. See the grounded->airborne handling in the loop.
-const GENERIC_LAUNCH_MULTIPLIER = 1.15; // small extra pop on any ordinary ramp crest while gassing
+const GENERIC_LAUNCH_MULTIPLIER = 1.3; // ordinary ramp crests now noticeably shape the arc, not just scripted zones
 const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
+const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a camera thump
+const JUMP_SOUND_VY = -3; // only genuine launches play the jump sound, not tiny bumps
 
 function isWheel(body) {
   return body.label === "wheel";
@@ -64,9 +72,9 @@ function createBike(x, y) {
 
   const chassis = Bodies.rectangle(x, y, 52, 12, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
-    density: 0.0028,
+    density: 0.0038, // heavier chassis - more real inertia/momentum, less like a paper cutout
     friction: 0.3,
-    frictionAir: 0.012,
+    frictionAir: 0.008, // lighter air drag so momentum (linear AND angular) carries through a jump
     label: "chassis",
   });
 
@@ -228,7 +236,7 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.fill();
 
     ctx.shadowColor = "#f2c14e";
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 18;
     ctx.strokeStyle = "#ffedb0";
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
@@ -388,7 +396,7 @@ function drawBike(ctx, bike) {
   ctx.translate(chassis.position.x, chassis.position.y);
   ctx.rotate(chassis.angle);
   ctx.shadowColor = "#3aa0ff";
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 16;
   ctx.strokeStyle = "#5fb8ff";
   ctx.lineWidth = 4.5;
   ctx.lineCap = "round";
@@ -420,6 +428,25 @@ function drawExplosion(ctx, particles) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Screen-space streaks that flash by when going fast - cheap stand-in
+// for motion blur. `lines` is a small live array of {y, life, age,
+// length} the caller spawns/ages each frame; this just draws them.
+function drawSpeedLines(ctx, lines, width) {
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineCap = "round";
+  for (const line of lines) {
+    const alpha = Math.max(0, 1 - line.age / line.life) * 0.35;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(width, line.y);
+    ctx.lineTo(width - line.length, line.y);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -466,6 +493,29 @@ function createExplosionParticles(x, y) {
       vy: Math.sin(angle) * speed,
       size: 3 + Math.random() * 4,
       life: 380 + Math.random() * 320,
+      age: 0,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+  return particles;
+}
+
+// Small, brief dust/spark puff for a hard landing - distinct from the
+// crash explosion (smaller, shorter-lived, doesn't stop the run).
+function createLandingDust(x, y, intensity) {
+  const colors = ["#ffedb0", "#f2c14e", "#ffffff"];
+  const count = Math.round(6 + Math.min(1.6, intensity) * 5);
+  const particles = [];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.PI + (Math.random() - 0.5) * Math.PI * 0.9; // fan out along the ground, upward-ish
+    const speed = (1 + Math.random() * 2.4) * Math.min(1.6, intensity);
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.5,
+      size: 2 + Math.random() * 2.5,
+      life: 220 + Math.random() * 160,
       age: 0,
       color: colors[Math.floor(Math.random() * colors.length)],
     });
@@ -595,6 +645,8 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       pendingScore = Math.max(0, Math.floor(elapsedSeconds));
       explosionStartedAt = performance.now();
       explosionParticles = createExplosionParticles(bike.chassis.position.x, bike.chassis.position.y);
+      playCrash();
+      updateEngine(false, 0);
     }
 
     function handlePair(a, b, elapsedSeconds) {
@@ -627,6 +679,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     function onPointerDown(event) {
       event.preventDefault();
       gasRef.current = true;
+      resumeAudio(); // audio can only start from inside a real user gesture
     }
     function onPointerUp() {
       gasRef.current = false;
@@ -667,13 +720,42 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     // crash before it's had a real landing.
     let wasGrounded = false;
     let hasLandedOnce = false;
+    let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
+    let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
+    let lastScoreMilestone = 0;
     const trail = [];
+    let dustParticles = [];
 
     function stepPhysics(dtMs) {
       elapsedRef += dtMs / 1000;
 
       const grounded = groundContacts > 0;
       if (grounded) hasLandedOnce = true;
+
+      const milestone = Math.floor(elapsedRef / 10);
+      if (milestone > lastScoreMilestone) {
+        lastScoreMilestone = milestone;
+        playScore();
+      }
+
+      // Landing detection - by the time `grounded` flips true here, the
+      // collision may already have changed bike.chassis.velocity.y this
+      // tick, so we use whatever velocity was recorded on the LAST tick
+      // we were still genuinely airborne (lastAirborneVy) as the impact
+      // speed instead.
+      if (!wasGrounded && grounded) {
+        const impact = Math.abs(lastAirborneVy);
+        playLand(impact / HARD_LANDING_VY);
+        if (impact > HARD_LANDING_VY) {
+          dustParticles.push(
+            ...createLandingDust(bike.rearWheel.position.x, bike.rearWheel.position.y, impact / HARD_LANDING_VY)
+          );
+          landingShake = Math.min(CAMERA_SHAKE_MAX_PX * 2.5, impact * 0.4);
+        }
+      }
+
+      const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
+      updateEngine(grounded && gasRef.current, speedFraction);
 
       if (grounded) {
         if (gasRef.current) {
@@ -719,8 +801,10 @@ export default function GameCanvas({ onGameOver, onQuit }) {
             y: bike.chassis.velocity.y * multiplier,
           });
         }
+        if (bike.chassis.velocity.y < JUMP_SOUND_VY) playJump();
       }
       wasGrounded = grounded;
+      if (!grounded) lastAirborneVy = bike.chassis.velocity.y;
 
       trail.push({ x: bike.rearWheel.position.x, y: bike.rearWheel.position.y });
       if (trail.length > TRAIL_LENGTH) trail.shift();
@@ -743,6 +827,8 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let accumulator = 0;
     let cameraX = bike.chassis.position.x;
     let cameraY = bike.chassis.position.y;
+    let zoom = 1;
+    const speedLines = [];
 
     function tick(now) {
       const frameTime = Math.min(now - lastTime, 250);
@@ -770,12 +856,57 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         }
       }
 
+      // Dust particles age regardless of crashed state (a landing right
+      // before a crash should still finish its little puff).
+      dustParticles = dustParticles.filter((p) => {
+        p.age += frameTime;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.1;
+        return p.age < p.life;
+      });
+      landingShake = Math.max(0, landingShake - frameTime * 0.02);
+
+      const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
+
+      // Speed lines: cheap motion-blur stand-in, only above a threshold.
+      if (speedFraction > 0.55 && Math.random() < speedFraction * 0.5) {
+        speedLines.push({
+          y: Math.random() * container.clientHeight,
+          length: 40 + Math.random() * 70 * speedFraction,
+          life: 140 + Math.random() * 100,
+          age: 0,
+        });
+      }
+      for (let i = speedLines.length - 1; i >= 0; i--) {
+        speedLines[i].age += frameTime;
+        if (speedLines[i].age > speedLines[i].life) speedLines.splice(i, 1);
+      }
+
       const viewWidth = container.clientWidth;
       const viewHeight = container.clientHeight;
-      const targetX = bike.chassis.position.x - viewWidth * CAMERA_LEAD_X;
-      const targetY = bike.chassis.position.y - viewHeight * 0.5;
+
+      const targetZoom = 1 - speedFraction * CAMERA_MAX_ZOOM_OUT;
+      zoom += (targetZoom - zoom) * CAMERA_ZOOM_SMOOTHING;
+
+      const targetX = bike.chassis.position.x - (viewWidth * CAMERA_LEAD_X) / zoom;
+      const targetY = bike.chassis.position.y - (viewHeight * 0.5) / zoom;
       cameraX += (targetX - cameraX) * CAMERA_FOLLOW_X;
       cameraY += (targetY - cameraY) * CAMERA_FOLLOW_Y;
+
+      // Shake: a steady light jitter above ~70% top speed, plus a
+      // separate decaying pulse from a hard landing - both expressed in
+      // screen pixels, then converted to world units so they read the
+      // same regardless of the current zoom level.
+      const speedShakeMag =
+        speedFraction > CAMERA_SHAKE_START_FRACTION
+          ? ((speedFraction - CAMERA_SHAKE_START_FRACTION) / (1 - CAMERA_SHAKE_START_FRACTION)) * CAMERA_SHAKE_MAX_PX
+          : 0;
+      const totalShake = speedShakeMag + landingShake;
+      const shakeX = totalShake > 0 ? (Math.random() - 0.5) * totalShake : 0;
+      const shakeY = totalShake > 0 ? (Math.random() - 0.5) * totalShake : 0;
+      const renderCameraX = cameraX + shakeX / zoom;
+      const renderCameraY = cameraY + shakeY / zoom;
 
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -783,21 +914,21 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       ctx.save();
       ctx.scale(dpr, dpr);
-      drawSkyline(ctx, cameraX, viewWidth, viewHeight);
+      drawSkyline(ctx, renderCameraX, viewWidth, viewHeight);
       ctx.restore();
 
       ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.translate(-cameraX, -cameraY);
+      ctx.scale(dpr * zoom, dpr * zoom);
+      ctx.translate(-renderCameraX, -renderCameraY);
 
-      const fillBottomY = cameraY + viewHeight + 800;
-      drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY);
+      const fillBottomY = renderCameraY + viewHeight / zoom + 800;
+      drawGround(ctx, terrain, renderCameraX, viewWidth / zoom, fillBottomY);
 
       for (const trap of terrain.traps) {
         const runtime = trapRuntime.get(trap);
-        if (trap.x !== undefined && trap.x < cameraX - 200) continue;
-        if (trap.x1 !== undefined && trap.x2 < cameraX - 200) continue;
-        if (trap.anchorX !== undefined && trap.anchorX < cameraX - 400) continue;
+        if (trap.x !== undefined && trap.x < renderCameraX - 200) continue;
+        if (trap.x1 !== undefined && trap.x2 < renderCameraX - 200) continue;
+        if (trap.anchorX !== undefined && trap.anchorX < renderCameraX - 400) continue;
 
         if (trap.type === "spike") drawSpike(ctx, trap);
         else if (trap.type === "pitfloor") drawPitFloor(ctx, trap);
@@ -806,6 +937,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
       }
 
+      drawExplosion(ctx, dustParticles);
       if (crashed) {
         drawExplosion(ctx, explosionParticles);
       } else {
@@ -816,6 +948,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       ctx.save();
       ctx.scale(dpr, dpr);
+      drawSpeedLines(ctx, speedLines, viewWidth);
       drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr);
       ctx.restore();
 
@@ -839,6 +972,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       Events.off(engine, "collisionEnd", onCollisionEnd);
       Composite.clear(world, false);
       Engine.clear(engine);
+      stopEngine();
     };
   }, []);
 

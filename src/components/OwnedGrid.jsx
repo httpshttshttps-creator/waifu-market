@@ -1,11 +1,16 @@
 import OwnedCard from "./OwnedCard.jsx";
 
-export default function OwnedGrid({ cards, sellPrices, onSell }) {
+export default function OwnedGrid({ cards, sellPrices, onSell, onBrowseMarket }) {
   if (cards.length === 0) {
     return (
-      <p className="empty-state">
-        You don't own any cards yet — visit the Market tab to start your collection.
-      </p>
+      <div className="empty-state empty-state--action">
+        <p>You don't own any cards yet — visit the Market tab to start your collection.</p>
+        {onBrowseMarket && (
+          <button type="button" className="empty-state__cta" onClick={onBrowseMarket}>
+            🛍 Browse the Market
+          </button>
+        )}
+      </div>
     );
   }
 
