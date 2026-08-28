@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { useTelegram } from "../hooks/useTelegram.js";
 import { fetchTopCollectors, fetchRichest } from "../api/leaderboardApi.js";
 import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
 import TaskPanel from "./TaskPanel.jsx";
-import { SkeletonRowList } from "./SkeletonRow.jsx";
 
 function PlayerRow({ rank, row, metric, onSelectPlayer }) {
   return (
@@ -19,16 +17,14 @@ function PlayerRow({ rank, row, metric, onSelectPlayer }) {
   );
 }
 
-// Tasks lives here as its own sheet (opened by the full-width button
-// above the Collection/VɎ toggle) rather than a standalone bottom-nav
-// tab - that slot is Arena's now.
+// The standalone Tasks tab was folded into this page: the top two-thirds
+// stay Leaderboard, the bottom third is a compact Tasks panel - so Arena
+// could take the 5th bottom-nav slot Tasks used to occupy.
 export default function LeaderboardTab({ notify }) {
-  const { haptic } = useTelegram();
   const [mode, setMode] = useState("collectors");
   const [collectors, setCollectors] = useState(null);
   const [richest, setRichest] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
-  const [showTasks, setShowTasks] = useState(false);
 
   useEffect(() => {
     if (mode === "collectors" && collectors === null) {
@@ -39,82 +35,60 @@ export default function LeaderboardTab({ notify }) {
     }
   }, [mode, collectors, richest]);
 
-  function changeMode(nextMode) {
-    haptic?.("light");
-    setMode(nextMode);
-  }
-
-  function openTasks() {
-    haptic?.("light");
-    setShowTasks(true);
-  }
-
   return (
-    <div className="leaderboard-tab">
-      <h1 className="brand-title">🏆 LEADERBOARD & TASKS</h1>
+    <div className="leaderboard-page">
+      <div className="leaderboard-page__top">
+        <h1 className="brand-title">🏆 LEADERBOARD</h1>
 
-      <button type="button" className="leaderboard-tasks-button" onClick={openTasks}>
-        📋 Tasks
-      </button>
+        <div className="leaderboard-toggle">
+          <button type="button" data-active={mode === "collectors"} onClick={() => setMode("collectors")}>
+            ✦ Collection
+          </button>
+          <button type="button" data-active={mode === "richest"} onClick={() => setMode("richest")}>
+            💰 VɎ
+          </button>
+        </div>
 
-      <div className="leaderboard-toggle">
-        <button type="button" data-active={mode === "collectors"} onClick={() => changeMode("collectors")}>
-          ✦ Collection
-        </button>
-        <button type="button" data-active={mode === "richest"} onClick={() => changeMode("richest")}>
-          💰 VɎ
-        </button>
-      </div>
-
-      <div className="leaderboard-list">
-        {mode === "collectors" ? (
-          collectors === null ? (
-            <SkeletonRowList count={6} />
-          ) : collectors.length === 0 ? (
-            <p className="empty-state">No collections to rank yet.</p>
+        <div className="leaderboard-list">
+          {mode === "collectors" ? (
+            collectors === null ? (
+              <p className="empty-state">Loading top collectors…</p>
+            ) : collectors.length === 0 ? (
+              <p className="empty-state">No collections to rank yet.</p>
+            ) : (
+              collectors.map((row, index) => (
+                <PlayerRow
+                  key={row.user_id}
+                  rank={index + 1}
+                  row={row}
+                  metric={`${row.card_count} 🧑`}
+                  onSelectPlayer={setSelectedPlayerId}
+                />
+              ))
+            )
+          ) : richest === null ? (
+            <p className="empty-state">Loading richest players…</p>
+          ) : richest.length === 0 ? (
+            <p className="empty-state">Nobody has any VɎ yet.</p>
           ) : (
-            collectors.map((row, index) => (
+            richest.map((row, index) => (
               <PlayerRow
                 key={row.user_id}
                 rank={index + 1}
                 row={row}
-                metric={`${row.card_count} 🧑`}
+                metric={`${row.balance} VɎ`}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))
-          )
-        ) : richest === null ? (
-          <SkeletonRowList count={6} />
-        ) : richest.length === 0 ? (
-          <p className="empty-state">Nobody has any VɎ yet.</p>
-        ) : (
-          richest.map((row, index) => (
-            <PlayerRow
-              key={row.user_id}
-              rank={index + 1}
-              row={row}
-              metric={`${row.balance} VɎ`}
-              onSelectPlayer={setSelectedPlayerId}
-            />
-          ))
-        )}
+          )}
+        </div>
+      </div>
+
+      <div className="leaderboard-page__bottom">
+        <TaskPanel notify={notify} />
       </div>
 
       <PlayerProfileSheet userId={selectedPlayerId} onClose={() => setSelectedPlayerId(null)} />
-
-      {showTasks && (
-        <div className="sheet-overlay" onClick={() => setShowTasks(false)}>
-          <div className="confirm-sheet arena-sheet" onClick={(event) => event.stopPropagation()}>
-            <div className="confirm-sheet__handle" />
-            <TaskPanel notify={notify} />
-            <div className="confirm-sheet__actions">
-              <button type="button" className="sheet-button sheet-button--confirm" onClick={() => setShowTasks(false)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

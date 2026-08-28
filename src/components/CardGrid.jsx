@@ -1,17 +1,8 @@
 import CharacterCard from "./CharacterCard.jsx";
 
-export default function CardGrid({ characters, ownedIds, balance, onBuy, onClearFilters }) {
+export default function CardGrid({ characters, ownedIds, balance, onBuy }) {
   if (characters.length === 0) {
-    return (
-      <div className="empty-state empty-state--action">
-        <p>No cards match that search - try a different name, series, or rarity.</p>
-        {onClearFilters && (
-          <button type="button" className="empty-state__cta" onClick={onClearFilters}>
-            ✕ Clear filters
-          </button>
-        )}
-      </div>
-    );
+    return <p className="empty-state">No cards match that search - try a different name, series, or rarity.</p>;
   }
 
   return (

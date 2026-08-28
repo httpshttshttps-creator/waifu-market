@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useTelegram } from "../hooks/useTelegram.js";
 import {
   fetchArenaStatus,
   fetchArenaCards,
@@ -36,48 +35,7 @@ function TeamSlots({ team, onEdit }) {
   );
 }
 
-// A lightweight VS scene shown while a fight is pending: the attacker's
-// real 3 cards on the left, a mystery opponent on the right (we never
-// know the defender's actual cards up front - that's the point of the
-// Defense Team being a surprise), and a progress bar that fills over
-// the real 3-minute wait instead of just a bare mm:ss countdown.
-function BattleScene({ attackTeam, pct }) {
-  return (
-    <div>
-      <div className="arena-battle-scene">
-        <div className="arena-battle-scene__side">
-          {attackTeam.map((card) => {
-            const [artFrom, artTo] = card.gradient ?? ["#241E33", "#5C5378"];
-            return (
-              <div
-                key={card.user_character_id}
-                className="arena-battle-scene__mini"
-                style={{ "--art-from": artFrom, "--art-to": artTo }}
-                title={card.name}
-              >
-                {card.element_label?.split(" ")[0] ?? "⚔"}
-              </div>
-            );
-          })}
-        </div>
-        <span className="arena-battle-scene__vs">VS</span>
-        <div className="arena-battle-scene__side">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="arena-battle-scene__mystery">
-              ?
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="battle-progress">
-        <div className="battle-progress__fill" style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-export default function ArenaTab({ notify, onNavigate }) {
-  const { haptic } = useTelegram();
+export default function ArenaTab({ notify }) {
   const [status, setStatus] = useState(null);
   const [cards, setCards] = useState([]);
   const [teams, setTeams] = useState({ attack: [], defense: [] });
@@ -109,7 +67,7 @@ export default function ArenaTab({ notify, onNavigate }) {
     refreshAll();
   }, [refreshAll]);
 
-  // Live mm:ss ticker + progress-bar fill while a battle is pending.
+  // Live mm:ss ticker while a battle is pending.
   useEffect(() => {
     if (!battle || battle.resolved) {
       clearInterval(tickRef.current);
@@ -138,7 +96,6 @@ export default function ArenaTab({ notify, onNavigate }) {
   }, [battle, notify, refreshAll]);
 
   async function handleFight() {
-    haptic?.("medium");
     setFighting(true);
     const result = await startArenaFight();
     setFighting(false);
@@ -150,7 +107,6 @@ export default function ArenaTab({ notify, onNavigate }) {
       id: result.battle_id,
       battle_id: result.battle_id,
       resolved: false,
-      started_at: result.started_at ?? new Date().toISOString(),
       resolves_at: result.resolves_at,
     });
   }
@@ -166,42 +122,13 @@ export default function ArenaTab({ notify, onNavigate }) {
     }
   }
 
-  function openPicker(teamType) {
-    haptic?.("light");
-    setPickerTeamType(teamType);
-  }
-
-  function openCardManagement() {
-    haptic?.("light");
-    setShowCardManagement(true);
-  }
-
-  function handleBrowseMarket() {
-    setPickerTeamType(null);
-    onNavigate?.("market");
-  }
-
   if (loading) {
-    return (
-      <div className="arena-tab">
-        <h1 className="brand-title">⚔ ARENA</h1>
-        <div className="arena-status skeleton-shimmer" style={{ height: 46 }} />
-        <div className="fighter-grid" style={{ marginTop: 16 }}>
-          {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="fighter-card">
-              <div className="fighter-card__art skeleton-shimmer" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <p className="empty-state">Loading the Arena…</p>;
   }
 
   const attackReady = teams.attack.length === 3;
   const battlePending = battle && !battle.resolved;
   const msRemaining = battlePending ? new Date(battle.resolves_at).getTime() - now : 0;
-  const msTotal = battlePending ? new Date(battle.resolves_at).getTime() - new Date(battle.started_at).getTime() : 1;
-  const pct = battlePending ? Math.min(100, Math.max(0, 100 - (msRemaining / msTotal) * 100)) : 0;
   const canFight = attackReady && !battlePending && !fighting;
 
   return (
@@ -218,7 +145,6 @@ export default function ArenaTab({ notify, onNavigate }) {
       {battlePending && (
         <div className="arena-banner arena-banner--pending">
           ⏳ Battle in progress… resolves in {formatCountdown(msRemaining)}
-          <BattleScene attackTeam={teams.attack} pct={pct} />
         </div>
       )}
 
@@ -239,21 +165,21 @@ export default function ArenaTab({ notify, onNavigate }) {
       <section className="arena-team-section">
         <div className="arena-team-section__head">
           <h3>⚔ Attack Team</h3>
-          <button type="button" className="arena-edit-btn" onClick={() => openPicker("attack")}>
+          <button type="button" className="arena-edit-btn" onClick={() => setPickerTeamType("attack")}>
             Edit
           </button>
         </div>
-        <TeamSlots team={teams.attack} onEdit={() => openPicker("attack")} />
+        <TeamSlots team={teams.attack} onEdit={() => setPickerTeamType("attack")} />
       </section>
 
       <section className="arena-team-section">
         <div className="arena-team-section__head">
           <h3>🛡 Defense Team</h3>
-          <button type="button" className="arena-edit-btn" onClick={() => openPicker("defense")}>
+          <button type="button" className="arena-edit-btn" onClick={() => setPickerTeamType("defense")}>
             Edit
           </button>
         </div>
-        <TeamSlots team={teams.defense} onEdit={() => openPicker("defense")} />
+        <TeamSlots team={teams.defense} onEdit={() => setPickerTeamType("defense")} />
         <p className="arena-team-hint">
           No saved Defense Team? 3 random Fighter cards from your collection get used automatically when someone
           attacks you.
@@ -263,7 +189,7 @@ export default function ArenaTab({ notify, onNavigate }) {
       <button
         type="button"
         className="sheet-button sheet-button--confirm admin-add-task-button"
-        onClick={openCardManagement}
+        onClick={() => setShowCardManagement(true)}
       >
         🛠 Card Management
       </button>
@@ -285,7 +211,6 @@ export default function ArenaTab({ notify, onNavigate }) {
           initialSelected={teams[pickerTeamType]}
           onSave={(ids) => handleSaveTeam(pickerTeamType, ids)}
           onClose={() => setPickerTeamType(null)}
-          onBrowseMarket={onNavigate ? handleBrowseMarket : null}
         />
       )}
 

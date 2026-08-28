@@ -20,8 +20,6 @@ import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
 import ArenaTab from "./components/ArenaTab.jsx";
 import RiderGame from "./components/RiderGame/index.jsx";
-import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
-import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 
 export default function App() {
   const { haptic, notify } = useTelegram();
@@ -45,7 +43,6 @@ export default function App() {
   const [sellCandidate, setSellCandidate] = useState(null);
   const [sellPending, setSellPending] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [revealCharacter, setRevealCharacter] = useState(null);
 
   // Listings, balance, and the owned-cards collection all live in the
   // bot's database and can change from OUTSIDE this app at any moment -
@@ -137,7 +134,7 @@ export default function App() {
     if (result.ok) {
       setBalance(result.newBalance);
       setOwnedIds((prev) => new Set(prev).add(selectedCharacter.id));
-      setRevealCharacter(selectedCharacter);
+      setToastMessage(`✅ ${selectedCharacter.name} added to your collection`);
       notify("success");
       // Re-pull everything (not just profile) so the listing this card
       // came from also disappears from the Market tab right away.
@@ -189,9 +186,9 @@ export default function App() {
           <>
             <ProfileHeader name={profile.name} balance={balance} cardCount={profile.cardCount} />
             {profileLoading ? (
-              <SkeletonGrid count={4} />
+              <p className="empty-state">Loading your collection…</p>
             ) : (
-              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => setActiveTab("market")} />
+              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} />
             )}
           </>
         )}
@@ -207,17 +204,13 @@ export default function App() {
             />
 
             {loading ? (
-              <SkeletonGrid count={6} />
+              <p className="empty-state">Loading the stall…</p>
             ) : (
               <CardGrid
                 characters={visibleCharacters}
                 ownedIds={ownedIds}
                 balance={balance}
                 onBuy={openConfirm}
-                onClearFilters={() => {
-                  setActiveRarity("All");
-                  setQuery("");
-                }}
               />
             )}
           </>
@@ -227,7 +220,7 @@ export default function App() {
 
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
-        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={setActiveTab} />}
+        {activeTab === "arena" && <ArenaTab notify={notify} />}
       </div>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />
@@ -250,8 +243,6 @@ export default function App() {
       />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
-
-      <CardRevealOverlay character={revealCharacter} onDismiss={() => setRevealCharacter(null)} />
     </div>
   );
 }

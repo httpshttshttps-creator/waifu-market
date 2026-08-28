@@ -1,15 +1,12 @@
 import { useState } from "react";
-import { useTelegram } from "../hooks/useTelegram.js";
 import ArenaFighterCard from "./ArenaFighterCard.jsx";
 
-export default function ArenaTeamPickerSheet({ teamType, cards, initialSelected, onSave, onClose, onBrowseMarket }) {
-  const { haptic } = useTelegram();
+export default function ArenaTeamPickerSheet({ teamType, cards, initialSelected, onSave, onClose }) {
   const [selected, setSelected] = useState(() => initialSelected.map((c) => c.user_character_id));
   const [saving, setSaving] = useState(false);
   const title = teamType === "attack" ? "⚔ Attack Team" : "🛡 Defense Team";
 
   function toggle(userCharacterId) {
-    haptic?.("light");
     setSelected((prev) => {
       if (prev.includes(userCharacterId)) {
         return prev.filter((id) => id !== userCharacterId);
@@ -33,14 +30,9 @@ export default function ArenaTeamPickerSheet({ teamType, cards, initialSelected,
         <p className="confirm-sheet__subtitle">Pick up to 3 Fighter cards - {selected.length}/3 selected</p>
 
         {cards.length === 0 ? (
-          <div className="empty-state empty-state--action empty-state--tight">
-            <p>You don't own any Fighter cards yet - collect one from the Market or Home tab first.</p>
-            {onBrowseMarket && (
-              <button type="button" className="empty-state__cta" onClick={onBrowseMarket}>
-                🛍 Browse the Market
-              </button>
-            )}
-          </div>
+          <p className="empty-state empty-state--tight">
+            You don't own any Fighter cards yet - collect one from the Market or Home tab first.
+          </p>
         ) : (
           <div className="fighter-grid fighter-grid--scroll">
             {cards.map((card) => (

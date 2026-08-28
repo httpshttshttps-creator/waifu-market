@@ -16,7 +16,7 @@ export default function OwnedCard({ character, sellPrice, onSell }) {
   };
 
   return (
-    <article className="character-card owned-card" data-glow={tier.glowLevel || undefined} style={style}>
+    <article className="character-card owned-card" style={style}>
       <div className="character-card__art">
         {character.quantity > 1 && <span className="quantity-badge">×{character.quantity}</span>}
         {showImage ? (
