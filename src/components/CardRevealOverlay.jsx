@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getRarityTier } from "../data/rarities.js";
+import CardMedia from "./CardMedia.jsx";
 
 export default function CardRevealOverlay({ character, onDismiss }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -41,9 +42,10 @@ export default function CardRevealOverlay({ character, onDismiss }) {
 
         <div className="reveal-card__art">
           {showImage ? (
-            <img
+            <CardMedia
               className="character-card__photo"
               src={character.imageUrl}
+              mediaType={character.mediaType}
               alt={character.name}
               onError={() => setImageFailed(true)}
             />

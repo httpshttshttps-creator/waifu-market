@@ -31,8 +31,17 @@ const CATEGORY_TRAP = 0x0008;
 // moment gas is released, matching how a real spinning mass behaves.
 const GRAVITY_Y = 0.68;
 const FORWARD_FORCE = 0.019;
+// Purely a rear-wheel-drive visual/physical touch - propulsion itself
+// still comes from FORWARD_FORCE above (direct force on the chassis, so
+// it's never at the mercy of wheel-ground friction quirks). This just
+// makes the REAR wheel visibly spin under power while the front wheel
+// stays a free-rolling, friction-only wheel - like a real motorcycle.
+// Applied as torque (not a hard-set angular velocity), which is far
+// gentler on the constraint solver and doesn't reintroduce the
+// wheelie-style instability a forced velocity caused earlier.
+const REAR_WHEEL_TORQUE = 0.8;
 const MAX_SPEED = 31;
-const JUMP_VELOCITY = 34; // upward kick from a double-tap, horizontal velocity untouched - cranked way up, dial back from here
+const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
 const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
 const AIR_PITCH_TORQUE = 0.0022; // ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 2.4; // rad/s - more room to commit to a full flip on a big jump
@@ -797,9 +806,11 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       if (grounded) {
         if (gasRef.current) {
           Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
+          bike.rearWheel.torque = REAR_WHEEL_TORQUE;
         }
-        // Wheel rotation is left entirely to Matter's friction/contact
-        // simulation - nothing here sets angular velocity on a wheel.
+        // The front wheel is never touched - it only ever turns from its
+        // own friction/contact with the ground, exactly like a real
+        // motorcycle's undriven front wheel.
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
