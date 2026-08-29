@@ -31,15 +31,17 @@ const CATEGORY_TRAP = 0x0008;
 // moment gas is released, matching how a real spinning mass behaves.
 const GRAVITY_Y = 0.68;
 const FORWARD_FORCE = 0.019;
-// Purely a rear-wheel-drive visual/physical touch - propulsion itself
-// still comes from FORWARD_FORCE above (direct force on the chassis, so
-// it's never at the mercy of wheel-ground friction quirks). This just
-// makes the REAR wheel visibly spin under power while the front wheel
-// stays a free-rolling, friction-only wheel - like a real motorcycle.
-// Applied as torque (not a hard-set angular velocity), which is far
-// gentler on the constraint solver and doesn't reintroduce the
-// wheelie-style instability a forced velocity caused earlier.
-const REAR_WHEEL_TORQUE = 0.8;
+// Rear-wheel spin under power is purely COSMETIC (a separate drawn
+// rotation, not a real physics torque) - see rearSpinAngle below.
+// Applying real torque to the rear wheel turned out to transmit a
+// reaction force straight through its axle pin into the chassis
+// (offset from the center of mass), pitching the whole bike forward
+// under acceleration - a real wheelie-causing mechanism, just not one
+// we want here where stable, predictable ground handling matters more
+// than that extra bit of realism. Propulsion itself is entirely the
+// direct FORWARD_FORCE on the chassis above, completely unaffected by
+// this.
+const REAR_SPIN_RATE = 0.045; // cosmetic radians per (ms * speedFraction) while driving
 const MAX_SPEED = 31;
 const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
 const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
@@ -381,24 +383,39 @@ function drawTrail(ctx, trailPoints) {
   ctx.restore();
 }
 
-function drawBike(ctx, bike) {
+function drawBike(ctx, bike, rearSpinAngle) {
   const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
 
   ctx.save();
   ctx.strokeStyle = "#bfe4ff";
   ctx.lineWidth = 3;
-  for (const wheel of [rearWheel, frontWheel]) {
-    ctx.beginPath();
-    ctx.arc(wheel.position.x, wheel.position.y, wheelRadius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(wheel.position.x, wheel.position.y);
-    ctx.lineTo(
-      wheel.position.x + Math.cos(wheel.angle) * wheelRadius,
-      wheel.position.y + Math.sin(wheel.angle) * wheelRadius
-    );
-    ctx.stroke();
-  }
+
+  // Front wheel: real physics angle - free-rolling, friction-only,
+  // exactly like a real motorcycle's undriven front wheel.
+  ctx.beginPath();
+  ctx.arc(frontWheel.position.x, frontWheel.position.y, wheelRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(frontWheel.position.x, frontWheel.position.y);
+  ctx.lineTo(
+    frontWheel.position.x + Math.cos(frontWheel.angle) * wheelRadius,
+    frontWheel.position.y + Math.sin(frontWheel.angle) * wheelRadius
+  );
+  ctx.stroke();
+
+  // Rear wheel: cosmetic spin only (see REAR_SPIN_RATE) - visibly spins
+  // fast under power without ever touching the real physics body, so it
+  // can't feed back into chassis stability.
+  ctx.beginPath();
+  ctx.arc(rearWheel.position.x, rearWheel.position.y, wheelRadius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(rearWheel.position.x, rearWheel.position.y);
+  ctx.lineTo(
+    rearWheel.position.x + Math.cos(rearSpinAngle) * wheelRadius,
+    rearWheel.position.y + Math.sin(rearSpinAngle) * wheelRadius
+  );
+  ctx.stroke();
   ctx.restore();
 
   ctx.save();
@@ -757,6 +774,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let lastScoreMilestone = 0;
     const trail = [];
     let dustParticles = [];
+    let rearSpinAngle = 0; // cosmetic-only rotation for the rear wheel's drawn spoke line
 
     function stepPhysics(dtMs) {
       elapsedRef += dtMs / 1000;
@@ -806,11 +824,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       if (grounded) {
         if (gasRef.current) {
           Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
-          bike.rearWheel.torque = REAR_WHEEL_TORQUE;
+          rearSpinAngle += REAR_SPIN_RATE * dtMs * (0.4 + speedFraction);
         }
-        // The front wheel is never touched - it only ever turns from its
-        // own friction/contact with the ground, exactly like a real
-        // motorcycle's undriven front wheel.
+        // The front wheel is never touched - it's drawn from its real
+        // physics angle, turning only from its own friction/contact
+        // with the ground, exactly like a real motorcycle's undriven
+        // front wheel. The rear wheel's spin is purely cosmetic (see
+        // REAR_SPIN_RATE above) - it never touches the real physics
+        // body, so it can never feed back into chassis stability.
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
@@ -965,7 +986,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         drawExplosion(ctx, explosionParticles);
       } else {
         drawTrail(ctx, trail);
-        drawBike(ctx, bike);
+        drawBike(ctx, bike, rearSpinAngle);
       }
       ctx.restore();
 

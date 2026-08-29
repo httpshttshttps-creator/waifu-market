@@ -113,7 +113,11 @@ function featureTerrainChain(state, t) {
   for (let i = 0; i < legCount; i++) {
     const goingUp = Math.random() < 0.55;
     const length = rand(130, 240);
-    const rise = goingUp ? rand(40, 90 + t * 30) : -rand(35, 85 + t * 25);
+    // Gentle on purpose: at the bike's speed, a steep peak here would
+    // launch it into the air on its own (pure inertia carrying it off
+    // the crest) even without a double-tap - the ONLY way to get air
+    // should be the deliberate jump action, not terrain shape.
+    const rise = goingUp ? rand(14, 30 + t * 10) : -rand(14, 30 + t * 10);
     appendRamp(state, length, rise);
   }
   appendFlat(state, rand(50, 120));
@@ -122,7 +126,7 @@ function featureTerrainChain(state, t) {
 // A gentler, smoother rolling stretch for texture variety between the
 // sharper mountain-chain sections.
 function featureRollingHills(state, t) {
-  const amplitude = rand(18, 34 + t * 14);
+  const amplitude = rand(12, 22 + t * 8); // kept gentle - even smooth waves can launch the bike at this speed
   const wavelength = rand(280, 460);
   const phase = rand(0, Math.PI * 2);
   const length = rand(400, 700);
