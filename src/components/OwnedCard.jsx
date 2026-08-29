@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { getRarityTier } from "../data/rarities.js";
-import CardMedia from "./CardMedia.jsx";
 
 export default function OwnedCard({ character, sellPrice, onSell }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -21,10 +20,9 @@ export default function OwnedCard({ character, sellPrice, onSell }) {
       <div className="character-card__art">
         {character.quantity > 1 && <span className="quantity-badge">×{character.quantity}</span>}
         {showImage ? (
-          <CardMedia
+          <img
             className="character-card__photo"
             src={character.imageUrl}
-            mediaType={character.mediaType}
             alt={character.name}
             loading="lazy"
             onError={() => setImageFailed(true)}
