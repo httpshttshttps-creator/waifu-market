@@ -1184,6 +1184,14 @@ button {
 
 .rider-game__result {
   --card-accent: var(--neon-gold);
+  /* The bottom nav sits fixed at the very bottom of the screen too - pad
+     the sheet's bottom well past it so the "Play again" button never
+     spatially overlaps the nav's tap targets, regardless of stacking. */
+  padding-bottom: calc(96px + env(safe-area-inset-bottom));
+}
+
+.rider-game__result-overlay {
+  z-index: 1100;
 }
 
 .rider-game__result-title {

@@ -48,12 +48,7 @@ function delay(ms) {
 }
 
 function normalizeCard(card) {
-  return {
-    ...card,
-    imageUrl: imageUrl(card.image_file_id),
-    mediaType: card.media_type || "photo",
-    gradient: gradientFor(card.character_id),
-  };
+  return { ...card, imageUrl: imageUrl(card.image_file_id), gradient: gradientFor(card.character_id) };
 }
 
 export async function fetchArenaLeagues() {

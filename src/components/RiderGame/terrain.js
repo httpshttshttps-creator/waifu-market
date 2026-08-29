@@ -1,20 +1,20 @@
 // Procedural, endless terrain generator for the Rider mini-game.
 //
+// Jumping is now a discrete player action (double-tap - see GameCanvas),
+// not something the terrain has to set up via launch ramps. That means
+// gaps and obstacles no longer need a preceding ramp to be clearable -
+// they just need to be sized within reach of the bike's fixed jump arc,
+// which GameCanvas controls independently of terrain shape. Ramps still
+// exist for texture/visual variety (rolling hills, mountain-chain
+// peaks), but they're no longer functionally required to clear anything.
+//
 // The world is built as a sequence of "spans" (continuous rideable ground,
 // as a polyline of {x,y} points) separated by gaps. Every gap has a spiked
 // floor underneath it (a "pitfloor" trap) - there is no bottomless void,
-// so falling short of a jump always ends in a concrete, visible hit
-// instead of an endless fall. The ground fill drawn under each span (see
+// so mistiming a jump always ends in a concrete, visible hit instead of
+// an endless fall. The ground fill drawn under each span (see
 // GameCanvas) extends far below the camera regardless, so a gap always
 // reads as a canyon with rock walls, never as empty space.
-//
-// Ramps that lead into a gap or obstacle register a "boost" zone. Unlike
-// a naive "add vertical speed" hack, a boost here is a MULTIPLIER applied
-// to the bike's actual velocity vector at the instant it leaves the
-// ground - see GameCanvas's grounded->airborne handling. That preserves
-// the direction the bike was already travelling (which follows the
-// ramp's own slope), so a boosted launch goes further AND higher, never
-// just straight up.
 //
 // Terrain is generated ahead of the bike and pruned once it scrolls far
 // behind the camera, so a run can go on forever without the amount of
@@ -54,13 +54,16 @@ function appendFlat(state, length) {
   }
 }
 
-// Adds a ramp (positive rise = uphill/launch ramp, negative = downhill)
-// over `length` px, subdivided into GROUND_STEP-sized points so it still
+// Adds a ramp (positive rise = uphill, negative = downhill) over
+// `length` px, subdivided into GROUND_STEP-sized points so it still
 // reads as a smooth line at the stroke width we draw at. The rise is
 // clamped to a climbable angle (~28 degrees) regardless of what the
-// caller asks for - a bike with finite engine power can lose almost all
-// its speed grinding up anything steeper, which made some jumps
-// impossible no matter how fast you arrived.
+// caller asks for, and additionally clamped per-point relative to
+// whatever point actually precedes it (not just this ramp's own start),
+// so the joint where one ramp meets the next can never be a sharp
+// instant corner either - a rigid two-wheel bike bridging a sharp
+// peak/valley corner "high-centers" on it even when each leg's own
+// average slope is individually fine.
 const MAX_RAMP_SLOPE_RATIO = 0.53; // rise/length ceiling, ~28 degrees
 
 function appendRamp(state, length, rise) {
@@ -72,15 +75,6 @@ function appendRamp(state, length, rise) {
   for (let i = 1; i <= steps; i++) {
     x = state.cursorX + i * (length / steps);
     const targetY = startY - (clampedRise * i) / steps;
-    // Clamped relative to the ACTUAL previous point (not just this ramp's
-    // own start), so the joint where one ramp meets the next - e.g. an
-    // uphill leg immediately followed by a downhill leg - can never be a
-    // sharp instant corner either, even though each leg's own average
-    // slope already passed the MAX_RAMP_SLOPE_RATIO check above. A rigid
-    // two-wheel bike bridging a sharp peak/valley corner like that would
-    // "high-center" - the corner pokes up into the chassis even on
-    // otherwise gentle terrain - which is exactly what a sharp joint
-    // between two legal ramps could still produce without this.
     const y = clampSlope(state.cursorY, targetY);
     state.points.push({ x, y });
     state.cursorX = x;
@@ -106,37 +100,21 @@ function openGap(state, width, landY) {
   state.startSpan(state.cursorX, state.cursorY);
 }
 
-// Registers a launch multiplier for leaving the ground anywhere in
-// [x1, x2] - see GameCanvas's grounded->airborne transition handling.
-// `multiplier` scales the bike's actual (vx, vy) at liftoff, so the
-// launch always goes in the direction the bike was already travelling.
-function addBoost(state, x1, x2, multiplier) {
-  state.boosts.push({ x1, x2, multiplier });
-}
-
 // ---------------- feature generators ----------------
 // Each takes the generator state and a difficulty t in [0,1] and appends
 // points to the current span (state.points), possibly starting a new span
-// after a gap, and may push trap/boost descriptors.
+// after a gap, and may push trap descriptors.
 
 // The main filler terrain: a chain of straight uphill/downhill ramps
 // meeting at distinct peaks and valleys (mountain-range silhouette, not
-// smooth waves). Every uphill leg gets a mild boost zone, so cresting
-// any ordinary peak while accelerating gives real, consistent air.
+// smooth waves) - purely texture now, no launch function to serve.
 function featureTerrainChain(state, t) {
   const legCount = 3 + Math.floor(rand(0, 3));
   for (let i = 0; i < legCount; i++) {
     const goingUp = Math.random() < 0.55;
     const length = rand(130, 240);
-    const rise = goingUp ? rand(50, 110 + t * 40) : -rand(40, 100 + t * 30);
-
-    if (goingUp) {
-      const boostStart = state.cursorX + length * 0.35;
-      appendRamp(state, length, rise);
-      addBoost(state, boostStart, state.cursorX, 1.25 + t * 0.15);
-    } else {
-      appendRamp(state, length, rise);
-    }
+    const rise = goingUp ? rand(40, 90 + t * 30) : -rand(35, 85 + t * 25);
+    appendRamp(state, length, rise);
   }
   appendFlat(state, rand(50, 120));
 }
@@ -162,33 +140,19 @@ function featureRollingHills(state, t) {
   }
 }
 
+// A flat-approach gap - no launch ramp needed, clearing it is entirely
+// down to timing the (fixed) double-tap jump. Sized a bit wider than the
+// old ramp-assisted version since jump timing is now fully reliable.
 function featureGapJump(state, t) {
-  const rampLen = rand(160, 220);
-  const rampRise = rand(70, 110);
-  const gapWidth = rand(140, 190 + t * 60);
-
-  const boostStart = state.cursorX + rampLen * 0.4;
-  appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 1.8 + gapWidth / 500);
-
-  openGap(state, gapWidth, state.baseline + rand(-6, 6));
-  appendRamp(state, 90, -26); // gentle downward-sloped landing ramp
+  const gapWidth = rand(170, 230 + t * 90);
+  appendFlat(state, rand(60, 100));
+  openGap(state, gapWidth, state.baseline);
   appendFlat(state, rand(90, 140));
 }
 
 function featureSpikeRow(state, t) {
-  // A launch bump, then N spikes mounted directly on flat ground - has
-  // to be jumped over using the boost from the bump.
-  const bumpLen = 110;
-  const bumpRise = rand(34, 46);
-  const boostStart = state.cursorX + bumpLen * 0.5;
-  appendRamp(state, bumpLen * 0.5, bumpRise);
-  appendRamp(state, bumpLen * 0.5, -bumpRise);
-
-  const spikeCount = 1 + Math.floor(rand(0, 2 + t * 1.5));
-  addBoost(state, boostStart, state.cursorX + 30, 1.55 + spikeCount * 0.12);
-
-  appendFlat(state, 40);
+  const spikeCount = 1 + Math.floor(rand(0, 3 + t * 1.5));
+  appendFlat(state, rand(60, 100));
   for (let i = 0; i < spikeCount; i++) {
     const spikeX = state.cursorX + 24;
     state.traps.push({ type: "spike", x: spikeX, y: state.baseline, width: 26, height: 30 });
@@ -196,18 +160,16 @@ function featureSpikeRow(state, t) {
     state.cursorY = state.baseline;
     state.points.push({ x: state.cursorX, y: state.baseline });
   }
-
   appendFlat(state, rand(80, 120));
 }
 
+// A wide gap bridged only by a moving platform - jump onto it and time
+// a second jump off, or clear the whole thing in one jump if you're
+// confident. Wider than before, so the platform is more often the
+// actual intended path rather than an optional shortcut.
 function featureMovingPlatformGap(state, t) {
-  const rampLen = 160;
-  const rampRise = 48;
-  const gapWidth = rand(220, 280 + t * 40);
-
-  const boostStart = state.cursorX + rampLen * 0.4;
-  appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 1.9 + gapWidth / 400);
+  const gapWidth = rand(240, 300 + t * 60);
+  appendFlat(state, rand(60, 100));
 
   const platformX = state.cursorX + gapWidth / 2;
   const platformBaseY = state.baseline - rand(20, 50);
@@ -234,22 +196,18 @@ function featurePendulum(state, t) {
     anchorX,
     anchorY: state.baseline - 260,
     length,
-    speed: rand(0.7, 1.1 + t * 0.4),
+    speed: rand(0.8, 1.3 + t * 0.45),
     phase: rand(0, Math.PI * 2),
     radius: 16,
   });
 }
 
+// An elevated hazard mounted over flat ground - has to be jumped clear
+// of with good timing, no ramp to lean on.
 function featureSpikyBall(state, t) {
-  const rampLen = 150;
-  const rampRise = 44;
-  const boostStart = state.cursorX + rampLen * 0.4;
-  appendRamp(state, rampLen, rampRise);
-  addBoost(state, boostStart, state.cursorX, 2.0 + t * 0.2);
-
   const flatLen = rand(200, 260);
   const ballX = state.cursorX + flatLen / 2;
-  const ballY = state.cursorY - 75;
+  const ballY = state.baseline - rand(70, 95);
 
   appendFlat(state, flatLen);
 
@@ -258,10 +216,9 @@ function featureSpikyBall(state, t) {
     x: ballX,
     y: ballY,
     radius: 26,
-    speed: rand(1.6, 2.6 + t * 0.8),
+    speed: rand(1.8, 2.8 + t * 0.8),
   });
 
-  appendRamp(state, 90, -rampRise * 0.6);
   appendFlat(state, 100);
 }
 
@@ -294,7 +251,6 @@ export function createTerrainState(baseline) {
     spans: [],
     points: [],
     traps: [],
-    boosts: [],
     lastFeature: null,
     startSpan(x, y) {
       state.points = [{ x, y }];
@@ -319,9 +275,9 @@ export function generateAhead(state, targetX, elapsedSeconds) {
   }
 }
 
-// Removes spans/traps/boosts that have fully scrolled behind minX -
-// margin. Returns the removed traps so callers can clean up their
-// physics bodies.
+// Removes spans/traps that have fully scrolled behind minX - margin.
+// Returns the removed traps so callers can clean up their physics
+// bodies.
 export function pruneBehind(state, minX) {
   const cutoff = minX - GAP_PRUNE_MARGIN;
   state.spans = state.spans.filter((span) => span[span.length - 1].x > cutoff);
@@ -334,8 +290,6 @@ export function pruneBehind(state, minX) {
     else removedTraps.push(trap);
   }
   state.traps = keptTraps;
-
-  state.boosts = state.boosts.filter((boost) => boost.x2 > cutoff);
 
   return removedTraps;
 }

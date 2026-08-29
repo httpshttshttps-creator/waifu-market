@@ -15,18 +15,25 @@ const CATEGORY_BIKE = 0x0004;
 const CATEGORY_TRAP = 0x0008;
 
 // ---------------- physics tuning ----------------
-// Weight and momentum matter more than any single number here: gravity
-// is stronger and hang time shorter than earlier passes (falls read as
-// real falls, not a slow drift), top speed is much higher, and angular
-// momentum in the air is barely damped at all - once a flip is spinning,
-// it keeps spinning instead of politely stopping the moment gas is
-// released, matching how a real spinning mass behaves. Propulsion is a
-// direct forward force on the chassis (not wheel friction) so it's never
-// affected by how the wheels happen to be spinning; wheel rotation
-// itself is left entirely to Matter's own friction/contact simulation.
-const GRAVITY_Y = 0.68; // ~+24% over the previous pass - faster, more decisive falls
-const FORWARD_FORCE = 0.019; // scaled up for both the higher top speed AND the heavier chassis below
-const MAX_SPEED = 31; // ~+35% over the previous pass
+// Jumping is now a discrete action (double-tap - see DOUBLE_TAP_WINDOW
+// below), not something that emerges from ramp launch physics. That
+// makes the whole system much more predictable: JUMP_VELOCITY is a
+// fixed upward kick applied the instant a double-tap is registered
+// while grounded, and it deliberately never touches horizontal
+// velocity - so a bike already moving keeps moving at the same speed
+// through the jump (carries its momentum forward), while a bike at a
+// standstill just hops straight up and back down. Propulsion is a
+// direct forward force on the chassis (not wheel friction) so it's
+// never affected by how the wheels happen to be spinning; wheel
+// rotation itself is left entirely to Matter's own friction/contact
+// simulation. Angular momentum in the air is barely damped - once a
+// flip is spinning, it keeps spinning instead of politely stopping the
+// moment gas is released, matching how a real spinning mass behaves.
+const GRAVITY_Y = 0.68;
+const FORWARD_FORCE = 0.019;
+const MAX_SPEED = 31;
+const JUMP_VELOCITY = 15.5; // upward kick from a double-tap, horizontal velocity untouched
+const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
 const AIR_PITCH_TORQUE = 0.0022; // ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 2.4; // rad/s - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
@@ -41,15 +48,8 @@ const CAMERA_SHAKE_MAX_PX = 2.5;
 const FIXED_DT = 1000 / 60; // fixed physics step for smooth, frame-rate-independent motion
 const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/lag spike
 const EXPLOSION_DURATION = 700;
-// A launch is only ever boosted by MULTIPLYING the bike's actual (vx, vy)
-// at the moment it leaves the ground - never by overriding it outright -
-// so a boosted jump always continues in the direction the bike was
-// already travelling (following the ramp's slope) instead of just
-// popping straight up. See the grounded->airborne handling in the loop.
-const GENERIC_LAUNCH_MULTIPLIER = 1.3; // ordinary ramp crests now noticeably shape the arc, not just scripted zones
 const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
 const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a camera thump
-const JUMP_SOUND_VY = -3; // only genuine launches play the jump sound, not tiny bumps
 
 function isWheel(body) {
   return body.label === "wheel";
@@ -676,16 +676,39 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     Events.on(engine, "collisionEnd", onCollisionEnd);
 
     // ---------------- input ----------------
+    // A quick double-tap anywhere triggers a jump (if grounded); a
+    // single press-and-hold just accelerates, exactly as before. Jump
+    // itself is a plain vertical velocity kick that never touches
+    // horizontal velocity - see the jumpRequested handling in
+    // stepPhysics for why that's what makes "keep moving if you were
+    // already moving, stay put if you were standing still" work.
+    let lastTapTime = 0;
+    let jumpRequested = false;
+
+    function registerTap() {
+      const now = performance.now();
+      if (now - lastTapTime < DOUBLE_TAP_WINDOW) {
+        jumpRequested = true;
+        lastTapTime = 0; // avoid a fast third tap chaining into a second jump instantly
+      } else {
+        lastTapTime = now;
+      }
+    }
+
     function onPointerDown(event) {
       event.preventDefault();
       gasRef.current = true;
       resumeAudio(); // audio can only start from inside a real user gesture
+      registerTap();
     }
     function onPointerUp() {
       gasRef.current = false;
     }
     function onKeyDown(event) {
-      if (event.code === "Space" || event.code === "ArrowUp") gasRef.current = true;
+      if (event.code === "Space" || event.code === "ArrowUp") {
+        gasRef.current = true;
+        if (!event.repeat) registerTap();
+      }
     }
     function onKeyUp(event) {
       if (event.code === "Space" || event.code === "ArrowUp") gasRef.current = false;
@@ -757,16 +780,26 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
       updateEngine(grounded && gasRef.current, speedFraction);
 
+      // A double-tap jump is a pure vertical velocity kick - horizontal
+      // velocity is deliberately left completely untouched. That's the
+      // entire mechanism behind "keep moving forward if you were already
+      // moving, stay put if you were standing still": we simply never
+      // change vx here, so whatever it already was carries straight
+      // through the jump.
+      if (jumpRequested) {
+        jumpRequested = false;
+        if (grounded) {
+          Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: -JUMP_VELOCITY });
+          playJump();
+        }
+      }
+
       if (grounded) {
         if (gasRef.current) {
           Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
         }
         // Wheel rotation is left entirely to Matter's friction/contact
         // simulation - nothing here sets angular velocity on a wheel.
-        // The top-speed cap only applies while grounded/accelerating -
-        // clamping it in the air too would strip away the extra
-        // horizontal speed a boosted launch just gave the bike, robbing
-        // the jump of the distance it's supposed to have.
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
@@ -778,31 +811,10 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       } else {
         // Not holding gas in the air: just damp out any existing spin so
         // the bike settles into coasting at whatever angle it currently
-        // has - it does NOT get pulled back toward level. In the
-        // reference footage a normal (non-flipping) jump holds its
-        // launch angle nearly perfectly through the whole arc; forcing
-        // it toward horizontal here would fight that and make landings
-        // feel wrong on any ramp that wasn't launched dead-flat.
+        // has - it does NOT get pulled back toward level.
         Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity * (1 - AUTO_LEVEL_DAMPING));
       }
 
-      // A boosted launch MULTIPLIES the bike's actual velocity vector at
-      // the instant it leaves the ground, preserving whatever direction
-      // it was already travelling in (which follows the ramp's slope) -
-      // so a bigger boost means further AND higher, never just "pop
-      // straight up and come straight back down".
-      if (wasGrounded && !grounded && bike.chassis.velocity.y < -0.2) {
-        const bikeX = bike.chassis.position.x;
-        const activeBoost = terrain.boosts.find((b) => bikeX >= b.x1 && bikeX <= b.x2);
-        const multiplier = activeBoost ? activeBoost.multiplier : gasRef.current ? GENERIC_LAUNCH_MULTIPLIER : 1;
-        if (multiplier > 1) {
-          Body.setVelocity(bike.chassis, {
-            x: bike.chassis.velocity.x * multiplier,
-            y: bike.chassis.velocity.y * multiplier,
-          });
-        }
-        if (bike.chassis.velocity.y < JUMP_SOUND_VY) playJump();
-      }
       wasGrounded = grounded;
       if (!grounded) lastAirborneVy = bike.chassis.velocity.y;
 
@@ -982,7 +994,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       <button type="button" className="rider-game__quit" onClick={onQuit}>
         ✕
       </button>
-      <p className="rider-game__hint">Hold anywhere to accelerate</p>
+      <p className="rider-game__hint">Hold to accelerate · double-tap to jump</p>
     </div>
   );
 }

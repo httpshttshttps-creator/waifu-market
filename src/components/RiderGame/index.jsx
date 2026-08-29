@@ -41,8 +41,9 @@ export default function RiderGame({ notify, onBalanceChange }) {
         <div className="rider-game__intro">
           <h1 className="brand-title">🏍 NEON RIDER</h1>
           <p className="rider-game__intro-text">
-            Hold anywhere on the screen to gas it. Let go to coast. Speed off ramps to clear
-            gaps and traps - and don't land on your frame.
+            Hold anywhere to accelerate. Double-tap to jump - moving keeps its speed in the
+            air, standing still just hops straight up. Clear the gaps, don't land on your
+            frame.
           </p>
           <p className="rider-game__intro-text rider-game__intro-text--dim">
             +1 VɎ for every 10 seconds you survive. No finish line - just go as far as you can.
@@ -58,7 +59,7 @@ export default function RiderGame({ notify, onBalanceChange }) {
       )}
 
       {stage === STAGE_RESULT && result && (
-        <div className="sheet-overlay">
+        <div className="sheet-overlay rider-game__result-overlay">
           <div className="confirm-sheet rider-game__result">
             <div className="confirm-sheet__handle" />
             <p className="rider-game__result-title">

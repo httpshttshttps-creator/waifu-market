@@ -72,8 +72,11 @@ export function playScore() {
 
 // Continuous engine hum - a single oscillator whose pitch/volume is
 // nudged toward a target each call rather than recreated, so it can be
-// updated every physics tick cheaply.
+// updated every physics tick cheaply. Triangle wave through a gentle
+// lowpass (instead of a raw sawtooth) so it reads as a smooth hum
+// rather than a buzzy rattle.
 let engineOsc = null;
+let engineFilter = null;
 let engineGain = null;
 
 export function updateEngine(active, speedFraction) {
@@ -82,22 +85,27 @@ export function updateEngine(active, speedFraction) {
 
   if (active && !engineOsc) {
     engineOsc = ctx.createOscillator();
+    engineFilter = ctx.createBiquadFilter();
     engineGain = ctx.createGain();
-    engineOsc.type = "sawtooth";
+    engineOsc.type = "triangle";
+    engineFilter.type = "lowpass";
+    engineFilter.frequency.value = 260;
     engineGain.gain.value = 0.0001;
-    engineOsc.connect(engineGain).connect(ctx.destination);
+    engineOsc.connect(engineFilter).connect(engineGain).connect(ctx.destination);
     engineOsc.start();
   }
 
   if (!engineOsc) return;
 
   if (active) {
-    const freq = 65 + speedFraction * 170;
-    const volume = 0.045 + speedFraction * 0.05;
-    engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.06);
-    engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.06);
+    const freq = 55 + speedFraction * 120;
+    const filterFreq = 220 + speedFraction * 380;
+    const volume = 0.032 + speedFraction * 0.032;
+    engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.09);
+    engineFilter.frequency.setTargetAtTime(filterFreq, ctx.currentTime, 0.09);
+    engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.09);
   } else {
-    engineGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.1);
+    engineGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);
   }
 }
 
@@ -110,5 +118,6 @@ export function stopEngine() {
     }
   }
   engineOsc = null;
+  engineFilter = null;
   engineGain = null;
 }
