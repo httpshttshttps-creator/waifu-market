@@ -89,7 +89,7 @@ export function updateEngine(active, speedFraction) {
     engineGain = ctx.createGain();
     engineOsc.type = "triangle";
     engineFilter.type = "lowpass";
-    engineFilter.frequency.value = 260;
+    engineFilter.frequency.value = 500;
     engineGain.gain.value = 0.0001;
     engineOsc.connect(engineFilter).connect(engineGain).connect(ctx.destination);
     engineOsc.start();
@@ -98,12 +98,16 @@ export function updateEngine(active, speedFraction) {
   if (!engineOsc) return;
 
   if (active) {
-    const freq = 55 + speedFraction * 120;
-    const filterFreq = 220 + speedFraction * 380;
-    const volume = 0.032 + speedFraction * 0.032;
-    engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.09);
-    engineFilter.frequency.setTargetAtTime(filterFreq, ctx.currentTime, 0.09);
-    engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.09);
+    // Louder and pitched a bit higher than the last pass - the previous
+    // "smooth out the rattle" fix (triangle wave + lowpass + quieter
+    // gain) ended up quiet enough to be inaudible on a phone speaker,
+    // which read as "the engine sound is gone" rather than "smoother".
+    const freq = 90 + speedFraction * 170;
+    const filterFreq = 500 + speedFraction * 700;
+    const volume = 0.07 + speedFraction * 0.07;
+    engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.08);
+    engineFilter.frequency.setTargetAtTime(filterFreq, ctx.currentTime, 0.08);
+    engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.08);
   } else {
     engineGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12);
   }
