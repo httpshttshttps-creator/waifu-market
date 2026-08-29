@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { getElementInfo } from "../data/elements.js";
+import CardMedia from "./CardMedia.jsx";
 
 export default function ArenaFighterCard({ card, selected, onClick, footer }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -24,9 +25,10 @@ export default function ArenaFighterCard({ card, selected, onClick, footer }) {
         </span>
         <span className="fighter-card__level">Lv {card.level}</span>
         {showImage ? (
-          <img
+          <CardMedia
             className="character-card__photo"
             src={card.imageUrl}
+            mediaType={card.mediaType}
             alt={card.name}
             loading="lazy"
             onError={() => setImageFailed(true)}

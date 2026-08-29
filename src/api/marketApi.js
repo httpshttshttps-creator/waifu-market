@@ -69,6 +69,7 @@ function normalizeListing(listing) {
     price: listing.price,
     seller: listing.seller_username ? `@${listing.seller_username}` : `Player ${listing.seller_id}`,
     imageUrl: imageUrl(listing.image_file_id),
+    mediaType: listing.media_type || "photo",
     gradient: gradientFor(listing.character_id),
   };
 }
@@ -98,6 +99,7 @@ function normalizeOwnedCard(card) {
     series: card.series,
     rarity: card.rarity_name || "Unranked",
     imageUrl: imageUrl(card.image_file_id),
+    mediaType: card.media_type || "photo",
     gradient: gradientFor(card.id),
     quantity: card.quantity,
   };
