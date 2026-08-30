@@ -13,6 +13,7 @@ function PlayerRow({ rank, row, metric, onSelectPlayer }) {
       onClick={() => onSelectPlayer(row.user_id)}
     >
       <span className="leaderboard-row__rank">#{rank}</span>
+      <span className="leaderboard-row__avatar">{row.display_name.charAt(0).toUpperCase()}</span>
       <span className="leaderboard-row__title leaderboard-row__title--player">{row.display_name}</span>
       <span className="leaderboard-row__count">{metric}</span>
     </button>

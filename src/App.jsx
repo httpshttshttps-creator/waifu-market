@@ -22,11 +22,13 @@ import ArenaTab from "./components/ArenaTab.jsx";
 import RiderGame from "./components/RiderGame/index.jsx";
 import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
 import { SkeletonGrid } from "./components/SkeletonCard.jsx";
+import BootScreen from "./components/BootScreen.jsx";
 
 export default function App() {
   const { haptic, notify } = useTelegram();
 
   const [activeTab, setActiveTab] = useState("home");
+  const [appReady, setAppReady] = useState(false);
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -70,9 +72,18 @@ export default function App() {
     );
   }, []);
 
-  // Initial load.
+  // Initial load. A short minimum delay keeps the boot screen from just
+  // flashing on a fast connection - it should read as a deliberate
+  // "welcome" beat, not a layout glitch.
   useEffect(() => {
-    refreshAll();
+    let cancelled = false;
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 500));
+    Promise.allSettled([refreshAll(), minDelay]).then(() => {
+      if (!cancelled) setAppReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [refreshAll]);
 
   // Re-fetch every time the player switches tabs (skip the very first
@@ -180,6 +191,10 @@ export default function App() {
 
     setSellPending(false);
     setSellCandidate(null);
+  }
+
+  if (!appReady) {
+    return <BootScreen />;
   }
 
   return (
