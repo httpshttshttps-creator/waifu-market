@@ -121,8 +121,6 @@ export async function fetchProfile() {
         gradient: character.gradient,
         quantity: 1,
       })),
-      isPremium: false,
-      theme: "default",
     };
   }
   const data = await apiFetch("/api/market/profile");
@@ -131,20 +129,7 @@ export async function fetchProfile() {
     balance: data.balance,
     cardCount: data.card_count,
     cards: data.cards.map(normalizeOwnedCard),
-    isPremium: Boolean(data.is_premium),
-    theme: data.theme || "default",
   };
-}
-
-export async function setTheme(theme) {
-  if (!API_BASE) {
-    await delay(FAKE_LATENCY_MS);
-    return { ok: true, theme };
-  }
-  return apiFetch("/api/settings/theme", {
-    method: "POST",
-    body: JSON.stringify({ theme }),
-  });
 }
 
 export async function purchaseCharacter(id, currentBalance) {

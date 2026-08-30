@@ -7,14 +7,12 @@ import {
   purchaseCharacter,
   fetchSellPrices,
   sellCharacterToBot,
-  setTheme as apiSetTheme,
 } from "./api/marketApi.js";
 import Header from "./components/Header.jsx";
 import FilterBar from "./components/FilterBar.jsx";
 import CardGrid from "./components/CardGrid.jsx";
 import BuyConfirmSheet from "./components/BuyConfirmSheet.jsx";
 import SellConfirmSheet from "./components/SellConfirmSheet.jsx";
-import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
 import BottomNav from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
@@ -23,15 +21,14 @@ import LeaderboardTab from "./components/LeaderboardTab.jsx";
 import ArenaTab from "./components/ArenaTab.jsx";
 import RiderGame from "./components/RiderGame/index.jsx";
 import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
-import TabTransition from "./components/TabTransition.jsx";
 import { SkeletonGrid } from "./components/SkeletonCard.jsx";
+import BootScreen from "./components/BootScreen.jsx";
 
 export default function App() {
   const { haptic, notify } = useTelegram();
 
   const [activeTab, setActiveTab] = useState("home");
-  const [transitioning, setTransitioning] = useState(false);
-  const pendingTabRef = useRef(null);
+  const [appReady, setAppReady] = useState(false);
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -51,12 +48,6 @@ export default function App() {
   const [sellPending, setSellPending] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [revealCharacter, setRevealCharacter] = useState(null);
-  const [buyStamp, setBuyStamp] = useState(false);
-
-  const [theme, setThemeState] = useState("default");
-  const [isPremium, setIsPremium] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [homeEntryPlayed, setHomeEntryPlayed] = useState(false);
 
   // Listings, balance, and the owned-cards collection all live in the
   // bot's database and can change from OUTSIDE this app at any moment -
@@ -75,17 +66,24 @@ export default function App() {
         setBalance(latestBalance);
         setProfile(profileData);
         setSellPrices(sellPriceMap);
-        setIsPremium(Boolean(profileData.isPremium));
-        setThemeState(profileData.theme || "default");
         setLoading(false);
         setProfileLoading(false);
       }
     );
   }, []);
 
-  // Initial load.
+  // Initial load. A short minimum delay keeps the boot screen from just
+  // flashing on a fast connection - it should read as a deliberate
+  // "welcome" beat, not a layout glitch.
   useEffect(() => {
-    refreshAll();
+    let cancelled = false;
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 500));
+    Promise.allSettled([refreshAll(), minDelay]).then(() => {
+      if (!cancelled) setAppReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [refreshAll]);
 
   // Re-fetch every time the player switches tabs (skip the very first
@@ -150,18 +148,8 @@ export default function App() {
     if (result.ok) {
       setBalance(result.newBalance);
       setOwnedIds((prev) => new Set(prev).add(selectedCharacter.id));
+      setRevealCharacter(selectedCharacter);
       notify("success");
-      if (theme === "seraphim") {
-        // A gold seal flashes over the card before it flies off to the
-        // Inventory - see .buy-stamp in index.css.
-        setBuyStamp(true);
-        setTimeout(() => {
-          setBuyStamp(false);
-          setRevealCharacter(selectedCharacter);
-        }, 650);
-      } else {
-        setRevealCharacter(selectedCharacter);
-      }
       // Re-pull everything (not just profile) so the listing this card
       // came from also disappears from the Market tab right away.
       refreshAll();
@@ -205,71 +193,20 @@ export default function App() {
     setSellCandidate(null);
   }
 
-  // Seraphim's tab-switch transition: two wings sweep in and cover the
-  // screen, the new tab mounts underneath while hidden, then the wings
-  // sweep back out. Every other theme just switches instantly.
-  function handleTabChange(tabId) {
-    if (tabId === activeTab) return;
-    if (theme !== "seraphim") {
-      setActiveTab(tabId);
-      return;
-    }
-    pendingTabRef.current = tabId;
-    setTransitioning(true);
-    setTimeout(() => {
-      setActiveTab(pendingTabRef.current);
-    }, 420);
-    setTimeout(() => {
-      setTransitioning(false);
-    }, 420 + 460);
-  }
-
-  // Seraphim's Home-tab entrance: a wave of gold light sweeps through
-  // and the brand sigil glows for a second, once each time the player
-  // lands on Home.
-  useEffect(() => {
-    if (theme !== "seraphim" || activeTab !== "home") {
-      setHomeEntryPlayed(false);
-      return;
-    }
-    setHomeEntryPlayed(true);
-    const timeout = setTimeout(() => setHomeEntryPlayed(false), 1200);
-    return () => clearTimeout(timeout);
-  }, [activeTab, theme]);
-
-  async function handleSelectTheme(themeId) {
-    const previous = theme;
-    setThemeState(themeId);
-    haptic?.("light");
-    const result = await apiSetTheme(themeId);
-    if (!result?.ok) {
-      setThemeState(previous);
-      setToastMessage("❓ Couldn't switch themes - try again.");
-    }
+  if (!appReady) {
+    return <BootScreen />;
   }
 
   return (
-    <div className="app-shell" data-theme={theme}>
-      {theme === "seraphim" && <div className="seraphim-bg" aria-hidden="true" />}
-
+    <div className="app-shell">
       <div className="app-shell__inner">
         {activeTab === "home" && (
           <>
-            <ProfileHeader
-              name={profile.name}
-              balance={balance}
-              cardCount={profile.cardCount}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-            {theme === "seraphim" && (
-              <div className="seraphim-sigil" data-entry={homeEntryPlayed || undefined} aria-hidden="true">
-                ✦ 𝔚𝔞𝔦𝔣𝔲 𝔐𝔞𝔯𝔨𝔢𝔱 ✦
-              </div>
-            )}
+            <ProfileHeader name={profile.name} balance={balance} cardCount={profile.cardCount} />
             {profileLoading ? (
               <SkeletonGrid count={4} />
             ) : (
-              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => handleTabChange("market")} />
+              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => setActiveTab("market")} />
             )}
           </>
         )}
@@ -301,14 +238,14 @@ export default function App() {
           </>
         )}
 
-        {activeTab === "leaderboard" && <LeaderboardTab notify={notify} theme={theme} />}
+        {activeTab === "leaderboard" && <LeaderboardTab notify={notify} />}
 
-        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} theme={theme} />}
+        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
-        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={handleTabChange} theme={theme} />}
+        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={setActiveTab} />}
       </div>
 
-      <BottomNav active={activeTab} onChange={handleTabChange} theme={theme} />
+      <BottomNav active={activeTab} onChange={setActiveTab} />
 
       <BuyConfirmSheet
         character={selectedCharacter}
@@ -317,12 +254,6 @@ export default function App() {
         onConfirm={confirmPurchase}
         onCancel={closeConfirm}
       />
-
-      {buyStamp && (
-        <div className="buy-stamp" aria-hidden="true">
-          <div className="buy-stamp__seal">✦</div>
-        </div>
-      )}
 
       <SellConfirmSheet
         character={sellCandidate}
@@ -333,19 +264,9 @@ export default function App() {
         onCancel={closeSellConfirm}
       />
 
-      <SettingsSheet
-        open={settingsOpen}
-        isPremium={isPremium}
-        theme={theme}
-        onSelectTheme={handleSelectTheme}
-        onClose={() => setSettingsOpen(false)}
-      />
-
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
 
-      <CardRevealOverlay character={revealCharacter} onDismiss={() => setRevealCharacter(null)} theme={theme} />
-
-      <TabTransition active={transitioning} />
+      <CardRevealOverlay character={revealCharacter} onDismiss={() => setRevealCharacter(null)} />
     </div>
   );
 }

@@ -31,22 +31,36 @@ const CATEGORY_TRAP = 0x0008;
 // moment gas is released, matching how a real spinning mass behaves.
 const GRAVITY_Y = 0.68;
 const FORWARD_FORCE = 0.019;
-// Rear-wheel spin under power is purely COSMETIC (a separate drawn
-// rotation, not a real physics torque) - see rearSpinAngle below.
-// Applying real torque to the rear wheel turned out to transmit a
-// reaction force straight through its axle pin into the chassis
-// (offset from the center of mass), pitching the whole bike forward
-// under acceleration - a real wheelie-causing mechanism, just not one
-// we want here where stable, predictable ground handling matters more
-// than that extra bit of realism. Propulsion itself is entirely the
-// direct FORWARD_FORCE on the chassis above, completely unaffected by
-// this.
-const REAR_SPIN_RATE = 0.045; // cosmetic radians per (ms * speedFraction) while driving
+// The rear wheel gets a small REAL torque (not just a cosmetic drawn
+// spin) so it actually rolls with the ground under acceleration instead
+// of skidding. That skid turned out to matter: a wheel being dragged
+// forward without spinning fast enough to match creates a backward
+// friction reaction at its ground contact point, and since that contact
+// sits behind and below the chassis's center of mass, the reaction
+// torques the whole chassis nose-down under hard acceleration - the
+// "flips forward" symptom. A strong torque here reintroduces its own
+// wheelie-style instability (a bigger, more direct reaction through the
+// axle pin), so this stays deliberately gentle - just enough to keep
+// the wheel rolling naturally rather than skidding, not enough to drive
+// the bike on its own (FORWARD_FORCE above still does that).
+const REAR_WHEEL_TORQUE = 0.22;
+// A mild, velocity-only damping applied to the chassis whenever ANY
+// wheel is grounded - it bleeds off stray angular velocity (from wheel
+// skid, an uneven landing, a single-wheel pivot moment) without ever
+// pulling the chassis toward a fixed angle, so it doesn't fight riding
+// up or down a slope (which is a static angle, not ongoing spin).
+const GROUNDED_ANGULAR_DAMPING = 0.12;
+// Rear wheel's DRAWN rotation blends two things: the real rolling rate
+// (matching ground speed, so it still looks natural while just coasting
+// with no gas held) plus an extra kick while actively driving, for a
+// bit of stylized "wheelspin" flair under power.
+const REAR_SPIN_COAST_RATE = 0.9; // multiplies (speed / wheelRadius) for the natural rolling look
+const REAR_SPIN_DRIVE_BONUS = 0.5; // extra radians per tick (scaled by speedFraction) on top of that, while gassing
 const MAX_SPEED = 31;
 const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
 const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
-const AIR_PITCH_TORQUE = 0.0022; // ramps up over ~1.1s of holding - deliberate, not an instant snap
-const AIR_PITCH_MAX_SPIN = 2.4; // rad/s - more room to commit to a full flip on a big jump
+const AIR_PITCH_TORQUE = 0.0044; // doubled - same ~1.1s ramp-up time, but to double the peak speed
+const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.32;
@@ -221,6 +235,32 @@ function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
   ctx.restore();
 }
 
+// A second, closer silhouette layer between the far skyline and the
+// actual track - scrolls faster (bigger parallax factor) and sits lower/
+// darker, giving the background real depth instead of one flat layer.
+function drawMidground(ctx, cameraX, viewWidth, viewHeight) {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  const parallax = 0.55;
+  const baseY = viewHeight * 0.86;
+  const spacing = 150;
+  const scrollX = cameraX * parallax;
+  const offset = -(scrollX % spacing);
+  for (let x = offset - spacing; x < viewWidth + spacing; x += spacing) {
+    const seedIndex = Math.round((x + scrollX) / spacing);
+    const peakHeight = 35 + Math.abs(Math.sin(seedIndex * 7.233)) * 65;
+    ctx.beginPath();
+    ctx.moveTo(x, viewHeight + 10);
+    ctx.lineTo(x, baseY);
+    ctx.lineTo(x + spacing * 0.5, baseY - peakHeight);
+    ctx.lineTo(x + spacing, baseY);
+    ctx.lineTo(x + spacing, viewHeight + 10);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Ground fill always extends well below the current camera view, so a
 // span never reads as a thin floating ribbon with void underneath - and
 // at a gap's edges, two spans' fills naturally form facing canyon walls
@@ -253,6 +293,19 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
     ctx.stroke();
+
+    // A thinner, dimmer parallel line a little below the main glow -
+    // reads as a second energy conduit running alongside the track
+    // instead of a single flat ribbon.
+    ctx.save();
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = "rgba(255, 138, 61, 0.55)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y + 10);
+    for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y + 10);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -383,11 +436,13 @@ function drawTrail(ctx, trailPoints) {
   ctx.restore();
 }
 
-function drawBike(ctx, bike, rearSpinAngle) {
+function drawBike(ctx, bike, rearSpinAngle, gasHeld) {
   const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
 
   ctx.save();
-  ctx.strokeStyle = "#bfe4ff";
+  ctx.strokeStyle = "#e8f4ff";
+  ctx.shadowColor = "#bfe4ff";
+  ctx.shadowBlur = 10;
   ctx.lineWidth = 3;
 
   // Front wheel: real physics angle - free-rolling, friction-only,
@@ -403,9 +458,9 @@ function drawBike(ctx, bike, rearSpinAngle) {
   );
   ctx.stroke();
 
-  // Rear wheel: cosmetic spin only (see REAR_SPIN_RATE) - visibly spins
-  // fast under power without ever touching the real physics body, so it
-  // can't feed back into chassis stability.
+  // Rear wheel: drawn from a blended spin (real rolling rate + a bit of
+  // drive-under-power flair) rather than its raw physics angle - see
+  // rearSpinAngle in the physics step above.
   ctx.beginPath();
   ctx.arc(rearWheel.position.x, rearWheel.position.y, wheelRadius, 0, Math.PI * 2);
   ctx.stroke();
@@ -421,27 +476,73 @@ function drawBike(ctx, bike, rearSpinAngle) {
   ctx.save();
   ctx.translate(chassis.position.x, chassis.position.y);
   ctx.rotate(chassis.angle);
-  ctx.shadowColor = "#3aa0ff";
-  ctx.shadowBlur = 16;
-  ctx.strokeStyle = "#5fb8ff";
-  ctx.lineWidth = 4.5;
-  ctx.lineCap = "round";
+
+  // Angular sci-fi body silhouette (tail spike at the back, a raised
+  // cockpit hump, a sharp nose at the front) - a single filled polygon
+  // with a purple gradient and a glowing edge, instead of a bare line.
+  const bodyGradient = ctx.createLinearGradient(-34, 0, 36, 0);
+  bodyGradient.addColorStop(0, "#2d1457");
+  bodyGradient.addColorStop(0.55, "#5b2a9e");
+  bodyGradient.addColorStop(1, "#9450e6");
+
   ctx.beginPath();
-  ctx.moveTo(-26, 0);
-  ctx.lineTo(26, 0);
+  ctx.moveTo(-34, -3);
+  ctx.lineTo(-16, -13);
+  ctx.lineTo(-2, -21);
+  ctx.lineTo(12, -17);
+  ctx.lineTo(24, -11);
+  ctx.lineTo(36, -2);
+  ctx.lineTo(28, 3);
+  ctx.lineTo(14, 7);
+  ctx.lineTo(0, 8);
+  ctx.lineTo(-14, 6);
+  ctx.lineTo(-28, 2);
+  ctx.closePath();
+  ctx.fillStyle = bodyGradient;
+  ctx.shadowColor = "#b083ff";
+  ctx.shadowBlur = 14;
+  ctx.fill();
+  ctx.strokeStyle = "#d9c2ff";
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#eaf6ff";
-  ctx.lineWidth = 3;
+  // Windshield/cockpit accent - a small glowing cyan wedge nestled into
+  // the hump, echoing the reference art's crystal-like canopy.
   ctx.beginPath();
-  ctx.moveTo(5, 0);
-  ctx.lineTo(15, -15);
-  ctx.stroke();
+  ctx.moveTo(-1, -18);
+  ctx.lineTo(9, -15);
+  ctx.lineTo(4, -7);
+  ctx.closePath();
+  ctx.shadowColor = "#8fe8ff";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "rgba(170, 235, 255, 0.85)";
+  ctx.fill();
+  ctx.restore();
+
+  // Headlight glow at the front tip - purely decorative, drawn in the
+  // same chassis-local frame as the body above.
+  ctx.save();
+  ctx.translate(chassis.position.x, chassis.position.y);
+  ctx.rotate(chassis.angle);
+  const headlightGlow = ctx.createRadialGradient(34, -1, 0, 34, -1, 15);
+  headlightGlow.addColorStop(0, "rgba(255, 250, 220, 0.85)");
+  headlightGlow.addColorStop(1, "rgba(255, 250, 220, 0)");
+  ctx.fillStyle = headlightGlow;
   ctx.beginPath();
-  ctx.moveTo(-9, 0);
-  ctx.lineTo(-4, -13);
-  ctx.stroke();
+  ctx.arc(34, -1, 15, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A little exhaust spark flicker at the tail while actually driving.
+  if (gasHeld) {
+    ctx.fillStyle = "rgba(255, 176, 89, 0.85)";
+    ctx.shadowColor = "#ff8a3d";
+    ctx.shadowBlur = 8;
+    const flicker = -34 - Math.random() * 8;
+    const jitter = (Math.random() - 0.5) * 4 - 2;
+    ctx.beginPath();
+    ctx.arc(flicker, jitter, 1.8 + Math.random() * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -477,15 +578,25 @@ function drawSpeedLines(ctx, lines, width) {
   ctx.restore();
 }
 
-function drawHud(ctx, seconds, width) {
+function drawHud(ctx, seconds, width, pulseFraction) {
   ctx.save();
   const label = `⏱ ${seconds}s`;
   ctx.font = "700 20px 'IBM Plex Mono', monospace";
   const textWidth = ctx.measureText(label).width;
   const pillWidth = textWidth + 32;
+  const pillCenterX = width / 2;
+  const pillCenterY = 14 + 18;
+
+  // Brief scale-up pulse right when a 10s currency milestone hits, so
+  // the counter itself visibly celebrates the moment instead of just
+  // silently ticking - decays back to normal over ~400ms (see caller).
+  const scale = 1 + pulseFraction * 0.28;
+  ctx.translate(pillCenterX, pillCenterY);
+  ctx.scale(scale, scale);
+  ctx.translate(-pillCenterX, -pillCenterY);
 
   ctx.fillStyle = "rgba(20, 6, 14, 0.65)";
-  ctx.strokeStyle = "rgba(242, 193, 78, 0.6)";
+  ctx.strokeStyle = pulseFraction > 0 ? "rgba(255, 220, 140, 0.9)" : "rgba(242, 193, 78, 0.6)";
   ctx.lineWidth = 1.5;
   const pillX = width / 2 - pillWidth / 2;
   const radius = 18;
@@ -772,6 +883,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
     let lastScoreMilestone = 0;
+    let scorePulseRemaining = 0; // ms left in the current HUD pulse - see drawHud
     const trail = [];
     let dustParticles = [];
     let rearSpinAngle = 0; // cosmetic-only rotation for the rear wheel's drawn spoke line
@@ -785,6 +897,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const milestone = Math.floor(elapsedRef / 10);
       if (milestone > lastScoreMilestone) {
         lastScoreMilestone = milestone;
+        scorePulseRemaining = 400;
         playScore();
       }
 
@@ -824,14 +937,31 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       if (grounded) {
         if (gasRef.current) {
           Body.applyForce(bike.chassis, bike.chassis.position, { x: FORWARD_FORCE, y: 0 });
-          rearSpinAngle += REAR_SPIN_RATE * dtMs * (0.4 + speedFraction);
+          bike.rearWheel.torque = REAR_WHEEL_TORQUE;
         }
         // The front wheel is never touched - it's drawn from its real
-        // physics angle, turning only from its own friction/contact
-        // with the ground, exactly like a real motorcycle's undriven
-        // front wheel. The rear wheel's spin is purely cosmetic (see
-        // REAR_SPIN_RATE above) - it never touches the real physics
-        // body, so it can never feed back into chassis stability.
+        // physics angle, turning only from its own friction/contact with
+        // the ground, exactly like a real motorcycle's undriven front
+        // wheel. The rear wheel gets the gentle real torque above (so it
+        // actually rolls instead of skidding) PLUS a cosmetic drawn spin
+        // on top - see rearSpinAngle below.
+        // rollRate (velocity/radius) is already a natural "per physics
+        // tick" quantity - matching how far the wheel would actually
+        // roll in exactly one FIXED_DT step - so it's added directly,
+        // not scaled by dtMs again (that would spin it ~17x too fast).
+        const rollRate = Math.abs(bike.chassis.velocity.x) / bike.wheelRadius;
+        rearSpinAngle += rollRate * REAR_SPIN_COAST_RATE;
+        if (gasRef.current) {
+          rearSpinAngle += REAR_SPIN_DRIVE_BONUS * speedFraction;
+        }
+
+        // A mild damping on any existing chassis spin while grounded -
+        // catches stray rotation (wheel skid, an uneven landing, a
+        // single-wheel pivot moment) before it can build into a flip,
+        // without ever pulling the chassis toward a fixed angle (so it
+        // doesn't fight riding up or down a slope).
+        Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity * (1 - GROUNDED_ANGULAR_DAMPING));
+
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
@@ -910,6 +1040,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         return p.age < p.life;
       });
       landingShake = Math.max(0, landingShake - frameTime * 0.02);
+      scorePulseRemaining = Math.max(0, scorePulseRemaining - frameTime);
 
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
 
@@ -959,6 +1090,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       ctx.save();
       ctx.scale(dpr, dpr);
       drawSkyline(ctx, renderCameraX, viewWidth, viewHeight);
+      drawMidground(ctx, renderCameraX, viewWidth, viewHeight);
       ctx.restore();
 
       ctx.save();
@@ -986,14 +1118,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         drawExplosion(ctx, explosionParticles);
       } else {
         drawTrail(ctx, trail);
-        drawBike(ctx, bike, rearSpinAngle);
+        drawBike(ctx, bike, rearSpinAngle, gasRef.current);
       }
       ctx.restore();
 
       ctx.save();
       ctx.scale(dpr, dpr);
       drawSpeedLines(ctx, speedLines, viewWidth);
-      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr);
+      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr, scorePulseRemaining / 400);
       ctx.restore();
 
       ctx.restore();
