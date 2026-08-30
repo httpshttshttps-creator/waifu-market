@@ -16,7 +16,12 @@ export default function CharacterCard({ character, owned, canAfford, onBuy }) {
   };
 
   return (
-    <article className="character-card" data-glow={tier.glowLevel || undefined} style={style}>
+    <article
+      className="character-card"
+      data-glow={tier.glowLevel || undefined}
+      data-rarity={(character.rarity || "").toLowerCase()}
+      style={style}
+    >
       <div className="character-card__art">
         {owned && <span className="owned-badge">✓ owned</span>}
         {showImage ? (
