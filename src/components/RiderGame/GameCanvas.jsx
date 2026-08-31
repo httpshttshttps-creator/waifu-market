@@ -384,20 +384,22 @@ function drawTrail(ctx, trailPoints) {
 }
 
 // ============================================================================
-// CyberBike — reproduces the supplied reference image 1:1 by geometry.
-// Master/reference coordinate system: 1536x700, origin top-left, x→right, y→down.
-// All body panel vertices below are the exact reference-image coordinates.
-// A single similarity transform (uniform scale + rotation, no X/Y skew) maps
-// every reference point into world space by aligning the two reference wheel
-// centers onto the bike's real rear/front physics wheel positions, so the art
-// always lands exactly on the collision wheels at any game resolution.
+// CyberBike — sharp angular cyberpunk motorcycle, proportion-corrected.
+// Reference coordinate system: the bike's own on-screen reference frame
+// (rear/left wheel center → front/right wheel center = 95px apart, wheel
+// outer radius 19px). A single similarity transform (uniform scale +
+// rotation, never independent X/Y stretch) maps every reference point onto
+// world space by aligning the two reference wheel centers to the bike's real
+// physics wheel positions — so ALL internal proportions (wheel size vs body
+// length, wheel placement, etc.) always match the reference ratios exactly,
+// regardless of the bike's actual on-screen size.
 // ============================================================================
 
 const CYBERBIKE_REF = {
-  rearWheel: { x: 233, y: 482 },
-  frontWheel: { x: 1301, y: 482 },
-  outerRadius: 171,
-  innerRadius: 138,
+  rearWheel: { x: 181, y: 819 },
+  frontWheel: { x: 276, y: 819 },
+  outerRadius: 19,
+  innerRadius: 15,
 };
 
 const CYBERBIKE_PALETTE = {
@@ -412,16 +414,19 @@ const CYBERBIKE_PALETTE = {
   brightCyan: "#EAFEFF",
 };
 
-// Traced vertex lists, exactly as given in the reference (1536x700 master canvas).
-const CYBERBIKE_REAR_TOP_SILHOUETTE = [[78, 111], [680, 197], [835, 228], [620, 274], [365, 271]];
-const CYBERBIKE_MAIN_BODY = [[470, 326], [628, 297], [1018, 240], [1110, 250], [1058, 420], [1060, 563], [720, 535], [470, 400]];
-const CYBERBIKE_LOWER_BODY = [[174, 433], [605, 350], [661, 415], [1057, 420], [1348, 446], [1388, 527], [1070, 525], [722, 492], [430, 480], [174, 530]];
-const CYBERBIKE_DARK_LEFT_PANEL = [[202, 442], [610, 354], [661, 415], [249, 478]];
-const CYBERBIKE_UPPER_BODY = [[682, 190], [855, 106], [1095, 52], [1325, 161]];
-const CYBERBIKE_CYAN_PANEL = [[1018, 310], [1106, 326], [1055, 475], [888, 425]];
-const CYBERBIKE_HEADLIGHT = [[1129, 125], [1272, 158], [1216, 174], [1150, 161]];
+// Traced vertex lists, exact reference coordinates — proportion-corrected:
+// longer angular body, wheels occupying only ~27% of total width.
+const CYBERBIKE_REAR_TAIL = [[180, 803], [159, 789], [219, 798], [247, 807], [220, 815], [181, 812]];
+const CYBERBIKE_CENTRAL_BODY = [[205, 803], [236, 793], [276, 786], [290, 798], [281, 823], [248, 827], [215, 817]];
+const CYBERBIKE_UPPER_FIN = [[214, 798], [235, 786], [270, 778], [299, 792], [278, 800], [251, 795]];
+const CYBERBIKE_CYAN_LIGHT = [[241, 809], [251, 801], [258, 804], [254, 815], [244, 814]];
+const CYBERBIKE_FRONT_LIGHT = [[272, 786], [287, 790], [279, 797], [271, 793]];
 
-// Builds the reference→world mapper for the current frame's wheel positions.
+// Builds the reference→world mapper (and the uniform scale) for this frame's
+// real wheel positions. Wheel VISUAL size is derived from this same scale
+// (not the raw physics collision radius) so the wheel-to-body ratio always
+// matches the reference — this is what keeps the wheels from ever looking
+// oversized relative to the body.
 function cyberBikeTransform(bike) {
   const { rearWheel, frontWheel } = bike;
   const refDx = CYBERBIKE_REF.frontWheel.x - CYBERBIKE_REF.rearWheel.x;
@@ -437,7 +442,7 @@ function cyberBikeTransform(bike) {
   const cosT = Math.cos(theta);
   const sinT = Math.sin(theta);
 
-  return (rx, ry) => {
+  const toWorld = (rx, ry) => {
     const dx = (rx - CYBERBIKE_REF.rearWheel.x) * scale;
     const dy = (ry - CYBERBIKE_REF.rearWheel.y) * scale;
     return {
@@ -445,6 +450,8 @@ function cyberBikeTransform(bike) {
       y: rearWheel.position.y + dx * sinT + dy * cosT,
     };
   };
+
+  return { toWorld, scale };
 }
 
 function cyberBikePath(ctx, toWorld, points) {
@@ -458,46 +465,67 @@ function cyberBikePath(ctx, toWorld, points) {
 }
 
 function CyberBike(ctx, bike, rearSpinAngle) {
-  const { rearWheel, frontWheel, wheelRadius } = bike;
-  const toWorld = cyberBikeTransform(bike);
+  const { rearWheel, frontWheel } = bike;
+  const { toWorld, scale } = cyberBikeTransform(bike);
 
-  // --- WHEELS: identical diameter, white/purple neon ring, 8 angular spokes ---
+  // Visual wheel size tracks the same scale as the body, so the ratio of
+  // wheel diameter to body/wheelbase always matches the reference (~27% of
+  // total width) instead of following the raw physics collision radius.
+  const outerR = CYBERBIKE_REF.outerRadius * scale;
+  const innerR = CYBERBIKE_REF.innerRadius * scale;
+
+  // --- WHEELS: identical diameter, dark interior, angular spokes, neon rim + soft halo ---
   const drawWheel = (wx, wy, spinAngle) => {
     ctx.save();
     ctx.translate(wx, wy);
     ctx.rotate(spinAngle);
 
-    ctx.shadowColor = CYBERBIKE_PALETTE.whiteGlow;
-    ctx.shadowBlur = 28;
+    // dark interior
     ctx.beginPath();
-    ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
+    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+    ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
+    ctx.fill();
+
+    // soft outer halo (glow ~0.6 opacity)
+    ctx.globalAlpha = 0.6;
+    ctx.shadowColor = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.shadowBlur = outerR * (8 / CYBERBIKE_REF.outerRadius);
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
     ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
-    ctx.lineWidth = wheelRadius * (12 / CYBERBIKE_REF.outerRadius);
+    ctx.lineWidth = outerR * (3 / CYBERBIKE_REF.outerRadius);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // crisp bright white/purple neon ring
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+    ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.lineWidth = outerR * (3 / CYBERBIKE_REF.outerRadius);
     ctx.stroke();
 
-    const innerR = wheelRadius * (CYBERBIKE_REF.innerRadius / CYBERBIKE_REF.outerRadius);
-    ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
-    ctx.shadowBlur = 14;
+    // purple inner rim
     ctx.beginPath();
     ctx.arc(0, 0, innerR, 0, Math.PI * 2);
     ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = CYBERBIKE_PALETTE.darkestPurple;
-    ctx.lineWidth = 2;
-    const spokeR = innerR - 4;
+    // 8 angular purple spokes
+    ctx.strokeStyle = CYBERBIKE_PALETTE.brightBodyPurple;
+    ctx.lineWidth = 1.5;
     for (let i = 0; i < 8; i++) {
       const a = (i * Math.PI * 2) / 8;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * spokeR, Math.sin(a) * spokeR);
+      ctx.lineTo(Math.cos(a) * innerR, Math.sin(a) * innerR);
       ctx.stroke();
     }
 
+    // hub
     ctx.beginPath();
-    ctx.arc(0, 0, wheelRadius * 0.08, 0, Math.PI * 2);
+    ctx.arc(0, 0, outerR * 0.12, 0, Math.PI * 2);
     ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
     ctx.fill();
 
@@ -507,58 +535,55 @@ function CyberBike(ctx, bike, rearSpinAngle) {
   drawWheel(rearWheel.position.x, rearWheel.position.y, rearSpinAngle);
   drawWheel(frontWheel.position.x, frontWheel.position.y, frontWheel.angle);
 
-  // --- BODY: sharp angular low-poly panels, stacked back-to-front as in the reference ---
+  // --- BODY: long angular low-poly panels, stacked back-to-front, body dominates the silhouette ---
   ctx.save();
 
-  cyberBikePath(ctx, toWorld, CYBERBIKE_REAR_TOP_SILHOUETTE);
-  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
-  ctx.fill();
-
-  cyberBikePath(ctx, toWorld, CYBERBIKE_LOWER_BODY);
+  // 1. rear tail — dark angular base, extended toward the back
+  cyberBikePath(ctx, toWorld, CYBERBIKE_REAR_TAIL);
   ctx.fillStyle = CYBERBIKE_PALETTE.darkBody;
   ctx.fill();
   ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  cyberBikePath(ctx, toWorld, CYBERBIKE_DARK_LEFT_PANEL);
-  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
-  ctx.fill();
-
-  cyberBikePath(ctx, toWorld, CYBERBIKE_MAIN_BODY);
+  // 2. central body — larger, dominates the silhouette
+  cyberBikePath(ctx, toWorld, CYBERBIKE_CENTRAL_BODY);
   ctx.fillStyle = CYBERBIKE_PALETTE.bodyPurple;
   ctx.fill();
-  ctx.strokeStyle = CYBERBIKE_PALETTE.violet;
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = CYBERBIKE_PALETTE.brightBodyPurple;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
-  cyberBikePath(ctx, toWorld, CYBERBIKE_UPPER_BODY);
+  // 3. upper fin — sharp, not rounded, bright neon top edge
+  cyberBikePath(ctx, toWorld, CYBERBIKE_UPPER_FIN);
   ctx.fillStyle = CYBERBIKE_PALETTE.brightBodyPurple;
   ctx.fill();
   ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = outerR * (6 / CYBERBIKE_REF.outerRadius);
   ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  cyberBikePath(ctx, toWorld, CYBERBIKE_CYAN_PANEL);
+  // 4. central cyan light
+  cyberBikePath(ctx, toWorld, CYBERBIKE_CYAN_LIGHT);
   ctx.shadowColor = CYBERBIKE_PALETTE.cyan;
-  ctx.shadowBlur = 22;
+  ctx.shadowBlur = outerR * (5 / CYBERBIKE_REF.outerRadius);
   ctx.fillStyle = CYBERBIKE_PALETTE.cyan;
   ctx.fill();
   ctx.strokeStyle = CYBERBIKE_PALETTE.brightCyan;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  cyberBikePath(ctx, toWorld, CYBERBIKE_HEADLIGHT);
+  // 5. front light — cyan/white with blue-violet bloom
+  cyberBikePath(ctx, toWorld, CYBERBIKE_FRONT_LIGHT);
   ctx.shadowColor = CYBERBIKE_PALETTE.violet;
-  ctx.shadowBlur = 26;
+  ctx.shadowBlur = outerR * (7 / CYBERBIKE_REF.outerRadius);
   ctx.fillStyle = CYBERBIKE_PALETTE.brightCyan;
   ctx.fill();
   ctx.strokeStyle = CYBERBIKE_PALETTE.cyan;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
