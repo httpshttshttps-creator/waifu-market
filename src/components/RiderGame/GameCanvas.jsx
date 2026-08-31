@@ -385,63 +385,110 @@ function drawTrail(ctx, trailPoints) {
 
 function drawBike(ctx, bike, rearSpinAngle) {
   const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
+  const wb = 42; // half-length used for the body silhouette only
 
-  ctx.save();
-  ctx.strokeStyle = "#bfe4ff";
-  ctx.lineWidth = 3;
+  // --- چرخ‌های نئونی (سفید/بنفش) روی موقعیت واقعی فیزیک ---
+  const drawNeonWheel = (wx, wy, spinAngle) => {
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(spinAngle);
 
-  // Front wheel: real physics angle - free-rolling, friction-only,
-  // exactly like a real motorcycle's undriven front wheel.
-  ctx.beginPath();
-  ctx.arc(frontWheel.position.x, frontWheel.position.y, wheelRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(frontWheel.position.x, frontWheel.position.y);
-  ctx.lineTo(
-    frontWheel.position.x + Math.cos(frontWheel.angle) * wheelRadius,
-    frontWheel.position.y + Math.sin(frontWheel.angle) * wheelRadius
-  );
-  ctx.stroke();
+    ctx.shadowColor = "#ffffff";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.stroke();
 
-  // Rear wheel: cosmetic spin only (see REAR_SPIN_RATE) - visibly spins
-  // fast under power without ever touching the real physics body, so it
-  // can't feed back into chassis stability.
-  ctx.beginPath();
-  ctx.arc(rearWheel.position.x, rearWheel.position.y, wheelRadius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(rearWheel.position.x, rearWheel.position.y);
-  ctx.lineTo(
-    rearWheel.position.x + Math.cos(rearSpinAngle) * wheelRadius,
-    rearWheel.position.y + Math.sin(rearSpinAngle) * wheelRadius
-  );
-  ctx.stroke();
-  ctx.restore();
+    ctx.shadowColor = "#a855f7";
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(0, 0, wheelRadius - 4, 0, Math.PI * 2);
+    ctx.strokeStyle = "#c084fc";
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#3b0764";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      const a = (i * Math.PI * 2) / 5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * (wheelRadius - 5), Math.sin(a) * (wheelRadius - 5));
+      ctx.stroke();
+    }
+
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#1e1b4b";
+    ctx.fill();
+
+    ctx.restore();
+  };
+
+  // چرخ عقب: چرخش نمایشی (rearSpinAngle) - چرخ جلو: زاویه واقعی فیزیک
+  drawNeonWheel(rearWheel.position.x, rearWheel.position.y, rearSpinAngle);
+  drawNeonWheel(frontWheel.position.x, frontWheel.position.y, frontWheel.angle);
+
+  // --- بدنه موتور (Cyberpunk / Diamond Polygon Shape) روی شاسی فیزیک ---
   ctx.save();
   ctx.translate(chassis.position.x, chassis.position.y);
   ctx.rotate(chassis.angle);
-  ctx.shadowColor = "#3aa0ff";
-  ctx.shadowBlur = 16;
-  ctx.strokeStyle = "#5fb8ff";
-  ctx.lineWidth = 4.5;
-  ctx.lineCap = "round";
+
+  // 1. شاسی اصلی و تیره موتور
   ctx.beginPath();
-  ctx.moveTo(-26, 0);
-  ctx.lineTo(26, 0);
+  ctx.moveTo(-wb - 5, -8);
+  ctx.lineTo(-10, -12);
+  ctx.lineTo(15, -22);
+  ctx.lineTo(wb + 2, -10);
+  ctx.lineTo(20, 8);
+  ctx.lineTo(-5, 12);
+  ctx.lineTo(-wb + 5, 2);
+  ctx.closePath();
+  ctx.fillStyle = "#2e1065";
+  ctx.fill();
+  ctx.strokeStyle = "#581c87";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#eaf6ff";
+  // 2. خطوط و لایه‌های نئونی بالای بدنه (بنفش روشن)
+  ctx.shadowColor = "#d8b4fe";
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.moveTo(-wb - 2, -10);
+  ctx.lineTo(-5, -15);
+  ctx.lineTo(12, -24);
+  ctx.lineTo(wb - 5, -12);
+  ctx.strokeStyle = "#c084fc";
   ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(5, 0);
-  ctx.lineTo(15, -15);
   ctx.stroke();
+
+  // 3. کریستال/چراغ نئونی آبی جانبی (Triangular Cyan Light Panel)
+  ctx.shadowColor = "#38bdf8";
+  ctx.shadowBlur = 12;
   ctx.beginPath();
-  ctx.moveTo(-9, 0);
-  ctx.lineTo(-4, -13);
+  ctx.moveTo(2, -4);
+  ctx.lineTo(16, -10);
+  ctx.lineTo(22, 2);
+  ctx.lineTo(8, 6);
+  ctx.closePath();
+  ctx.fillStyle = "#38bdf8";
+  ctx.fill();
+  ctx.strokeStyle = "#e0f2fe";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
+
+  // 4. چراغ جلو (Cyan Headlight)
+  ctx.beginPath();
+  ctx.moveTo(wb - 8, -14);
+  ctx.lineTo(wb + 2, -10);
+  ctx.lineTo(wb - 2, -6);
+  ctx.closePath();
+  ctx.fillStyle = "#00f0ff";
+  ctx.fill();
+
   ctx.restore();
 }
 
