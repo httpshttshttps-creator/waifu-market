@@ -383,111 +383,184 @@ function drawTrail(ctx, trailPoints) {
   ctx.restore();
 }
 
-function drawBike(ctx, bike, rearSpinAngle) {
-  const { chassis, rearWheel, frontWheel, wheelRadius } = bike;
-  const wb = 42; // half-length used for the body silhouette only
+// ============================================================================
+// CyberBike — reproduces the supplied reference image 1:1 by geometry.
+// Master/reference coordinate system: 1536x700, origin top-left, x→right, y→down.
+// All body panel vertices below are the exact reference-image coordinates.
+// A single similarity transform (uniform scale + rotation, no X/Y skew) maps
+// every reference point into world space by aligning the two reference wheel
+// centers onto the bike's real rear/front physics wheel positions, so the art
+// always lands exactly on the collision wheels at any game resolution.
+// ============================================================================
 
-  // --- چرخ‌های نئونی (سفید/بنفش) روی موقعیت واقعی فیزیک ---
-  const drawNeonWheel = (wx, wy, spinAngle) => {
+const CYBERBIKE_REF = {
+  rearWheel: { x: 233, y: 482 },
+  frontWheel: { x: 1301, y: 482 },
+  outerRadius: 171,
+  innerRadius: 138,
+};
+
+const CYBERBIKE_PALETTE = {
+  darkestPurple: "#10032D",
+  darkBody: "#200852",
+  bodyPurple: "#320D7C",
+  brightBodyPurple: "#4A11B1",
+  neonPurple: "#6C1CDD",
+  violet: "#4825E6",
+  whiteGlow: "#F7EEFF",
+  cyan: "#97E7FB",
+  brightCyan: "#EAFEFF",
+};
+
+// Traced vertex lists, exactly as given in the reference (1536x700 master canvas).
+const CYBERBIKE_REAR_TOP_SILHOUETTE = [[78, 111], [680, 197], [835, 228], [620, 274], [365, 271]];
+const CYBERBIKE_MAIN_BODY = [[470, 326], [628, 297], [1018, 240], [1110, 250], [1058, 420], [1060, 563], [720, 535], [470, 400]];
+const CYBERBIKE_LOWER_BODY = [[174, 433], [605, 350], [661, 415], [1057, 420], [1348, 446], [1388, 527], [1070, 525], [722, 492], [430, 480], [174, 530]];
+const CYBERBIKE_DARK_LEFT_PANEL = [[202, 442], [610, 354], [661, 415], [249, 478]];
+const CYBERBIKE_UPPER_BODY = [[682, 190], [855, 106], [1095, 52], [1325, 161]];
+const CYBERBIKE_CYAN_PANEL = [[1018, 310], [1106, 326], [1055, 475], [888, 425]];
+const CYBERBIKE_HEADLIGHT = [[1129, 125], [1272, 158], [1216, 174], [1150, 161]];
+
+// Builds the reference→world mapper for the current frame's wheel positions.
+function cyberBikeTransform(bike) {
+  const { rearWheel, frontWheel } = bike;
+  const refDx = CYBERBIKE_REF.frontWheel.x - CYBERBIKE_REF.rearWheel.x;
+  const refDy = CYBERBIKE_REF.frontWheel.y - CYBERBIKE_REF.rearWheel.y;
+  const refLen = Math.hypot(refDx, refDy);
+
+  const realDx = frontWheel.position.x - rearWheel.position.x;
+  const realDy = frontWheel.position.y - rearWheel.position.y;
+  const realLen = Math.hypot(realDx, realDy);
+
+  const scale = realLen / refLen; // uniform — never stretched independently on X/Y
+  const theta = Math.atan2(realDy, realDx);
+  const cosT = Math.cos(theta);
+  const sinT = Math.sin(theta);
+
+  return (rx, ry) => {
+    const dx = (rx - CYBERBIKE_REF.rearWheel.x) * scale;
+    const dy = (ry - CYBERBIKE_REF.rearWheel.y) * scale;
+    return {
+      x: rearWheel.position.x + dx * cosT - dy * sinT,
+      y: rearWheel.position.y + dx * sinT + dy * cosT,
+    };
+  };
+}
+
+function cyberBikePath(ctx, toWorld, points) {
+  ctx.beginPath();
+  points.forEach(([rx, ry], i) => {
+    const p = toWorld(rx, ry);
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  });
+  ctx.closePath();
+}
+
+function CyberBike(ctx, bike, rearSpinAngle) {
+  const { rearWheel, frontWheel, wheelRadius } = bike;
+  const toWorld = cyberBikeTransform(bike);
+
+  // --- WHEELS: identical diameter, white/purple neon ring, 8 angular spokes ---
+  const drawWheel = (wx, wy, spinAngle) => {
     ctx.save();
     ctx.translate(wx, wy);
     ctx.rotate(spinAngle);
 
-    ctx.shadowColor = "#ffffff";
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.shadowBlur = 28;
     ctx.beginPath();
     ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.lineWidth = wheelRadius * (12 / CYBERBIKE_REF.outerRadius);
     ctx.stroke();
 
-    ctx.shadowColor = "#a855f7";
-    ctx.shadowBlur = 8;
+    const innerR = wheelRadius * (CYBERBIKE_REF.innerRadius / CYBERBIKE_REF.outerRadius);
+    ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
+    ctx.shadowBlur = 14;
     ctx.beginPath();
-    ctx.arc(0, 0, wheelRadius - 4, 0, Math.PI * 2);
-    ctx.strokeStyle = "#c084fc";
+    ctx.arc(0, 0, innerR, 0, Math.PI * 2);
+    ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = "#3b0764";
+    ctx.strokeStyle = CYBERBIKE_PALETTE.darkestPurple;
     ctx.lineWidth = 2;
-    for (let i = 0; i < 5; i++) {
-      const a = (i * Math.PI * 2) / 5;
+    const spokeR = innerR - 4;
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI * 2) / 8;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * (wheelRadius - 5), Math.sin(a) * (wheelRadius - 5));
+      ctx.lineTo(Math.cos(a) * spokeR, Math.sin(a) * spokeR);
       ctx.stroke();
     }
 
     ctx.beginPath();
-    ctx.arc(0, 0, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "#1e1b4b";
+    ctx.arc(0, 0, wheelRadius * 0.08, 0, Math.PI * 2);
+    ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
     ctx.fill();
 
     ctx.restore();
   };
 
-  // چرخ عقب: چرخش نمایشی (rearSpinAngle) - چرخ جلو: زاویه واقعی فیزیک
-  drawNeonWheel(rearWheel.position.x, rearWheel.position.y, rearSpinAngle);
-  drawNeonWheel(frontWheel.position.x, frontWheel.position.y, frontWheel.angle);
+  drawWheel(rearWheel.position.x, rearWheel.position.y, rearSpinAngle);
+  drawWheel(frontWheel.position.x, frontWheel.position.y, frontWheel.angle);
 
-  // --- بدنه موتور (Cyberpunk / Diamond Polygon Shape) روی شاسی فیزیک ---
+  // --- BODY: sharp angular low-poly panels, stacked back-to-front as in the reference ---
   ctx.save();
-  ctx.translate(chassis.position.x, chassis.position.y);
-  ctx.rotate(chassis.angle);
 
-  // 1. شاسی اصلی و تیره موتور
-  ctx.beginPath();
-  ctx.moveTo(-wb - 5, -8);
-  ctx.lineTo(-10, -12);
-  ctx.lineTo(15, -22);
-  ctx.lineTo(wb + 2, -10);
-  ctx.lineTo(20, 8);
-  ctx.lineTo(-5, 12);
-  ctx.lineTo(-wb + 5, 2);
-  ctx.closePath();
-  ctx.fillStyle = "#2e1065";
+  cyberBikePath(ctx, toWorld, CYBERBIKE_REAR_TOP_SILHOUETTE);
+  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
   ctx.fill();
-  ctx.strokeStyle = "#581c87";
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_LOWER_BODY);
+  ctx.fillStyle = CYBERBIKE_PALETTE.darkBody;
+  ctx.fill();
+  ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // 2. خطوط و لایه‌های نئونی بالای بدنه (بنفش روشن)
-  ctx.shadowColor = "#d8b4fe";
-  ctx.shadowBlur = 10;
-  ctx.beginPath();
-  ctx.moveTo(-wb - 2, -10);
-  ctx.lineTo(-5, -15);
-  ctx.lineTo(12, -24);
-  ctx.lineTo(wb - 5, -12);
-  ctx.strokeStyle = "#c084fc";
+  cyberBikePath(ctx, toWorld, CYBERBIKE_DARK_LEFT_PANEL);
+  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
+  ctx.fill();
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_MAIN_BODY);
+  ctx.fillStyle = CYBERBIKE_PALETTE.bodyPurple;
+  ctx.fill();
+  ctx.strokeStyle = CYBERBIKE_PALETTE.violet;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_UPPER_BODY);
+  ctx.fillStyle = CYBERBIKE_PALETTE.brightBodyPurple;
+  ctx.fill();
+  ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
   ctx.lineWidth = 3;
   ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  // 3. کریستال/چراغ نئونی آبی جانبی (Triangular Cyan Light Panel)
-  ctx.shadowColor = "#38bdf8";
-  ctx.shadowBlur = 12;
-  ctx.beginPath();
-  ctx.moveTo(2, -4);
-  ctx.lineTo(16, -10);
-  ctx.lineTo(22, 2);
-  ctx.lineTo(8, 6);
-  ctx.closePath();
-  ctx.fillStyle = "#38bdf8";
+  cyberBikePath(ctx, toWorld, CYBERBIKE_CYAN_PANEL);
+  ctx.shadowColor = CYBERBIKE_PALETTE.cyan;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = CYBERBIKE_PALETTE.cyan;
   ctx.fill();
-  ctx.strokeStyle = "#e0f2fe";
+  ctx.strokeStyle = CYBERBIKE_PALETTE.brightCyan;
   ctx.lineWidth = 1.5;
   ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  // 4. چراغ جلو (Cyan Headlight)
-  ctx.beginPath();
-  ctx.moveTo(wb - 8, -14);
-  ctx.lineTo(wb + 2, -10);
-  ctx.lineTo(wb - 2, -6);
-  ctx.closePath();
-  ctx.fillStyle = "#00f0ff";
+  cyberBikePath(ctx, toWorld, CYBERBIKE_HEADLIGHT);
+  ctx.shadowColor = CYBERBIKE_PALETTE.violet;
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = CYBERBIKE_PALETTE.brightCyan;
   ctx.fill();
+  ctx.strokeStyle = CYBERBIKE_PALETTE.cyan;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 
   ctx.restore();
 }
@@ -1033,7 +1106,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         drawExplosion(ctx, explosionParticles);
       } else {
         drawTrail(ctx, trail);
-        drawBike(ctx, bike, rearSpinAngle);
+        CyberBike(ctx, bike, rearSpinAngle);
       }
       ctx.restore();
 
