@@ -564,11 +564,6 @@ button {
   font-size: 14px;
   cursor: pointer;
   border: none;
-  transition: transform 0.1s ease;
-}
-
-.sheet-button:active {
-  transform: scale(0.96);
 }
 
 .sheet-button--cancel {
@@ -585,6 +580,130 @@ button {
 .sheet-button--confirm:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ---------------- settings sheet ---------------- */
+
+.settings-sheet__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+.settings-sheet__section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+}
+
+.settings-sheet__lock-note {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
+.settings-sheet__lock-note code {
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 8px 12px;
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.theme-option[data-active="true"] {
+  border-color: var(--gold-bright);
+}
+
+.theme-option:not([data-locked="true"]):active {
+  transform: scale(0.97);
+}
+
+.theme-option[data-locked="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.theme-option__swatch {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-option__lock,
+.theme-option__check {
+  font-size: 16px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.theme-option__check {
+  color: #fff;
+}
+
+.theme-option__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.theme-option__tagline {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* ---------------- settings trigger (top-right of Home) ---------------- */
+
+.profile-header__settings {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.profile-header__settings:active {
+  transform: scale(0.94);
 }
 
 /* ---------------- toast ---------------- */
@@ -657,10 +776,6 @@ button {
   transition: transform 0.15s ease;
 }
 
-.bottom-nav__item:active {
-  transform: scale(0.92);
-}
-
 .bottom-nav__item:hover {
   color: var(--text-dim);
 }
@@ -678,6 +793,7 @@ button {
 
 .profile-header {
   margin-bottom: 22px;
+  position: relative;
 }
 
 .profile-header__eyebrow {
@@ -790,11 +906,6 @@ button {
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  transition: transform 0.1s ease;
-}
-
-.leaderboard-toggle button:active {
-  transform: scale(0.95);
 }
 
 .leaderboard-toggle button[data-active="true"] {
@@ -837,22 +948,6 @@ button {
 .leaderboard-row--player:active {
   border-color: var(--gold);
   background: var(--surface-raised);
-}
-
-.leaderboard-row__avatar {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 13px;
-  color: var(--text);
-  background: linear-gradient(160deg, var(--gold), var(--ink-glow));
-  border: 1px solid var(--line);
 }
 
 .leaderboard-row__title--player {
@@ -1848,89 +1943,946 @@ button {
   transition: width 1s linear;
 }
 
-/* ---------------- boot screen ---------------- */
+/* ==================== SERAPHIM THEME ==================== */
+/* Everything below only applies under [data-theme="seraphim"] on
+   .app-shell, so the default theme is completely untouched. */
 
-.boot-screen {
+.app-shell[data-theme="seraphim"] {
+  --gold: #e8b923;
+  --gold-bright: #ffd75e;
+  color-scheme: light;
+  background: #fdf6e3;
+}
+
+.app-shell[data-theme="seraphim"] .app-shell__inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Home / global background: clouds, gold light, marble columns ---- */
+
+.seraphim-bg {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 223, 128, 0.55) 0%, transparent 70%),
+    radial-gradient(120% 60% at 20% 100%, rgba(255, 255, 255, 0.5) 0%, transparent 60%),
+    radial-gradient(120% 60% at 80% 100%, rgba(255, 255, 255, 0.5) 0%, transparent 60%),
+    linear-gradient(180deg, #fdf6e3 0%, #fbeecb 45%, #f7e4b8 100%);
+  overflow: hidden;
+}
+
+.seraphim-bg::before,
+.seraphim-bg::after {
+  /* faint marble columns down each side */
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.9) 0px,
+      rgba(255, 255, 255, 0.9) 18px,
+      rgba(210, 200, 175, 0.6) 18px,
+      rgba(210, 200, 175, 0.6) 20px
+    );
+  opacity: 0.35;
+  filter: drop-shadow(0 0 12px rgba(255, 220, 140, 0.5));
+}
+
+.seraphim-bg::before {
+  left: -10px;
+}
+
+.seraphim-bg::after {
+  right: -10px;
+}
+
+/* faint six-wing watermark + floating gold particles, drawn with
+   layered radial-gradients so no image asset is needed */
+.seraphim-bg {
+  background-image:
+    radial-gradient(2px 2px at 10% 20%, rgba(232, 185, 35, 0.8), transparent 60%),
+    radial-gradient(2px 2px at 30% 65%, rgba(232, 185, 35, 0.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 50% 30%, rgba(255, 215, 94, 0.9), transparent 60%),
+    radial-gradient(2px 2px at 70% 75%, rgba(232, 185, 35, 0.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 85% 40%, rgba(255, 215, 94, 0.8), transparent 60%),
+    radial-gradient(2px 2px at 92% 15%, rgba(232, 185, 35, 0.6), transparent 60%),
+    radial-gradient(60% 40% at 50% 0%, rgba(255, 223, 128, 0.55) 0%, transparent 70%),
+    radial-gradient(120% 60% at 20% 100%, rgba(255, 255, 255, 0.5) 0%, transparent 60%),
+    radial-gradient(120% 60% at 80% 100%, rgba(255, 255, 255, 0.5) 0%, transparent 60%),
+    linear-gradient(180deg, #fdf6e3 0%, #fbeecb 45%, #f7e4b8 100%);
+  animation: seraphim-drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes seraphim-drift {
+  from {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position: 0 -18px, 0 -26px, 0 -14px, 0 -22px, 0 -16px, 0 -20px, 0 0, 0 0, 0 0, 0 0;
+  }
+}
+
+/* ---- Home entry: gold light wave + sigil glow ---- */
+
+.seraphim-sigil {
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: #a8791a;
+  margin: -8px 0 14px;
+  opacity: 0.8;
+}
+
+.seraphim-sigil[data-entry="true"] {
+  animation: seraphim-sigil-glow 1s ease-out;
+}
+
+@keyframes seraphim-sigil-glow {
+  0% {
+    text-shadow: none;
+    opacity: 0.8;
+  }
+  35% {
+    text-shadow: 0 0 18px rgba(255, 215, 94, 0.95), 0 0 36px rgba(255, 215, 94, 0.6);
+    opacity: 1;
+    color: #7a5710;
+  }
+  100% {
+    text-shadow: none;
+    opacity: 0.8;
+  }
+}
+
+.app-shell[data-theme="seraphim"] .app-shell__inner::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: -20%;
+  width: 40%;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 235, 180, 0) 30%,
+    rgba(255, 235, 180, 0.55) 50%,
+    rgba(255, 235, 180, 0) 70%,
+    transparent 100%
+  );
+  opacity: 0;
+}
+
+.app-shell[data-theme="seraphim"]:has(.seraphim-sigil[data-entry="true"]) .app-shell__inner::before {
+  animation: seraphim-lightwave 1s ease-out;
+}
+
+@keyframes seraphim-lightwave {
+  0% {
+    left: -40%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+/* ---- text/surface recoloring for light theme ---- */
+
+.app-shell[data-theme="seraphim"] .profile-header__name,
+.app-shell[data-theme="seraphim"] .confirm-sheet__title,
+.app-shell[data-theme="seraphim"] .settings-sheet__title {
+  color: #4a3510;
+}
+
+.app-shell[data-theme="seraphim"] .profile-stat__label,
+.app-shell[data-theme="seraphim"] .profile-header__eyebrow,
+.app-shell[data-theme="seraphim"] .confirm-sheet__subtitle {
+  color: #a8894f;
+}
+
+.app-shell[data-theme="seraphim"] .confirm-sheet,
+.app-shell[data-theme="seraphim"] .owned-card,
+.app-shell[data-theme="seraphim"] .character-card {
+  background: #fffaf0;
+  border-color: rgba(232, 185, 35, 0.35);
+}
+
+.app-shell[data-theme="seraphim"] .confirm-sheet__ledger,
+.app-shell[data-theme="seraphim"] .theme-option,
+.app-shell[data-theme="seraphim"] .settings-sheet__lock-note,
+.app-shell[data-theme="seraphim"] .profile-header__settings {
+  background: #fff7e6;
+  border-color: rgba(232, 185, 35, 0.35);
+  color: #7a5710;
+}
+
+/* ---- Market: marble+gold card frames, gold seal on buy ---- */
+
+.app-shell[data-theme="seraphim"] .character-card {
+  box-shadow: 0 0 0 1px rgba(232, 185, 35, 0.25), 0 8px 20px rgba(180, 140, 30, 0.12);
+}
+
+.buy-stamp {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 20px;
-  text-align: center;
-  background:
-    radial-gradient(120% 60% at 50% -10%, var(--ink-glow) 0%, transparent 60%),
-    var(--ink);
+  pointer-events: none;
+  background: rgba(255, 246, 220, 0.35);
+  animation: buy-stamp-fade 0.65s ease-out forwards;
 }
 
-.boot-screen__icon {
-  font-size: 42px;
-  line-height: 1;
-  color: var(--gold-bright);
-  text-shadow: 0 0 24px var(--gold-bright);
-  animation: boot-pulse 1.4s ease-in-out infinite;
+.buy-stamp__seal {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 4px solid #e8b923;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  color: #e8b923;
+  background: radial-gradient(circle, rgba(255, 245, 210, 0.9), rgba(255, 215, 94, 0.3));
+  box-shadow: 0 0 40px rgba(232, 185, 35, 0.7);
+  animation: buy-stamp-pop 0.65s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 
-@keyframes boot-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.8;
+@keyframes buy-stamp-pop {
+  0% {
+    transform: scale(0.3);
+    opacity: 0;
   }
   50% {
     transform: scale(1.15);
     opacity: 1;
   }
-}
-
-.boot-screen__title {
-  font-size: clamp(20px, 6vw, 26px);
-  margin: 0;
-  animation: boot-shimmer 2.2s ease-in-out infinite;
-}
-
-@keyframes boot-shimmer {
-  0%,
   100% {
-    opacity: 0.75;
-  }
-  50% {
+    transform: scale(1);
     opacity: 1;
   }
 }
 
-.boot-screen__hint {
-  margin: -4px 0 6px;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.04em;
+@keyframes buy-stamp-fade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
-.boot-screen__bar {
-  width: 150px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(253, 236, 235, 0.12);
+/* ---- rarity frame enhancements: Celestial / Singular / Omnara ---- */
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="celestial"],
+.app-shell[data-theme="seraphim"] .owned-card[data-rarity="celestial"] {
+  box-shadow: 0 0 24px rgba(143, 214, 255, 0.55), 0 0 0 1px rgba(143, 214, 255, 0.6);
+  animation: celestial-glow 3s ease-in-out infinite;
+}
+
+@keyframes celestial-glow {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(143, 214, 255, 0.45), 0 0 0 1px rgba(143, 214, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(143, 214, 255, 0.75), 0 0 0 1px rgba(143, 214, 255, 0.8);
+  }
+}
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="singular"],
+.app-shell[data-theme="seraphim"] .owned-card[data-rarity="singular"] {
+  position: relative;
+}
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="singular"]::after,
+.app-shell[data-theme="seraphim"] .owned-card[data-rarity="singular"]::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  border: 2px dashed rgba(232, 236, 242, 0.9);
+  animation: singular-spin 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes singular-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="omnara"],
+.app-shell[data-theme="seraphim"] .owned-card[data-rarity="omnara"] {
+  position: relative;
+  overflow: visible;
+}
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="omnara"]::before,
+.app-shell[data-theme="seraphim"] .owned-card[data-rarity="omnara"]::before {
+  content: "🪽";
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  filter: drop-shadow(0 0 8px rgba(244, 211, 94, 0.9));
+  animation: omnara-crown-glow 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes omnara-crown-glow {
+  0%, 100% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.15);
+  }
+}
+
+.app-shell[data-theme="seraphim"] .character-card[data-rarity="omnara"] {
+  box-shadow: 0 0 30px rgba(244, 211, 94, 0.6), 0 0 0 1.5px rgba(244, 211, 94, 0.8);
+}
+
+/* ---- Tab bar ---- */
+
+.app-shell[data-theme="seraphim"] .bottom-nav {
+  background: #fff7e6;
+  border-color: rgba(232, 185, 35, 0.35);
+}
+
+.app-shell[data-theme="seraphim"] .bottom-nav__item {
+  color: #b89a5c;
+}
+
+.app-shell[data-theme="seraphim"] .bottom-nav__item[data-active="true"] {
+  color: #a8791a;
+}
+
+/* ---- Tab transition: wings sweep in/out ---- */
+
+.tab-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  pointer-events: none;
   overflow: hidden;
 }
 
-.boot-screen__bar-fill {
-  height: 100%;
-  width: 35%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
-  animation: boot-bar-slide 1.1s ease-in-out infinite;
+.tab-transition__wing {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  width: 58%;
+  background: linear-gradient(120deg, #fffdf5 0%, #ffe9ad 55%, #e8b923 100%);
+  box-shadow: 0 0 60px rgba(232, 185, 35, 0.6);
 }
 
-@keyframes boot-bar-slide {
+.tab-transition__wing--left {
+  left: 0;
+  clip-path: polygon(0 0, 100% 0, 60% 50%, 100% 100%, 0 100%);
+  animation: wing-left 0.88s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.tab-transition__wing--right {
+  right: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 40% 50%);
+  animation: wing-right 0.88s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes wing-left {
   0% {
-    transform: translateX(-120%);
+    transform: translateX(-100%);
+  }
+  40%, 55% {
+    transform: translateX(0%);
   }
   100% {
-    transform: translateX(380%);
+    transform: translateX(-100%);
   }
+}
+
+@keyframes wing-right {
+  0% {
+    transform: translateX(100%);
+  }
+  40%, 55% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.tab-transition__glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.9), transparent 70%);
+  opacity: 0;
+  animation: wing-glow 0.88s ease-in-out forwards;
+}
+
+@keyframes wing-glow {
+  0%, 35% {
+    opacity: 0;
+  }
+  47% {
+    opacity: 1;
+  }
+  60%, 100% {
+    opacity: 0;
+  }
+}
+
+/* ---- Arena: cloud battleground + celestial gates ---- */
+
+.app-shell[data-theme="seraphim"] .arena-tab {
+  position: relative;
+}
+
+.app-shell[data-theme="seraphim"] .arena-status,
+.app-shell[data-theme="seraphim"] .arena-team-slots,
+.app-shell[data-theme="seraphim"] .arena-battle-scene {
+  background: #fff7e6;
+  border-color: rgba(232, 185, 35, 0.35);
+}
+
+.app-shell[data-theme="seraphim"] .arena-battle-scene {
+  position: relative;
+  overflow: hidden;
+}
+
+.app-shell[data-theme="seraphim"] .arena-battle-scene::before,
+.app-shell[data-theme="seraphim"] .arena-battle-scene::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 30%;
+  background: linear-gradient(180deg, rgba(255, 235, 180, 0.9), transparent);
+  animation: arena-beam-fall 1.2s ease-out;
+  pointer-events: none;
+}
+
+.app-shell[data-theme="seraphim"] .arena-battle-scene::before {
+  left: 8%;
+}
+
+.app-shell[data-theme="seraphim"] .arena-battle-scene::after {
+  right: 8%;
+}
+
+@keyframes arena-beam-fall {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ---- Leaderboard & Tasks: gold crowns, marble podium ---- */
+
+.app-shell[data-theme="seraphim"] .leaderboard-row {
+  background: #fff7e6;
+  border-color: rgba(232, 185, 35, 0.3);
+}
+
+.app-shell[data-theme="seraphim"] .leaderboard-row:nth-child(1) .leaderboard-row__rank::before {
+  content: "👑 ";
+}
+
+.app-shell[data-theme="seraphim"] .leaderboard-row:nth-child(2) .leaderboard-row__rank::before {
+  content: "🥈 ";
+}
+
+.app-shell[data-theme="seraphim"] .leaderboard-row:nth-child(3) .leaderboard-row__rank::before {
+  content: "🥉 ";
+}
+
+.app-shell[data-theme="seraphim"] .task-card[data-completed="true"] {
+  animation: task-divine-stamp 0.5s ease-out;
+}
+
+@keyframes task-divine-stamp {
+  0% {
+    box-shadow: 0 0 0 rgba(232, 185, 35, 0);
+  }
+  40% {
+    box-shadow: 0 0 30px rgba(232, 185, 35, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(232, 185, 35, 0);
+  }
+}
+
+/* ---- Rider: white/gold HUD ---- */
+
+.app-shell[data-theme="seraphim"] .rider-game {
+  --rider-hud-color: #a8791a;
+}
+
+/* ---- Seraphim Summon: card-reveal cinematic ---- */
+
+.seraphim-summon {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #050302;
+  animation: seraphim-summon-fade-in 0.3s ease;
+}
+
+@keyframes seraphim-summon-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* stage 0: single gold point of light */
+.seraphim-summon__dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffe9a8;
+  box-shadow: 0 0 20px 6px rgba(255, 217, 130, 0.9);
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.seraphim-summon[data-stage="2"] .seraphim-summon__dot,
+.seraphim-summon[data-stage="3"] .seraphim-summon__dot,
+.seraphim-summon[data-stage="4"] .seraphim-summon__dot,
+.seraphim-summon[data-stage="5"] .seraphim-summon__dot {
+  opacity: 0;
+}
+
+/* stage 1: sacred circle + spinning glyphs */
+.seraphim-summon__circle,
+.seraphim-summon__glyphs {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.4s ease, width 0.5s ease, height 0.5s ease;
+}
+
+.seraphim-summon__circle {
+  border: 2px solid rgba(255, 217, 130, 0.8);
+  box-shadow: 0 0 30px rgba(255, 217, 130, 0.5);
+}
+
+.seraphim-summon__glyphs {
+  border: 1px dashed rgba(255, 217, 130, 0.6);
+  animation: seraphim-glyph-spin 4s linear infinite;
+}
+
+.seraphim-summon[data-stage="1"] .seraphim-summon__circle,
+.seraphim-summon[data-stage="1"] .seraphim-summon__glyphs {
+  opacity: 1;
+  width: 180px;
+  height: 180px;
+}
+
+.seraphim-summon[data-stage="2"] .seraphim-summon__circle,
+.seraphim-summon[data-stage="2"] .seraphim-summon__glyphs,
+.seraphim-summon[data-stage="3"] .seraphim-summon__circle,
+.seraphim-summon[data-stage="3"] .seraphim-summon__glyphs {
+  opacity: 0.5;
+  width: 260px;
+  height: 260px;
+}
+
+@keyframes seraphim-glyph-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* stage 2: six wings open from center */
+.seraphim-summon__wing {
+  position: absolute;
+  width: 50%;
+  height: 4px;
+  top: 50%;
+  left: 50%;
+  transform-origin: left center;
+  background: linear-gradient(90deg, rgba(255, 245, 220, 0.95), rgba(255, 217, 130, 0));
+  opacity: 0;
+  transition: opacity 0.4s ease, transform 0.7s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.seraphim-summon__wing--1 { transform: rotate(0deg) scaleX(0); }
+.seraphim-summon__wing--2 { transform: rotate(35deg) scaleX(0); }
+.seraphim-summon__wing--3 { transform: rotate(70deg) scaleX(0); }
+.seraphim-summon__wing--4 { transform: rotate(180deg) scaleX(0); }
+.seraphim-summon__wing--5 { transform: rotate(215deg) scaleX(0); }
+.seraphim-summon__wing--6 { transform: rotate(250deg) scaleX(0); }
+
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing,
+.seraphim-summon[data-stage="3"] .seraphim-summon__wing,
+.seraphim-summon[data-stage="4"] .seraphim-summon__wing,
+.seraphim-summon[data-stage="5"] .seraphim-summon__wing {
+  opacity: 1;
+}
+
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--1 { transform: rotate(0deg) scaleX(1.6); }
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--2 { transform: rotate(35deg) scaleX(1.6); }
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--3 { transform: rotate(70deg) scaleX(1.6); }
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--4 { transform: rotate(180deg) scaleX(1.6); }
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--5 { transform: rotate(215deg) scaleX(1.6); }
+.seraphim-summon[data-stage="2"] .seraphim-summon__wing--6 { transform: rotate(250deg) scaleX(1.6); }
+
+/* stage 2->3: whiteout wash */
+.seraphim-summon__whiteout {
+  position: absolute;
+  inset: 0;
+  background: #fffdf5;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.seraphim-summon[data-stage="2"] .seraphim-summon__whiteout {
+  opacity: 0.9;
+}
+
+.seraphim-summon[data-stage="3"] .seraphim-summon__whiteout,
+.seraphim-summon[data-stage="4"] .seraphim-summon__whiteout {
+  opacity: 0.35;
+}
+
+.seraphim-summon[data-stage="5"] .seraphim-summon__whiteout {
+  opacity: 1;
+  transition: opacity 0.5s ease 0.35s;
+}
+
+/* stage 3: particle burst + descending light pillar */
+.seraphim-summon__pillar {
+  position: absolute;
+  top: -20%;
+  width: 90px;
+  height: 0%;
+  background: linear-gradient(180deg, rgba(255, 245, 220, 0.95), rgba(255, 217, 130, 0.1));
+  filter: blur(2px);
+  opacity: 0;
+  transition: height 0.6s ease, opacity 0.4s ease;
+}
+
+.seraphim-summon[data-stage="3"] .seraphim-summon__pillar,
+.seraphim-summon[data-stage="4"] .seraphim-summon__pillar {
+  height: 140%;
+  opacity: 0.85;
+}
+
+.seraphim-summon__particles {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, #ffe9a8, transparent),
+    radial-gradient(2px 2px at 80% 20%, #ffe9a8, transparent),
+    radial-gradient(1.5px 1.5px at 40% 70%, #ffe9a8, transparent),
+    radial-gradient(2px 2px at 65% 60%, #ffe9a8, transparent),
+    radial-gradient(1.5px 1.5px at 25% 80%, #ffe9a8, transparent),
+    radial-gradient(2px 2px at 90% 75%, #ffe9a8, transparent),
+    radial-gradient(1.5px 1.5px at 55% 15%, #ffe9a8, transparent),
+    radial-gradient(2px 2px at 10% 55%, #ffe9a8, transparent);
+  transition: opacity 0.3s ease;
+  animation: seraphim-particle-burst 1.2s ease-out;
+}
+
+.seraphim-summon[data-stage="3"] .seraphim-summon__particles,
+.seraphim-summon[data-stage="4"] .seraphim-summon__particles {
+  opacity: 1;
+}
+
+@keyframes seraphim-particle-burst {
+  from {
+    background-position: 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%, 50% 50%;
+    background-size: 0% 0%;
+  }
+  to {
+    background-position: 0 0;
+    background-size: 100% 100%;
+  }
+}
+
+/* stage 4: silhouette inside the light */
+.seraphim-summon__silhouette {
+  position: absolute;
+  width: 140px;
+  height: 187px;
+  border-radius: 12px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.seraphim-summon[data-stage="4"] .seraphim-summon__silhouette {
+  opacity: 1;
+}
+
+.seraphim-summon[data-stage="5"] .seraphim-summon__silhouette {
+  opacity: 0;
+}
+
+.seraphim-summon__silhouette-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: brightness(0) saturate(0);
+  opacity: 0.85;
+}
+
+/* Omnara-only extra beats: giant wings + halo rings + blessing text */
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing {
+  opacity: 1;
+  filter: drop-shadow(0 0 24px rgba(255, 217, 130, 0.9));
+}
+
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--1,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--1 { transform: rotate(0deg) scaleX(2.4); height: 7px; }
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--2,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--2 { transform: rotate(35deg) scaleX(2.4); height: 7px; }
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--3,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--3 { transform: rotate(70deg) scaleX(2.4); height: 7px; }
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--4,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--4 { transform: rotate(180deg) scaleX(2.4); height: 7px; }
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--5,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--5 { transform: rotate(215deg) scaleX(2.4); height: 7px; }
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__wing--6,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__wing--6 { transform: rotate(250deg) scaleX(2.4); height: 7px; }
+
+.seraphim-summon[data-omnara="true"][data-stage="6"] .seraphim-summon__circle,
+.seraphim-summon[data-omnara="true"][data-stage="7"] .seraphim-summon__circle {
+  opacity: 1;
+  width: 320px;
+  height: 320px;
+  animation: singular-spin 3s linear infinite;
+}
+
+.seraphim-summon__blessing {
+  position: absolute;
+  bottom: 30%;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  color: #fff6dc;
+  text-shadow: 0 0 20px rgba(255, 217, 130, 0.9), 0 0 40px rgba(255, 217, 130, 0.6);
+  opacity: 0;
+  animation: seraphim-blessing-in 0.6s ease forwards;
+}
+
+@keyframes seraphim-blessing-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Final reveal: rarity frame "lights up" the instant the card appears */
+.reveal-card[data-seraphim="true"] {
+  animation: seraphim-frame-ignite 0.8s ease;
+}
+
+@keyframes seraphim-frame-ignite {
+  0% {
+    box-shadow: 0 0 60px 10px rgba(255, 217, 130, 0.9);
+  }
+  100% {
+    box-shadow: 0 0 30px -6px var(--card-accent, transparent);
+  }
+}
+
+/* ==================== Seraphim Home (pixel-matched to reference) ==================== */
+/* Positioning for the overlaid elements below is computed inline in
+   SeraphimHome.jsx from actual measured pixel boxes against the source
+   art - this stylesheet only handles their look (fonts/colors), not
+   their position. */
+
+.seraphim-home {
+  margin: calc(-1 * max(20px, env(safe-area-inset-top))) -16px 0;
+}
+
+.seraphim-home__hero {
+  position: relative;
+  width: 100%;
+  background-size: cover;
+  background-position: top center;
+  overflow: hidden;
+}
+
+.seraphim-home__gear {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.seraphim-home__title {
+  display: flex;
+  align-items: center;
+  text-align: left;
+}
+
+.seraphim-home__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(20px, 7.4vw, 34px);
+  color: #7a4f1f;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seraphim-home__pill-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.seraphim-home__pill-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(13px, 4.4vw, 21px);
+  color: #7a4f1f;
+  white-space: nowrap;
+}
+
+.seraphim-home__pill-label {
+  font-family: var(--font-mono);
+  font-size: clamp(7px, 1.9vw, 10px);
+  letter-spacing: 0.1em;
+  color: #9a6b39;
+}
+
+.seraphim-home__browse {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.seraphim-home__browse:active {
+  opacity: 0.6;
+}
+
+/* ---- nav bar: reuse the reference art directly ---- */
+
+.bottom-nav--seraphim {
+  background: transparent;
+  border: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  height: calc(70px + env(safe-area-inset-bottom));
+  background-image: url("/themes/seraphim/nav-bar.jpg");
+  background-size: 100% 100%;
+  background-position: center;
+}
+
+.bottom-nav__hit {
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* ---- card frame for owned cards shown within Seraphim Home ---- */
+/* approximates the reference card art: cream body, thin gold double
+   border, gold pill rarity badge, cream ledger-style price/sell footer */
+
+.card-grid--seraphim .character-card {
+  background: linear-gradient(180deg, #fffaf0 0%, #fdf3e0 100%);
+  border: 1px solid #d9b872;
+  box-shadow: 0 0 0 4px rgba(232, 185, 35, 0.12), 0 10px 24px rgba(150, 110, 20, 0.18);
+  border-radius: 18px;
+}
+
+.card-grid--seraphim .character-card::before {
+  content: "✦";
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3d4, #e8b923);
+  color: #7a4f1f;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 10px rgba(232, 185, 35, 0.7);
+  z-index: 2;
+}
+
+.card-grid--seraphim .character-card__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #5a3d15;
+}
+
+.card-grid--seraphim .rarity-chip {
+  background: linear-gradient(180deg, #ffe9a8, #e8b923) !important;
+  color: #5a3d15 !important;
+  border: 1px solid #c99a2e;
+}
+
+.card-grid--seraphim .character-card__series {
+  color: #a8894f;
+}
+
+.card-grid--seraphim .price-ticket {
+  background: #fdf3e0;
+  border: 1px solid #d9b872;
+  color: #7a4f1f;
+}
+
+.card-grid--seraphim .sell-button,
+.card-grid--seraphim .buy-button {
+  background: linear-gradient(180deg, #f4e6c8, #e3cfa0);
+  border: 1px solid #c9a95f;
+  color: #5a3d15;
 }

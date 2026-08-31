@@ -4,7 +4,7 @@ export default function TaskCard({ task, onClaim, claiming }) {
     task.reward_type === "currency" ? `${task.reward_currency} VɎ` : "🎴 a card";
 
   return (
-    <article className="task-card">
+    <article className="task-card" data-completed={task.done || undefined}>
       <p className="task-card__text">{task.display_text}</p>
 
       <div className="task-card__progress-track">
