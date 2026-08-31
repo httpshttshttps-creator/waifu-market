@@ -8,8 +8,9 @@ const THEMES = [
   {
     id: "seraphim",
     name: "Seraphim",
-    tagline: "Heavenly gold & white marble",
+    tagline: "Coming soon",
     swatch: ["#fff8e7", "#e8b923"],
+    comingSoon: true,
   },
   {
     id: "tenebris",
@@ -20,7 +21,7 @@ const THEMES = [
   },
 ];
 
-export default function SettingsSheet({ open, isPremium, theme, onSelectTheme, onClose }) {
+export default function SettingsSheet({ open, onClose }) {
   if (!open) return null;
 
   return (
@@ -33,32 +34,24 @@ export default function SettingsSheet({ open, isPremium, theme, onSelectTheme, o
         <div className="settings-sheet__section">
           <p className="settings-sheet__section-label">Theme</p>
 
-          {!isPremium && (
-            <p className="settings-sheet__lock-note">
-              ⭐️ Premium unlocks Seraphim and Tenebris. Check <code>/premium</code> in the bot chat.
-            </p>
-          )}
-
           <div className="theme-grid">
             {THEMES.map((t) => {
-              const locked = t.id !== "default" && !isPremium;
-              const disabled = locked || t.comingSoon;
+              const active = t.id === "default";
               return (
                 <button
                   key={t.id}
                   type="button"
                   className="theme-option"
-                  data-active={theme === t.id || undefined}
-                  data-locked={disabled || undefined}
-                  disabled={disabled}
-                  onClick={() => onSelectTheme(t.id)}
+                  data-active={active || undefined}
+                  data-locked={t.comingSoon || undefined}
+                  disabled={t.comingSoon}
                 >
                   <span
                     className="theme-option__swatch"
                     style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
                   >
-                    {disabled && <span className="theme-option__lock">{t.comingSoon ? "⏳" : "🔒"}</span>}
-                    {theme === t.id && <span className="theme-option__check">✓</span>}
+                    {t.comingSoon && <span className="theme-option__lock">⏳</span>}
+                    {active && <span className="theme-option__check">✓</span>}
                   </span>
                   <span className="theme-option__name">{t.name}</span>
                   <span className="theme-option__tagline">{t.tagline}</span>

@@ -221,6 +221,32 @@ function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
   ctx.restore();
 }
 
+// A second, closer silhouette layer between the far skyline and the
+// actual track - scrolls faster (bigger parallax factor) and sits lower/
+// darker, giving the background real depth instead of one flat layer.
+function drawMidground(ctx, cameraX, viewWidth, viewHeight) {
+  ctx.save();
+  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  const parallax = 0.55;
+  const baseY = viewHeight * 0.86;
+  const spacing = 150;
+  const scrollX = cameraX * parallax;
+  const offset = -(scrollX % spacing);
+  for (let x = offset - spacing; x < viewWidth + spacing; x += spacing) {
+    const seedIndex = Math.round((x + scrollX) / spacing);
+    const peakHeight = 35 + Math.abs(Math.sin(seedIndex * 7.233)) * 65;
+    ctx.beginPath();
+    ctx.moveTo(x, viewHeight + 10);
+    ctx.lineTo(x, baseY);
+    ctx.lineTo(x + spacing * 0.5, baseY - peakHeight);
+    ctx.lineTo(x + spacing, baseY);
+    ctx.lineTo(x + spacing, viewHeight + 10);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Ground fill always extends well below the current camera view, so a
 // span never reads as a thin floating ribbon with void underneath - and
 // at a gap's edges, two spans' fills naturally form facing canyon walls
@@ -253,6 +279,19 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
     ctx.stroke();
+
+    // A thinner, dimmer parallel line a little below the main glow -
+    // reads as a second energy conduit running alongside the track
+    // instead of a single flat ribbon.
+    ctx.save();
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = "rgba(255, 138, 61, 0.55)";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y + 10);
+    for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y + 10);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -422,6 +461,11 @@ const CYBERBIKE_UPPER_FIN = [[214, 798], [235, 786], [270, 778], [299, 792], [27
 const CYBERBIKE_CYAN_LIGHT = [[241, 809], [251, 801], [258, 804], [254, 815], [244, 814]];
 const CYBERBIKE_FRONT_LIGHT = [[272, 786], [287, 790], [279, 797], [271, 793]];
 
+// The tail tip - used as the anchor for the exhaust-spark flicker while
+// gas is held, so the effect sits exactly at the back of the new body
+// instead of a hardcoded offset.
+const CYBERBIKE_TAIL_TIP = [159, 789];
+
 // Builds the reference→world mapper (and the uniform scale) for this frame's
 // real wheel positions. Wheel VISUAL size is derived from this same scale
 // (not the raw physics collision radius) so the wheel-to-body ratio always
@@ -464,7 +508,7 @@ function cyberBikePath(ctx, toWorld, points) {
   ctx.closePath();
 }
 
-function CyberBike(ctx, bike, rearSpinAngle) {
+function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
   const { rearWheel, frontWheel } = bike;
   const { toWorld, scale } = cyberBikeTransform(bike);
 
@@ -587,6 +631,22 @@ function CyberBike(ctx, bike, rearSpinAngle) {
   ctx.stroke();
   ctx.shadowBlur = 0;
 
+  // A little exhaust spark flicker at the tail tip while actually driving -
+  // anchored via the same reference→world transform as the rest of the
+  // body, so it always sits right at the back regardless of bike scale.
+  if (gasHeld) {
+    const tail = toWorld(CYBERBIKE_TAIL_TIP[0], CYBERBIKE_TAIL_TIP[1]);
+    ctx.fillStyle = "rgba(255, 176, 89, 0.85)";
+    ctx.shadowColor = "#ff8a3d";
+    ctx.shadowBlur = outerR * (8 / CYBERBIKE_REF.outerRadius);
+    const flickerOffset = (2 + Math.random() * 3) * scale;
+    const jitter = (Math.random() - 0.5) * 3 * scale;
+    ctx.beginPath();
+    ctx.arc(tail.x - flickerOffset, tail.y + jitter, (1.6 + Math.random() * 1.4) * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
   ctx.restore();
 }
 
@@ -622,15 +682,25 @@ function drawSpeedLines(ctx, lines, width) {
   ctx.restore();
 }
 
-function drawHud(ctx, seconds, width) {
+function drawHud(ctx, seconds, width, pulseFraction) {
   ctx.save();
   const label = `⏱ ${seconds}s`;
   ctx.font = "700 20px 'IBM Plex Mono', monospace";
   const textWidth = ctx.measureText(label).width;
   const pillWidth = textWidth + 32;
+  const pillCenterX = width / 2;
+  const pillCenterY = 14 + 18;
+
+  // Brief scale-up pulse right when a 10s currency milestone hits, so
+  // the counter itself visibly celebrates the moment instead of just
+  // silently ticking - decays back to normal over ~400ms (see caller).
+  const scale = 1 + pulseFraction * 0.28;
+  ctx.translate(pillCenterX, pillCenterY);
+  ctx.scale(scale, scale);
+  ctx.translate(-pillCenterX, -pillCenterY);
 
   ctx.fillStyle = "rgba(20, 6, 14, 0.65)";
-  ctx.strokeStyle = "rgba(242, 193, 78, 0.6)";
+  ctx.strokeStyle = pulseFraction > 0 ? "rgba(255, 220, 140, 0.9)" : "rgba(242, 193, 78, 0.6)";
   ctx.lineWidth = 1.5;
   const pillX = width / 2 - pillWidth / 2;
   const radius = 18;
@@ -917,6 +987,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
     let lastScoreMilestone = 0;
+    let scorePulseRemaining = 0; // ms left in the current HUD pulse - see drawHud
     const trail = [];
     let dustParticles = [];
     let rearSpinAngle = 0; // cosmetic-only rotation for the rear wheel's drawn spoke line
@@ -930,6 +1001,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const milestone = Math.floor(elapsedRef / 10);
       if (milestone > lastScoreMilestone) {
         lastScoreMilestone = milestone;
+        scorePulseRemaining = 400;
         playScore();
       }
 
@@ -1055,6 +1127,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         return p.age < p.life;
       });
       landingShake = Math.max(0, landingShake - frameTime * 0.02);
+      scorePulseRemaining = Math.max(0, scorePulseRemaining - frameTime);
 
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
 
@@ -1104,6 +1177,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       ctx.save();
       ctx.scale(dpr, dpr);
       drawSkyline(ctx, renderCameraX, viewWidth, viewHeight);
+      drawMidground(ctx, renderCameraX, viewWidth, viewHeight);
       ctx.restore();
 
       ctx.save();
@@ -1131,14 +1205,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         drawExplosion(ctx, explosionParticles);
       } else {
         drawTrail(ctx, trail);
-        CyberBike(ctx, bike, rearSpinAngle);
+        CyberBike(ctx, bike, rearSpinAngle, gasRef.current);
       }
       ctx.restore();
 
       ctx.save();
       ctx.scale(dpr, dpr);
       drawSpeedLines(ctx, speedLines, viewWidth);
-      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr);
+      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr, scorePulseRemaining / 400);
       ctx.restore();
 
       ctx.restore();
