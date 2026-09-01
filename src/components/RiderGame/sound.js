@@ -98,13 +98,11 @@ export function updateEngine(active, speedFraction) {
   if (!engineOsc) return;
 
   if (active) {
-    // Louder and pitched a bit higher than the last pass - the previous
-    // "smooth out the rattle" fix (triangle wave + lowpass + quieter
-    // gain) ended up quiet enough to be inaudible on a phone speaker,
-    // which read as "the engine sound is gone" rather than "smoother".
+    // Louder still - bumped again so the engine is unmistakable the
+    // moment gas is held, not just once speed builds up.
     const freq = 90 + speedFraction * 170;
     const filterFreq = 500 + speedFraction * 700;
-    const volume = 0.07 + speedFraction * 0.07;
+    const volume = 0.16 + speedFraction * 0.14;
     engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.08);
     engineFilter.frequency.setTargetAtTime(filterFreq, ctx.currentTime, 0.08);
     engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.08);

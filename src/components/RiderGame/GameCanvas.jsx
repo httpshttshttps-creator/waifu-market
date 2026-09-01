@@ -45,8 +45,8 @@ const REAR_SPIN_RATE = 0.045; // cosmetic radians per (ms * speedFraction) while
 const MAX_SPEED = 31;
 const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
 const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
-const AIR_PITCH_TORQUE = 0.0022; // ramps up over ~1.1s of holding - deliberate, not an instant snap
-const AIR_PITCH_MAX_SPIN = 2.4; // rad/s - more room to commit to a full flip on a big jump
+const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - deliberate, not an instant snap
+const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
 const CAMERA_LEAD_X = 0.32;
@@ -423,22 +423,20 @@ function drawTrail(ctx, trailPoints) {
 }
 
 // ============================================================================
-// CyberBike — sharp angular cyberpunk motorcycle, proportion-corrected.
-// Reference coordinate system: the bike's own on-screen reference frame
-// (rear/left wheel center → front/right wheel center = 95px apart, wheel
-// outer radius 19px). A single similarity transform (uniform scale +
-// rotation, never independent X/Y stretch) maps every reference point onto
-// world space by aligning the two reference wheel centers to the bike's real
-// physics wheel positions — so ALL internal proportions (wheel size vs body
-// length, wheel placement, etc.) always match the reference ratios exactly,
-// regardless of the bike's actual on-screen size.
+// CyberBike — reproduces the original reference image 1:1 by geometry.
+// Master/reference coordinate system: 1536x700, origin top-left, x→right, y→down.
+// All body panel vertices below are the exact reference-image coordinates.
+// A single similarity transform (uniform scale + rotation, no X/Y skew) maps
+// every reference point into world space by aligning the two reference wheel
+// centers onto the bike's real rear/front physics wheel positions, so the art
+// always lands exactly on the collision wheels at any game resolution.
 // ============================================================================
 
 const CYBERBIKE_REF = {
-  rearWheel: { x: 181, y: 819 },
-  frontWheel: { x: 276, y: 819 },
-  outerRadius: 19,
-  innerRadius: 15,
+  rearWheel: { x: 233, y: 482 },
+  frontWheel: { x: 1301, y: 482 },
+  outerRadius: 171,
+  innerRadius: 138,
 };
 
 const CYBERBIKE_PALETTE = {
@@ -453,24 +451,20 @@ const CYBERBIKE_PALETTE = {
   brightCyan: "#EAFEFF",
 };
 
-// Traced vertex lists, exact reference coordinates — proportion-corrected:
-// longer angular body, wheels occupying only ~27% of total width.
-const CYBERBIKE_REAR_TAIL = [[180, 803], [159, 789], [219, 798], [247, 807], [220, 815], [181, 812]];
-const CYBERBIKE_CENTRAL_BODY = [[205, 803], [236, 793], [276, 786], [290, 798], [281, 823], [248, 827], [215, 817]];
-const CYBERBIKE_UPPER_FIN = [[214, 798], [235, 786], [270, 778], [299, 792], [278, 800], [251, 795]];
-const CYBERBIKE_CYAN_LIGHT = [[241, 809], [251, 801], [258, 804], [254, 815], [244, 814]];
-const CYBERBIKE_FRONT_LIGHT = [[272, 786], [287, 790], [279, 797], [271, 793]];
+// Traced vertex lists, exactly as given in the reference (1536x700 master canvas).
+const CYBERBIKE_REAR_TOP_SILHOUETTE = [[78, 111], [680, 197], [835, 228], [620, 274], [365, 271]];
+const CYBERBIKE_MAIN_BODY = [[470, 326], [628, 297], [1018, 240], [1110, 250], [1058, 420], [1060, 563], [720, 535], [470, 400]];
+const CYBERBIKE_LOWER_BODY = [[174, 433], [605, 350], [661, 415], [1057, 420], [1348, 446], [1388, 527], [1070, 525], [722, 492], [430, 480], [174, 530]];
+const CYBERBIKE_DARK_LEFT_PANEL = [[202, 442], [610, 354], [661, 415], [249, 478]];
+const CYBERBIKE_UPPER_BODY = [[682, 190], [855, 106], [1095, 52], [1325, 161]];
+const CYBERBIKE_CYAN_PANEL = [[1018, 310], [1106, 326], [1055, 475], [888, 425]];
+const CYBERBIKE_HEADLIGHT = [[1129, 125], [1272, 158], [1216, 174], [1150, 161]];
 
-// The tail tip - used as the anchor for the exhaust-spark flicker while
-// gas is held, so the effect sits exactly at the back of the new body
-// instead of a hardcoded offset.
-const CYBERBIKE_TAIL_TIP = [159, 789];
+// Tail anchor - used for the exhaust-spark flicker while gas is held, so
+// the effect sits at the back of the body instead of a hardcoded offset.
+const CYBERBIKE_TAIL_TIP = [174, 480];
 
-// Builds the reference→world mapper (and the uniform scale) for this frame's
-// real wheel positions. Wheel VISUAL size is derived from this same scale
-// (not the raw physics collision radius) so the wheel-to-body ratio always
-// matches the reference — this is what keeps the wheels from ever looking
-// oversized relative to the body.
+// Builds the reference→world mapper for the current frame's wheel positions.
 function cyberBikeTransform(bike) {
   const { rearWheel, frontWheel } = bike;
   const refDx = CYBERBIKE_REF.frontWheel.x - CYBERBIKE_REF.rearWheel.x;
@@ -495,7 +489,7 @@ function cyberBikeTransform(bike) {
     };
   };
 
-  return { toWorld, scale };
+  return toWorld;
 }
 
 function cyberBikePath(ctx, toWorld, points) {
@@ -509,67 +503,46 @@ function cyberBikePath(ctx, toWorld, points) {
 }
 
 function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
-  const { rearWheel, frontWheel } = bike;
-  const { toWorld, scale } = cyberBikeTransform(bike);
+  const { rearWheel, frontWheel, wheelRadius } = bike;
+  const toWorld = cyberBikeTransform(bike);
 
-  // Visual wheel size tracks the same scale as the body, so the ratio of
-  // wheel diameter to body/wheelbase always matches the reference (~27% of
-  // total width) instead of following the raw physics collision radius.
-  const outerR = CYBERBIKE_REF.outerRadius * scale;
-  const innerR = CYBERBIKE_REF.innerRadius * scale;
-
-  // --- WHEELS: identical diameter, dark interior, angular spokes, neon rim + soft halo ---
+  // --- WHEELS: identical diameter, white/purple neon ring, 8 angular spokes ---
   const drawWheel = (wx, wy, spinAngle) => {
     ctx.save();
     ctx.translate(wx, wy);
     ctx.rotate(spinAngle);
 
-    // dark interior
-    ctx.beginPath();
-    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
-    ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
-    ctx.fill();
-
-    // soft outer halo (glow ~0.6 opacity)
-    ctx.globalAlpha = 0.6;
     ctx.shadowColor = CYBERBIKE_PALETTE.whiteGlow;
-    ctx.shadowBlur = outerR * (8 / CYBERBIKE_REF.outerRadius);
+    ctx.shadowBlur = 28;
     ctx.beginPath();
-    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+    ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
     ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
-    ctx.lineWidth = outerR * (3 / CYBERBIKE_REF.outerRadius);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // crisp bright white/purple neon ring
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
-    ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
-    ctx.lineWidth = outerR * (3 / CYBERBIKE_REF.outerRadius);
+    ctx.lineWidth = wheelRadius * (12 / CYBERBIKE_REF.outerRadius);
     ctx.stroke();
 
-    // purple inner rim
+    const innerR = wheelRadius * (CYBERBIKE_REF.innerRadius / CYBERBIKE_REF.outerRadius);
+    ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
+    ctx.shadowBlur = 14;
     ctx.beginPath();
     ctx.arc(0, 0, innerR, 0, Math.PI * 2);
     ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 8 angular purple spokes
-    ctx.strokeStyle = CYBERBIKE_PALETTE.brightBodyPurple;
-    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = CYBERBIKE_PALETTE.darkestPurple;
+    ctx.lineWidth = 2;
+    const spokeR = innerR - 4;
     for (let i = 0; i < 8; i++) {
       const a = (i * Math.PI * 2) / 8;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(Math.cos(a) * innerR, Math.sin(a) * innerR);
+      ctx.lineTo(Math.cos(a) * spokeR, Math.sin(a) * spokeR);
       ctx.stroke();
     }
 
-    // hub
     ctx.beginPath();
-    ctx.arc(0, 0, outerR * 0.12, 0, Math.PI * 2);
+    ctx.arc(0, 0, wheelRadius * 0.08, 0, Math.PI * 2);
     ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
     ctx.fill();
 
@@ -579,70 +552,72 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
   drawWheel(rearWheel.position.x, rearWheel.position.y, rearSpinAngle);
   drawWheel(frontWheel.position.x, frontWheel.position.y, frontWheel.angle);
 
-  // --- BODY: long angular low-poly panels, stacked back-to-front, body dominates the silhouette ---
+  // --- BODY: sharp angular low-poly panels, stacked back-to-front as in the reference ---
   ctx.save();
 
-  // 1. rear tail — dark angular base, extended toward the back
-  cyberBikePath(ctx, toWorld, CYBERBIKE_REAR_TAIL);
+  cyberBikePath(ctx, toWorld, CYBERBIKE_REAR_TOP_SILHOUETTE);
+  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
+  ctx.fill();
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_LOWER_BODY);
   ctx.fillStyle = CYBERBIKE_PALETTE.darkBody;
   ctx.fill();
   ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // 2. central body — larger, dominates the silhouette
-  cyberBikePath(ctx, toWorld, CYBERBIKE_CENTRAL_BODY);
+  cyberBikePath(ctx, toWorld, CYBERBIKE_DARK_LEFT_PANEL);
+  ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
+  ctx.fill();
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_MAIN_BODY);
   ctx.fillStyle = CYBERBIKE_PALETTE.bodyPurple;
   ctx.fill();
-  ctx.strokeStyle = CYBERBIKE_PALETTE.brightBodyPurple;
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = CYBERBIKE_PALETTE.violet;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // 3. upper fin — sharp, not rounded, bright neon top edge
-  cyberBikePath(ctx, toWorld, CYBERBIKE_UPPER_FIN);
+  cyberBikePath(ctx, toWorld, CYBERBIKE_UPPER_BODY);
   ctx.fillStyle = CYBERBIKE_PALETTE.brightBodyPurple;
   ctx.fill();
   ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
-  ctx.shadowBlur = outerR * (6 / CYBERBIKE_REF.outerRadius);
+  ctx.shadowBlur = 18;
   ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  cyberBikePath(ctx, toWorld, CYBERBIKE_CYAN_PANEL);
+  ctx.shadowColor = CYBERBIKE_PALETTE.cyan;
+  ctx.shadowBlur = 22;
+  ctx.fillStyle = CYBERBIKE_PALETTE.cyan;
+  ctx.fill();
+  ctx.strokeStyle = CYBERBIKE_PALETTE.brightCyan;
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // 4. central cyan light
-  cyberBikePath(ctx, toWorld, CYBERBIKE_CYAN_LIGHT);
-  ctx.shadowColor = CYBERBIKE_PALETTE.cyan;
-  ctx.shadowBlur = outerR * (5 / CYBERBIKE_REF.outerRadius);
-  ctx.fillStyle = CYBERBIKE_PALETTE.cyan;
-  ctx.fill();
-  ctx.strokeStyle = CYBERBIKE_PALETTE.brightCyan;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // 5. front light — cyan/white with blue-violet bloom
-  cyberBikePath(ctx, toWorld, CYBERBIKE_FRONT_LIGHT);
+  cyberBikePath(ctx, toWorld, CYBERBIKE_HEADLIGHT);
   ctx.shadowColor = CYBERBIKE_PALETTE.violet;
-  ctx.shadowBlur = outerR * (7 / CYBERBIKE_REF.outerRadius);
+  ctx.shadowBlur = 26;
   ctx.fillStyle = CYBERBIKE_PALETTE.brightCyan;
   ctx.fill();
   ctx.strokeStyle = CYBERBIKE_PALETTE.cyan;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  // A little exhaust spark flicker at the tail tip while actually driving -
-  // anchored via the same reference→world transform as the rest of the
-  // body, so it always sits right at the back regardless of bike scale.
+  // A little exhaust spark flicker at the tail while actually driving -
+  // anchored via the same reference→world transform as the rest of the body.
   if (gasHeld) {
     const tail = toWorld(CYBERBIKE_TAIL_TIP[0], CYBERBIKE_TAIL_TIP[1]);
     ctx.fillStyle = "rgba(255, 176, 89, 0.85)";
     ctx.shadowColor = "#ff8a3d";
-    ctx.shadowBlur = outerR * (8 / CYBERBIKE_REF.outerRadius);
-    const flickerOffset = (2 + Math.random() * 3) * scale;
-    const jitter = (Math.random() - 0.5) * 3 * scale;
+    ctx.shadowBlur = 8;
+    const flickerOffset = 2 + Math.random() * 3;
+    const jitter = (Math.random() - 0.5) * 4;
     ctx.beginPath();
-    ctx.arc(tail.x - flickerOffset, tail.y + jitter, (1.6 + Math.random() * 1.4) * scale, 0, Math.PI * 2);
+    ctx.arc(tail.x - flickerOffset, tail.y + jitter, 1.8 + Math.random() * 1.6, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
   }
