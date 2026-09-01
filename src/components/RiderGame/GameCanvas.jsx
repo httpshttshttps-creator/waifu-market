@@ -1152,6 +1152,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let wasGrounded = false;
     let hasLandedOnce = false;
     let msSinceGrounded = 0; // ms since ANY wheel last touched ground - drives JUMP_COYOTE_MS below
+    let justJumped = false; // true only on the exact tick a jump fires - see the ground-lock clamp below
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
     let lastScoreMilestone = 0;
@@ -1252,10 +1253,12 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       // moving, stay put if you were standing still": we simply never
       // change vx here, so whatever it already was carries straight
       // through the jump.
+      justJumped = false;
       if (jumpRequested) {
         jumpRequested = false;
         if (canJump) {
           Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: -JUMP_VELOCITY });
+          justJumped = true;
           playJump();
         }
       }
@@ -1301,6 +1304,18 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       updateMovingTraps(elapsedRef);
 
       Engine.update(engine, dtMs);
+
+      // Ground lock: while the bike was grounded this tick and the
+      // player didn't explicitly jump, it should NEVER leave the ground
+      // on its own - not from a terrain bump, not from boosting into a
+      // bump at BOOST_MAX_SPEED, nothing. Only an explicit jump input is
+      // allowed to give it upward velocity. Engine.update just resolved
+      // this tick's collisions (which is exactly where a bump would have
+      // injected an upward kick), so this is the right place to cancel
+      // any of that back out.
+      if (grounded && !justJumped && bike.chassis.velocity.y < 0) {
+        Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: 0 });
+      }
 
       if (bike.chassis.position.y > terrain.baseline + FALL_DEATH_OFFSET) {
         triggerCrash(elapsedRef);
