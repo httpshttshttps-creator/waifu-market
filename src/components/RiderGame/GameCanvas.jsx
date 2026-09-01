@@ -45,6 +45,9 @@ const REAR_SPIN_RATE = 0.045; // cosmetic radians per (ms * speedFraction) while
 const MAX_SPEED = 31;
 const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
 const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
+const JUMP_COYOTE_MS = 140; // still allow a jump for a brief window after ground contact is lost -
+// covers a bike balanced on just the front wheel (or a bumpy-terrain contact flicker), not just
+// a fully-planted landing on both wheels.
 const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
@@ -77,7 +80,7 @@ function isTrap(body) {
 
 function createBike(x, y) {
   const group = Body.nextGroup(true);
-  const wheelRadius = 14;
+  const wheelRadius = 12; // slightly smaller tires (was 14)
   const wheelBase = 44;
   const rideHeight = 12;
 
@@ -88,12 +91,16 @@ function createBike(x, y) {
     frictionAir: 0.008, // lighter air drag so momentum (linear AND angular) carries through a jump
     label: "chassis",
   });
+  // Shift the chassis's center of mass toward the rear (negative x is the
+  // rear side, see rearWheel below) so the bike is genuinely back-heavy -
+  // it naturally balances/tips rearward rather than nose-diving.
+  Body.setCentre(chassis, { x: -6, y: 0 }, true);
 
   const rearWheel = Bodies.circle(x - wheelBase / 2, y + rideHeight, wheelRadius, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
     friction: 1.1,
     frictionStatic: 1.6,
-    density: 0.012,
+    density: 0.017, // a bit heavier than the front wheel - more mass at the back
     label: "wheel",
   });
 
@@ -489,7 +496,7 @@ function cyberBikeTransform(bike) {
     };
   };
 
-  return toWorld;
+  return { toWorld, scale };
 }
 
 function cyberBikePath(ctx, toWorld, points) {
@@ -504,7 +511,7 @@ function cyberBikePath(ctx, toWorld, points) {
 
 function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
   const { rearWheel, frontWheel, wheelRadius } = bike;
-  const toWorld = cyberBikeTransform(bike);
+  const { toWorld, scale } = cyberBikeTransform(bike);
 
   // --- WHEELS: identical diameter, white/purple neon ring, 8 angular spokes ---
   const drawWheel = (wx, wy, spinAngle) => {
@@ -606,6 +613,24 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.shadowBlur = 0;
+
+  // Ambient light actually cast forward from the headlight - a soft radial
+  // glow centered on the lamp, on top of the polygon fill above, so the
+  // light reads as a real light source and not just a lit-up shape.
+  {
+    const lampCenter = toWorld(1188, 149); // roughly the headlight polygon's own center
+    const glowR = 30 * scale;
+    const headlightGlow = ctx.createRadialGradient(
+      lampCenter.x, lampCenter.y, 0,
+      lampCenter.x, lampCenter.y, glowR
+    );
+    headlightGlow.addColorStop(0, "rgba(234, 254, 255, 0.55)");
+    headlightGlow.addColorStop(1, "rgba(234, 254, 255, 0)");
+    ctx.fillStyle = headlightGlow;
+    ctx.beginPath();
+    ctx.arc(lampCenter.x, lampCenter.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // A little exhaust spark flicker at the tail while actually driving -
   // anchored via the same reference→world transform as the rest of the body.
@@ -767,8 +792,8 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     // invites), the strong air-flip torque had just enough time to spin
     // the bike into a bad angle before it ever touched down once,
     // causing an instant crash. Numbers below match createBike's own
-    // wheelRadius (14) + rideHeight (12) - keep in sync if those change.
-    const bike = createBike(160, baseline - 32);
+    // wheelRadius (12) + rideHeight (12) - keep in sync if those change.
+    const bike = createBike(160, baseline - 30);
     Composite.add(world, [
       bike.chassis,
       bike.rearWheel,
@@ -959,6 +984,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     // crash before it's had a real landing.
     let wasGrounded = false;
     let hasLandedOnce = false;
+    let msSinceGrounded = 0; // ms since ANY wheel last touched ground - drives JUMP_COYOTE_MS below
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
     let lastScoreMilestone = 0;
@@ -972,6 +998,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       const grounded = groundContacts > 0;
       if (grounded) hasLandedOnce = true;
+
+      // Either wheel touching (front OR rear) already counts as grounded
+      // above, so a bike balanced on just its front wheel can jump - the
+      // coyote window on top of that just forgives a brief flicker in
+      // contact detection right around that moment.
+      if (grounded) msSinceGrounded = 0;
+      else msSinceGrounded += dtMs;
+      const canJump = grounded || msSinceGrounded <= JUMP_COYOTE_MS;
 
       const milestone = Math.floor(elapsedRef / 10);
       if (milestone > lastScoreMilestone) {
@@ -1007,7 +1041,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       // through the jump.
       if (jumpRequested) {
         jumpRequested = false;
-        if (grounded) {
+        if (canJump) {
           Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: -JUMP_VELOCITY });
           playJump();
         }
