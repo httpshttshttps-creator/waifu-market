@@ -55,6 +55,7 @@ const BOOST_MAX_SPEED = MAX_SPEED * 1.2; // faster top speed while boosting (was
 const BOOST_FLASH_MS = 220; // one-shot screen-flash duration when a boost triggers
 const BOOST_CAMERA_FOLLOW_MULT = 2.2; // camera pan speed multiplier while boosting - keeps the now-faster bike in frame
 const BOOST_EXTRA_ZOOM_OUT = 0.05; // small extra zoom-out on top of the normal speed-based zoom while boosting
+const BOOST_MAX_PITCH = Math.PI / 3.2; // ~56° - how far off-horizontal a boost is allowed to fire, either way
 const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
@@ -71,6 +72,16 @@ const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/l
 const EXPLOSION_DURATION = 700;
 const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
 const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a camera thump
+
+// Matter.js's chassis.angle accumulates without wrapping (it can be well
+// past ±2π after a few flips), so anything that wants to reason about
+// "which way is the nose pointing right now" needs this first.
+function normalizeAngle(angle) {
+  let a = angle % (Math.PI * 2);
+  if (a > Math.PI) a -= Math.PI * 2;
+  if (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
 
 function isWheel(body) {
   return body.label === "wheel";
@@ -1029,12 +1040,32 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let boostCooldownRemaining = 0; // ms left until boost is ready again (0 = ready now)
     let boostFlashRemaining = 0; // ms left in the one-shot activation screen flash (visual only)
 
+    // The thrust direction for the CURRENT boost, locked once at the
+    // moment it's triggered (see requestBoost) - not recomputed every
+    // tick from the bike's live angle. If it were live, a bike tumbling
+    // mid-air would have its boost direction chase the spin and could
+    // end up firing straight down mid-boost. Locking it means "commit to
+    // the direction you were facing when you hit boost" instead.
+    let boostDirX = 1;
+    let boostDirY = 0;
+
     function requestBoost() {
       if (boostActive || boostCooldownRemaining > 0) return;
       boostActive = true;
       boostTimeRemaining = BOOST_DURATION_MS;
       boostCooldownRemaining = BOOST_COOLDOWN_MS;
       boostFlashRemaining = BOOST_FLASH_MS;
+
+      // Clamp to a safe cone around horizontal (±~56°) so a badly-timed
+      // trigger - already nose-down mid-flip, or upside-down - can never
+      // fire the boost straight down or backward. Within that cone it
+      // still genuinely follows the nose (nose-up boosts up, nose-down
+      // boosts down-and-forward), it just can't go past a safe pitch.
+      const rawAngle = normalizeAngle(bike.chassis.angle);
+      const clampedAngle = Math.max(-BOOST_MAX_PITCH, Math.min(BOOST_MAX_PITCH, rawAngle));
+      boostDirX = Math.cos(clampedAngle);
+      boostDirY = Math.sin(clampedAngle);
+
       dustParticles.push(...createBoostBurst(bike.chassis.position.x, bike.chassis.position.y));
       playBoost();
     }
@@ -1173,21 +1204,20 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       // ---- boost: timers + the actual speed effect ----
       // Deliberately NOT gated on grounded/airborne, and NOT locked to the
-      // +x axis - a boost pushes velocity toward wherever the bike's nose
-      // is currently pointing (chassis.angle), so it works "چه روی زمین چه
-      // روی هوا" (both on the ground and in the air), and if the bike is
-      // pitched nose-up while falling, boosting sends it up and forward
-      // along that same nose direction instead of just flattening vx.
+      // +x axis - a boost pushes velocity toward boostDirX/boostDirY (the
+      // direction locked in at the moment it was triggered - see
+      // requestBoost), which is what makes it work "چه روی زمین چه روی
+      // هوا" (both on the ground and in the air) while still following
+      // whatever the nose was pointing at when you committed to it,
+      // without chasing the bike's spin for the rest of the boost.
       if (boostActive) {
         boostTimeRemaining -= dtMs;
         if (boostTimeRemaining <= 0) {
           boostActive = false;
           boostTimeRemaining = 0;
         } else {
-          const dirX = Math.cos(bike.chassis.angle);
-          const dirY = Math.sin(bike.chassis.angle);
-          const targetVx = dirX * BOOST_MAX_SPEED;
-          const targetVy = dirY * BOOST_MAX_SPEED;
+          const targetVx = boostDirX * BOOST_MAX_SPEED;
+          const targetVy = boostDirY * BOOST_MAX_SPEED;
           const ease = Math.min(1, dtMs / 90);
           Body.setVelocity(bike.chassis, {
             x: bike.chassis.velocity.x + (targetVx - bike.chassis.velocity.x) * ease,
@@ -1195,15 +1225,15 @@ export default function GameCanvas({ onGameOver, onQuit }) {
           });
 
           // Continuous blue nitro flame trailing off the back of the bike -
-          // "back" meaning opposite the nose direction, so it still trails
-          // correctly even when boosting nose-up. On top of the one-shot
+          // "back" meaning opposite the locked boost direction, matching
+          // whichever way it's actually thrusting. On top of the one-shot
           // burst that fired when the boost started.
           if (Math.random() < 0.85) {
             dustParticles.push({
-              x: bike.rearWheel.position.x - dirX * (6 + Math.random() * 6),
-              y: bike.rearWheel.position.y - dirY * (6 + Math.random() * 6),
-              vx: -dirX * (1.6 + Math.random() * 1.6),
-              vy: -dirY * (1.6 + Math.random() * 1.6),
+              x: bike.rearWheel.position.x - boostDirX * (6 + Math.random() * 6),
+              y: bike.rearWheel.position.y - boostDirY * (6 + Math.random() * 6),
+              vx: -boostDirX * (1.6 + Math.random() * 1.6),
+              vy: -boostDirY * (1.6 + Math.random() * 1.6),
               size: 2 + Math.random() * 2.6,
               life: 220 + Math.random() * 160,
               age: 0,
