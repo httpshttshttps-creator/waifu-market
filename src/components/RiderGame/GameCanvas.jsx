@@ -91,16 +91,12 @@ function createBike(x, y) {
     frictionAir: 0.008, // lighter air drag so momentum (linear AND angular) carries through a jump
     label: "chassis",
   });
-  // Shift the chassis's center of mass toward the rear (negative x is the
-  // rear side, see rearWheel below) so the bike is genuinely back-heavy -
-  // it naturally balances/tips rearward rather than nose-diving.
-  Body.setCentre(chassis, { x: -6, y: 0 }, true);
 
   const rearWheel = Bodies.circle(x - wheelBase / 2, y + rideHeight, wheelRadius, {
     collisionFilter: { group, category: CATEGORY_BIKE, mask: CATEGORY_GROUND | CATEGORY_TRAP },
     friction: 1.1,
     frictionStatic: 1.6,
-    density: 0.017, // a bit heavier than the front wheel - more mass at the back
+    density: 0.012,
     label: "wheel",
   });
 
@@ -926,6 +922,24 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let lastTapTime = 0;
     let jumpRequested = false;
 
+    // Whether the bike is currently touching ground, mirrored from
+    // stepPhysics each tick so these raw input handlers (which run
+    // outside the physics loop) can tell a genuinely NEW press made
+    // while airborne apart from gas that's just been held continuously
+    // since before takeoff. See airFlipArmed below for why that
+    // distinction is what actually stops unwanted forward flips.
+    let groundedNow = true;
+
+    // The air-flip torque (see AIR_PITCH_TORQUE in stepPhysics) only
+    // arms when gas is freshly PRESSED while already airborne - not
+    // when it's simply still held over from accelerating into the
+    // jump. Ordinary play (hold gas, hit a bump, go briefly airborne
+    // while still holding) never re-presses anything, so it can no
+    // longer auto-flip the bike forward; the flip stays a deliberate
+    // trick you commit to by tapping/holding gas again once you're
+    // already in the air.
+    let airFlipArmed = false;
+
     function registerTap() {
       const now = performance.now();
       if (now - lastTapTime < DOUBLE_TAP_WINDOW) {
@@ -936,11 +950,16 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       }
     }
 
+    function registerGasPress() {
+      if (!groundedNow) airFlipArmed = true;
+    }
+
     function onPointerDown(event) {
       event.preventDefault();
       gasRef.current = true;
       resumeAudio(); // audio can only start from inside a real user gesture
       registerTap();
+      registerGasPress();
     }
     function onPointerUp() {
       gasRef.current = false;
@@ -948,7 +967,10 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     function onKeyDown(event) {
       if (event.code === "Space" || event.code === "ArrowUp") {
         gasRef.current = true;
-        if (!event.repeat) registerTap();
+        if (!event.repeat) {
+          registerTap();
+          registerGasPress();
+        }
       }
     }
     function onKeyUp(event) {
@@ -998,6 +1020,8 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       const grounded = groundContacts > 0;
       if (grounded) hasLandedOnce = true;
+      groundedNow = grounded; // mirrored for the raw input handlers, see registerGasPress above
+      if (grounded) airFlipArmed = false; // each new airborne period needs its own fresh press to flip
 
       // Either wheel touching (front OR rear) already counts as grounded
       // above, so a bike balanced on just its front wheel can jump - the
@@ -1061,15 +1085,17 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (bike.chassis.velocity.x > MAX_SPEED) {
           Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
         }
-      } else if (gasRef.current && hasLandedOnce) {
+      } else if (gasRef.current && hasLandedOnce && airFlipArmed) {
         Body.setAngularVelocity(
           bike.chassis,
           Math.min(bike.chassis.angularVelocity + AIR_PITCH_TORQUE * dtMs, AIR_PITCH_MAX_SPIN)
         );
       } else {
-        // Not holding gas in the air: just damp out any existing spin so
-        // the bike settles into coasting at whatever angle it currently
-        // has - it does NOT get pulled back toward level.
+        // Not committed to a flip in the air: just damp out any existing
+        // spin so the bike settles into coasting at whatever angle it
+        // currently has - it does NOT get pulled back toward level, and
+        // it no longer auto-flips just because gas was already held
+        // going into the jump.
         Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity * (1 - AUTO_LEVEL_DAMPING));
       }
 
