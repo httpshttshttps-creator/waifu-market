@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import Matter from "matter-js";
 import { createTerrainState, generateAhead, pruneBehind, GAP_PRUNE_MARGIN } from "./terrain.js";
-import { resumeAudio, updateEngine, playJump, playLand, playCrash, playScore, stopEngine } from "./sound.js";
+import { resumeAudio, updateEngine, playJump, playLand, playCrash, playScore, playBoost, stopEngine } from "./sound.js";
 
 const { Engine, Body, Bodies, Composite, Constraint, Events } = Matter;
 
@@ -44,10 +44,15 @@ const FORWARD_FORCE = 0.019;
 const REAR_SPIN_RATE = 0.045; // cosmetic radians per (ms * speedFraction) while driving
 const MAX_SPEED = 31;
 const JUMP_VELOCITY = 50; // upward kick from a double-tap, horizontal velocity untouched
-const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a jump instead of two separate holds
+const DOUBLE_TAP_WINDOW = 320; // ms between taps to register as a boost request instead of two separate presses
 const JUMP_COYOTE_MS = 140; // still allow a jump for a brief window after ground contact is lost -
 // covers a bike balanced on just the front wheel (or a bumpy-terrain contact flicker), not just
 // a fully-planted landing on both wheels.
+
+const BOOST_DURATION_MS = 2200; // how long a triggered boost actually lasts
+const BOOST_COOLDOWN_MS = 10000; // how long the boost bar takes to refill after use
+const BOOST_MAX_SPEED = MAX_SPEED * 1.7; // much faster top speed while boosting, ground or air
+const BOOST_FLASH_MS = 220; // one-shot screen-flash duration when a boost triggers
 const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
@@ -406,17 +411,21 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.restore();
 }
 
-function drawTrail(ctx, trailPoints) {
+function drawTrail(ctx, trailPoints, boosted) {
   if (trailPoints.length < 2) return;
   ctx.save();
-  ctx.strokeStyle = "#ff6ec7";
+  ctx.strokeStyle = boosted ? "#6fe0ff" : "#ff6ec7";
   ctx.lineCap = "round";
+  if (boosted) {
+    ctx.shadowColor = "#9df2ff";
+    ctx.shadowBlur = 10;
+  }
   for (let i = 1; i < trailPoints.length; i++) {
     const p0 = trailPoints[i - 1];
     const p1 = trailPoints[i];
     const alpha = i / trailPoints.length;
-    ctx.globalAlpha = alpha * 0.5;
-    ctx.lineWidth = 4 * alpha;
+    ctx.globalAlpha = alpha * (boosted ? 0.75 : 0.5);
+    ctx.lineWidth = (boosted ? 5.5 : 4) * alpha;
     ctx.beginPath();
     ctx.moveTo(p0.x, p0.y);
     ctx.lineTo(p1.x, p1.y);
@@ -662,14 +671,14 @@ function drawExplosion(ctx, particles) {
 // Screen-space streaks that flash by when going fast - cheap stand-in
 // for motion blur. `lines` is a small live array of {y, life, age,
 // length} the caller spawns/ages each frame; this just draws them.
-function drawSpeedLines(ctx, lines, width) {
+function drawSpeedLines(ctx, lines, width, boosted) {
   ctx.save();
-  ctx.strokeStyle = "#ffffff";
+  ctx.strokeStyle = boosted ? "#bdf1ff" : "#ffffff";
   ctx.lineCap = "round";
   for (const line of lines) {
-    const alpha = Math.max(0, 1 - line.age / line.life) * 0.35;
+    const alpha = Math.max(0, 1 - line.age / line.life) * (boosted ? 0.5 : 0.35);
     ctx.globalAlpha = alpha;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = boosted ? 2 : 1.5;
     ctx.beginPath();
     ctx.moveTo(width, line.y);
     ctx.lineTo(width - line.length, line.y);
@@ -715,6 +724,76 @@ function drawHud(ctx, seconds, width, pulseFraction) {
   ctx.textBaseline = "middle";
   ctx.fillText(label, width / 2, 14 + 18);
   ctx.restore();
+}
+
+function roundedRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Boost charge bar - sits just under the score pill. Fills over
+// BOOST_COOLDOWN_MS; once full it glows and "BOOST READY" shows below it;
+// while a boost is actively running it goes bright white-cyan instead.
+function drawBoostBar(ctx, width, chargeFraction, boostActive) {
+  ctx.save();
+  const barWidth = 120;
+  const barHeight = 7;
+  const x = width / 2 - barWidth / 2;
+  const y = 14 + 36 + 8;
+  const ready = chargeFraction >= 1;
+
+  roundedRectPath(ctx, x, y, barWidth, barHeight, 4);
+  ctx.fillStyle = "rgba(10, 14, 34, 0.65)";
+  ctx.strokeStyle = "rgba(140, 200, 255, 0.35)";
+  ctx.lineWidth = 1;
+  ctx.fill();
+  ctx.stroke();
+
+  const fillWidth = Math.max(0, Math.min(1, chargeFraction)) * barWidth;
+  if (fillWidth > 1) {
+    roundedRectPath(ctx, x, y, fillWidth, barHeight, 4);
+    ctx.shadowColor = "#4fd6ff";
+    ctx.shadowBlur = boostActive ? 14 : ready ? 10 : 3;
+    ctx.fillStyle = boostActive ? "#eafeff" : ready ? "#8fe9ff" : "#2f9fe8";
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  if (ready && !boostActive) {
+    ctx.font = "600 9px 'IBM Plex Mono', monospace";
+    ctx.fillStyle = "rgba(233, 250, 255, 0.85)";
+    ctx.textAlign = "center";
+    ctx.fillText("BOOST READY", width / 2, y + barHeight + 11);
+  }
+  ctx.restore();
+}
+
+// One-shot radial burst of blue/cyan particles when a boost triggers -
+// reuses the same {x,y,vx,vy,size,life,age,color} shape as the crash
+// explosion particles, so it renders through the existing drawExplosion.
+function createBoostBurst(x, y) {
+  const colors = ["#4fd6ff", "#8fe9ff", "#2f9fe8", "#eafeff"];
+  const particles = [];
+  for (let i = 0; i < 22; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 7;
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 2.5 + Math.random() * 4,
+      life: 320 + Math.random() * 260,
+      age: 0,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+  return particles;
 }
 
 function createExplosionParticles(x, y) {
@@ -913,12 +992,14 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     Events.on(engine, "collisionEnd", onCollisionEnd);
 
     // ---------------- input ----------------
-    // A quick double-tap anywhere triggers a jump (if grounded); a
-    // single press-and-hold just accelerates, exactly as before. Jump
-    // itself is a plain vertical velocity kick that never touches
-    // horizontal velocity - see the jumpRequested handling in
-    // stepPhysics for why that's what makes "keep moving if you were
-    // already moving, stay put if you were standing still" work.
+    // New control scheme: holding the RIGHT half of the screen accelerates
+    // (or, while airborne, commits to the flip - see registerGasPress /
+    // airFlipArmed below); a single TAP on the LEFT half jumps immediately;
+    // and a double-tap ANYWHERE on the screen triggers a short speed boost
+    // (see requestBoost). Jump itself is a plain vertical velocity kick
+    // that never touches horizontal velocity - see the jumpRequested
+    // handling in stepPhysics for why that's what makes "keep moving if
+    // you were already moving, stay put if you were standing still" work.
     let lastTapTime = 0;
     let jumpRequested = false;
 
@@ -940,11 +1021,30 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     // already in the air.
     let airFlipArmed = false;
 
-    function registerTap() {
+    // ---- boost ----
+    let boostActive = false;
+    let boostTimeRemaining = 0; // ms left in the current boost burst
+    let boostCooldownRemaining = 0; // ms left until boost is ready again (0 = ready now)
+    let boostFlashRemaining = 0; // ms left in the one-shot activation screen flash (visual only)
+
+    function requestBoost() {
+      if (boostActive || boostCooldownRemaining > 0) return;
+      boostActive = true;
+      boostTimeRemaining = BOOST_DURATION_MS;
+      boostCooldownRemaining = BOOST_COOLDOWN_MS;
+      boostFlashRemaining = BOOST_FLASH_MS;
+      dustParticles.push(...createBoostBurst(bike.chassis.position.x, bike.chassis.position.y));
+      playBoost();
+    }
+
+    // Any two presses (regardless of which half of the screen, or whether
+    // they also triggered gas/jump individually) within DOUBLE_TAP_WINDOW
+    // of each other request a boost.
+    function registerBoostTap() {
       const now = performance.now();
       if (now - lastTapTime < DOUBLE_TAP_WINDOW) {
-        jumpRequested = true;
-        lastTapTime = 0; // avoid a fast third tap chaining into a second jump instantly
+        requestBoost();
+        lastTapTime = 0; // avoid a fast third tap chaining into another boost instantly
       } else {
         lastTapTime = now;
       }
@@ -956,25 +1056,37 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
     function onPointerDown(event) {
       event.preventDefault();
-      gasRef.current = true;
       resumeAudio(); // audio can only start from inside a real user gesture
-      registerTap();
-      registerGasPress();
+      const rect = canvas.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const isRightSide = rect.width > 0 ? localX > rect.width / 2 : true;
+      if (isRightSide) {
+        gasRef.current = true;
+        registerGasPress();
+      } else {
+        jumpRequested = true;
+      }
+      registerBoostTap();
     }
     function onPointerUp() {
       gasRef.current = false;
     }
     function onKeyDown(event) {
-      if (event.code === "Space" || event.code === "ArrowUp") {
+      if (event.code === "Space" || event.code === "ArrowUp" || event.code === "ArrowRight") {
         gasRef.current = true;
         if (!event.repeat) {
-          registerTap();
           registerGasPress();
+          registerBoostTap();
+        }
+      } else if (event.code === "ArrowLeft" || event.code === "ArrowDown" || event.code === "KeyJ") {
+        if (!event.repeat) {
+          jumpRequested = true;
+          registerBoostTap();
         }
       }
     }
     function onKeyUp(event) {
-      if (event.code === "Space" || event.code === "ArrowUp") gasRef.current = false;
+      if (event.code === "Space" || event.code === "ArrowUp" || event.code === "ArrowRight") gasRef.current = false;
     }
     canvas.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("pointerup", onPointerUp);
@@ -1057,6 +1169,42 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
       updateEngine(grounded && gasRef.current, speedFraction);
 
+      // ---- boost: timers + the actual speed effect ----
+      // Deliberately NOT gated on grounded/airborne - a boost pushes
+      // velocity.x toward BOOST_MAX_SPEED either way, which is what makes
+      // it work "چه روی زمین چه روی هوا" (both on the ground and in the air).
+      if (boostActive) {
+        boostTimeRemaining -= dtMs;
+        if (boostTimeRemaining <= 0) {
+          boostActive = false;
+          boostTimeRemaining = 0;
+        } else if (bike.chassis.velocity.x < BOOST_MAX_SPEED) {
+          const ease = Math.min(1, dtMs / 120);
+          Body.setVelocity(bike.chassis, {
+            x: bike.chassis.velocity.x + (BOOST_MAX_SPEED - bike.chassis.velocity.x) * ease,
+            y: bike.chassis.velocity.y,
+          });
+        }
+        // Continuous blue nitro flame trailing off the back of the bike,
+        // on top of the one-shot burst that fired when the boost started.
+        if (Math.random() < 0.85) {
+          const dir = Math.cos(bike.chassis.angle);
+          dustParticles.push({
+            x: bike.rearWheel.position.x - dir * (6 + Math.random() * 6),
+            y: bike.rearWheel.position.y + (Math.random() - 0.5) * 8,
+            vx: -1.6 - Math.random() * 1.6,
+            vy: (Math.random() - 0.5) * 0.9,
+            size: 2 + Math.random() * 2.6,
+            life: 220 + Math.random() * 160,
+            age: 0,
+            color: Math.random() > 0.4 ? "#4fd6ff" : "#bdf1ff",
+          });
+        }
+      }
+      if (boostCooldownRemaining > 0) {
+        boostCooldownRemaining = Math.max(0, boostCooldownRemaining - dtMs);
+      }
+
       // A double-tap jump is a pure vertical velocity kick - horizontal
       // velocity is deliberately left completely untouched. That's the
       // entire mechanism behind "keep moving forward if you were already
@@ -1082,8 +1230,9 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         // front wheel. The rear wheel's spin is purely cosmetic (see
         // REAR_SPIN_RATE above) - it never touches the real physics
         // body, so it can never feed back into chassis stability.
-        if (bike.chassis.velocity.x > MAX_SPEED) {
-          Body.setVelocity(bike.chassis, { x: MAX_SPEED, y: bike.chassis.velocity.y });
+        const speedCap = boostActive ? BOOST_MAX_SPEED : MAX_SPEED;
+        if (bike.chassis.velocity.x > speedCap) {
+          Body.setVelocity(bike.chassis, { x: speedCap, y: bike.chassis.velocity.y });
         }
       } else if (gasRef.current && hasLandedOnce && airFlipArmed) {
         Body.setAngularVelocity(
@@ -1163,14 +1312,18 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       });
       landingShake = Math.max(0, landingShake - frameTime * 0.02);
       scorePulseRemaining = Math.max(0, scorePulseRemaining - frameTime);
+      boostFlashRemaining = Math.max(0, boostFlashRemaining - frameTime);
 
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
 
-      // Speed lines: cheap motion-blur stand-in, only above a threshold.
-      if (speedFraction > 0.55 && Math.random() < speedFraction * 0.5) {
+      // Speed lines: cheap motion-blur stand-in, only above a threshold -
+      // both the spawn chance and reach go up while boosting, on top of
+      // whatever raw speed the bike already has.
+      const speedLineDrive = boostActive ? 1 : speedFraction;
+      if (speedLineDrive > 0.55 && Math.random() < speedLineDrive * (boostActive ? 0.85 : 0.5)) {
         speedLines.push({
           y: Math.random() * container.clientHeight,
-          length: 40 + Math.random() * 70 * speedFraction,
+          length: 40 + Math.random() * 70 * speedLineDrive,
           life: 140 + Math.random() * 100,
           age: 0,
         });
@@ -1239,15 +1392,25 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       if (crashed) {
         drawExplosion(ctx, explosionParticles);
       } else {
-        drawTrail(ctx, trail);
+        drawTrail(ctx, trail, boostActive);
         CyberBike(ctx, bike, rearSpinAngle, gasRef.current);
       }
       ctx.restore();
 
       ctx.save();
       ctx.scale(dpr, dpr);
-      drawSpeedLines(ctx, speedLines, viewWidth);
+      // One-shot blue flash the instant a boost triggers - drawn under the
+      // HUD so the score pill and boost bar stay readable through it.
+      if (boostFlashRemaining > 0) {
+        ctx.save();
+        ctx.globalAlpha = (boostFlashRemaining / BOOST_FLASH_MS) * 0.4;
+        ctx.fillStyle = "#4fd6ff";
+        ctx.fillRect(0, 0, viewWidth, viewHeight);
+        ctx.restore();
+      }
+      drawSpeedLines(ctx, speedLines, viewWidth, boostActive);
       drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr, scorePulseRemaining / 400);
+      drawBoostBar(ctx, viewWidth, 1 - boostCooldownRemaining / BOOST_COOLDOWN_MS, boostActive);
       ctx.restore();
 
       ctx.restore();
@@ -1280,7 +1443,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       <button type="button" className="rider-game__quit" onClick={onQuit}>
         ✕
       </button>
-      <p className="rider-game__hint">Hold to accelerate · double-tap to jump</p>
+      <p className="rider-game__hint">Hold right to accelerate · tap left to jump · double-tap to boost</p>
     </div>
   );
 }

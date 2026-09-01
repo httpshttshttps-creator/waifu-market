@@ -70,6 +70,14 @@ export function playScore() {
   tone({ freq: 820, freqEnd: 1180, duration: 0.11, type: "sine", volume: 0.13 });
 }
 
+// Nitro-boost whoosh: a fast rising sawtooth sweep layered with a short
+// noise burst for a bit of punch at the front of the sound.
+export function playBoost() {
+  tone({ freq: 200, freqEnd: 900, duration: 0.32, type: "sawtooth", volume: 0.24 });
+  tone({ freq: 500, freqEnd: 1400, duration: 0.22, type: "triangle", volume: 0.16 });
+  noiseBurst({ duration: 0.16, volume: 0.2 });
+}
+
 // Continuous engine hum - a single oscillator whose pitch/volume is
 // nudged toward a target each call rather than recreated, so it can be
 // updated every physics tick cheaply. Triangle wave through a gentle
