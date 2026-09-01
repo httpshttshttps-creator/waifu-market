@@ -49,10 +49,12 @@ const JUMP_COYOTE_MS = 140; // still allow a jump for a brief window after groun
 // covers a bike balanced on just the front wheel (or a bumpy-terrain contact flicker), not just
 // a fully-planted landing on both wheels.
 
-const BOOST_DURATION_MS = 2200; // how long a triggered boost actually lasts
+const BOOST_DURATION_MS = 650; // how long a triggered boost actually lasts (was 2200 - too long, led to unavoidable crashes)
 const BOOST_COOLDOWN_MS = 10000; // how long the boost bar takes to refill after use
-const BOOST_MAX_SPEED = MAX_SPEED * 1.7; // much faster top speed while boosting, ground or air
+const BOOST_MAX_SPEED = MAX_SPEED * 1.2; // faster top speed while boosting (was *1.7 - too fast to react to)
 const BOOST_FLASH_MS = 220; // one-shot screen-flash duration when a boost triggers
+const BOOST_CAMERA_FOLLOW_MULT = 2.2; // camera pan speed multiplier while boosting - keeps the now-faster bike in frame
+const BOOST_EXTRA_ZOOM_OUT = 0.05; // small extra zoom-out on top of the normal speed-based zoom while boosting
 const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - deliberate, not an instant snap
 const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
@@ -1170,35 +1172,44 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       updateEngine(grounded && gasRef.current, speedFraction);
 
       // ---- boost: timers + the actual speed effect ----
-      // Deliberately NOT gated on grounded/airborne - a boost pushes
-      // velocity.x toward BOOST_MAX_SPEED either way, which is what makes
-      // it work "چه روی زمین چه روی هوا" (both on the ground and in the air).
+      // Deliberately NOT gated on grounded/airborne, and NOT locked to the
+      // +x axis - a boost pushes velocity toward wherever the bike's nose
+      // is currently pointing (chassis.angle), so it works "چه روی زمین چه
+      // روی هوا" (both on the ground and in the air), and if the bike is
+      // pitched nose-up while falling, boosting sends it up and forward
+      // along that same nose direction instead of just flattening vx.
       if (boostActive) {
         boostTimeRemaining -= dtMs;
         if (boostTimeRemaining <= 0) {
           boostActive = false;
           boostTimeRemaining = 0;
-        } else if (bike.chassis.velocity.x < BOOST_MAX_SPEED) {
-          const ease = Math.min(1, dtMs / 120);
+        } else {
+          const dirX = Math.cos(bike.chassis.angle);
+          const dirY = Math.sin(bike.chassis.angle);
+          const targetVx = dirX * BOOST_MAX_SPEED;
+          const targetVy = dirY * BOOST_MAX_SPEED;
+          const ease = Math.min(1, dtMs / 90);
           Body.setVelocity(bike.chassis, {
-            x: bike.chassis.velocity.x + (BOOST_MAX_SPEED - bike.chassis.velocity.x) * ease,
-            y: bike.chassis.velocity.y,
+            x: bike.chassis.velocity.x + (targetVx - bike.chassis.velocity.x) * ease,
+            y: bike.chassis.velocity.y + (targetVy - bike.chassis.velocity.y) * ease,
           });
-        }
-        // Continuous blue nitro flame trailing off the back of the bike,
-        // on top of the one-shot burst that fired when the boost started.
-        if (Math.random() < 0.85) {
-          const dir = Math.cos(bike.chassis.angle);
-          dustParticles.push({
-            x: bike.rearWheel.position.x - dir * (6 + Math.random() * 6),
-            y: bike.rearWheel.position.y + (Math.random() - 0.5) * 8,
-            vx: -1.6 - Math.random() * 1.6,
-            vy: (Math.random() - 0.5) * 0.9,
-            size: 2 + Math.random() * 2.6,
-            life: 220 + Math.random() * 160,
-            age: 0,
-            color: Math.random() > 0.4 ? "#4fd6ff" : "#bdf1ff",
-          });
+
+          // Continuous blue nitro flame trailing off the back of the bike -
+          // "back" meaning opposite the nose direction, so it still trails
+          // correctly even when boosting nose-up. On top of the one-shot
+          // burst that fired when the boost started.
+          if (Math.random() < 0.85) {
+            dustParticles.push({
+              x: bike.rearWheel.position.x - dirX * (6 + Math.random() * 6),
+              y: bike.rearWheel.position.y - dirY * (6 + Math.random() * 6),
+              vx: -dirX * (1.6 + Math.random() * 1.6),
+              vy: -dirY * (1.6 + Math.random() * 1.6),
+              size: 2 + Math.random() * 2.6,
+              life: 220 + Math.random() * 160,
+              age: 0,
+              color: Math.random() > 0.4 ? "#4fd6ff" : "#bdf1ff",
+            });
+          }
         }
       }
       if (boostCooldownRemaining > 0) {
@@ -1336,13 +1347,18 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       const viewWidth = container.clientWidth;
       const viewHeight = container.clientHeight;
 
-      const targetZoom = 1 - speedFraction * CAMERA_MAX_ZOOM_OUT;
+      const targetZoom = 1 - speedFraction * CAMERA_MAX_ZOOM_OUT - (boostActive ? BOOST_EXTRA_ZOOM_OUT : 0);
       zoom += (targetZoom - zoom) * CAMERA_ZOOM_SMOOTHING;
 
+      // While boosting, the camera itself needs to keep up with the much
+      // faster bike - pan speed goes up too (by a bit less than the
+      // bike's own boosted speed), just enough that the bike doesn't
+      // outrun the frame.
+      const cameraFollowMult = boostActive ? BOOST_CAMERA_FOLLOW_MULT : 1;
       const targetX = bike.chassis.position.x - (viewWidth * CAMERA_LEAD_X) / zoom;
       const targetY = bike.chassis.position.y - (viewHeight * 0.5) / zoom;
-      cameraX += (targetX - cameraX) * CAMERA_FOLLOW_X;
-      cameraY += (targetY - cameraY) * CAMERA_FOLLOW_Y;
+      cameraX += (targetX - cameraX) * Math.min(1, CAMERA_FOLLOW_X * cameraFollowMult);
+      cameraY += (targetY - cameraY) * Math.min(1, CAMERA_FOLLOW_Y * cameraFollowMult);
 
       // Shake: a steady light jitter above ~70% top speed, plus a
       // separate decaying pulse from a hard landing - both expressed in
