@@ -30,22 +30,6 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState("home");
   const [appReady, setAppReady] = useState(false);
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("theme") || "default";
-    } catch {
-      return "default";
-    }
-  });
-
-  function handleSelectTheme(id) {
-    setTheme(id);
-    try {
-      localStorage.setItem("theme", id);
-    } catch {
-      // ignore storage failures (private mode, etc.)
-    }
-  }
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -216,7 +200,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell" data-theme={theme}>
+    <div className="app-shell">
       <div className="app-shell__inner">
         {activeTab === "home" && (
           <>
@@ -287,12 +271,7 @@ export default function App() {
         onCancel={closeSellConfirm}
       />
 
-      <SettingsSheet
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        theme={theme}
-        onSelectTheme={handleSelectTheme}
-      />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
 

@@ -8,8 +8,9 @@ const THEMES = [
   {
     id: "seraphim",
     name: "Seraphim",
-    tagline: "Gilded halls of the faithful",
+    tagline: "Coming soon",
     swatch: ["#fff8e7", "#e8b923"],
+    comingSoon: true,
   },
   {
     id: "tenebris",
@@ -20,7 +21,7 @@ const THEMES = [
   },
 ];
 
-export default function SettingsSheet({ open, onClose, theme, onSelectTheme }) {
+export default function SettingsSheet({ open, onClose }) {
   if (!open) return null;
 
   return (
@@ -35,7 +36,7 @@ export default function SettingsSheet({ open, onClose, theme, onSelectTheme }) {
 
           <div className="theme-grid">
             {THEMES.map((t) => {
-              const active = t.id === theme;
+              const active = t.id === "default";
               return (
                 <button
                   key={t.id}
@@ -44,7 +45,6 @@ export default function SettingsSheet({ open, onClose, theme, onSelectTheme }) {
                   data-active={active || undefined}
                   data-locked={t.comingSoon || undefined}
                   disabled={t.comingSoon}
-                  onClick={() => !t.comingSoon && onSelectTheme(t.id)}
                 >
                   <span
                     className="theme-option__swatch"
