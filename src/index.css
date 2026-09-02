@@ -78,8 +78,17 @@ button {
 .app-shell {
   min-height: 100dvh;
   min-height: 100vh;
+  /* The glow's center used to sit just above the viewport (50% -10%),
+     which meant it was already ~70% intensity right at the very top
+     edge - exactly where this content butts up against Telegram's
+     native header bar. useTelegram.js sets that header to flat
+     var(--ink), so a warm glow bleeding all the way up to y=0 made the
+     header and the page look like two different colors. Moving the
+     glow's center down into the visible area (and tightening its
+     radius) makes it fade out completely by y=0, so the top edge here
+     is pure var(--ink) too - an exact match with the native header. */
   background:
-    radial-gradient(120% 60% at 50% -10%, var(--ink-glow) 0%, transparent 60%),
+    radial-gradient(130% 40% at 50% 32%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
   padding: max(20px, env(safe-area-inset-top)) 16px
     calc(84px + env(safe-area-inset-bottom));
