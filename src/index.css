@@ -78,8 +78,17 @@ button {
 .app-shell {
   min-height: 100dvh;
   min-height: 100vh;
+  /* The glow's center used to sit just above the viewport (50% -10%),
+     which meant it was already ~70% intensity right at the very top
+     edge - exactly where this content butts up against Telegram's
+     native header bar. useTelegram.js sets that header to flat
+     var(--ink), so a warm glow bleeding all the way up to y=0 made the
+     header and the page look like two different colors. Moving the
+     glow's center down into the visible area (and tightening its
+     radius) makes it fade out completely by y=0, so the top edge here
+     is pure var(--ink) too - an exact match with the native header. */
   background:
-    radial-gradient(120% 60% at 50% -10%, var(--ink-glow) 0%, transparent 60%),
+    radial-gradient(130% 40% at 50% 32%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
   padding: max(20px, env(safe-area-inset-top)) 16px
     calc(84px + env(safe-area-inset-bottom));
@@ -1277,6 +1286,62 @@ button {
   font-size: 12px;
 }
 
+.rider-game__best {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(242, 193, 78, 0.12);
+  border: 1px solid rgba(242, 193, 78, 0.3);
+}
+
+.rider-game__best-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.rider-game__best-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--neon-gold);
+}
+
+.rider-game__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(10, 4, 24, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rider-game__controls-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.rider-game__controls-key {
+  flex: 0 0 auto;
+  min-width: 74px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--neon-magenta);
+}
+
 .rider-game__start {
   margin-top: 10px;
   padding: 14px 32px;
@@ -1314,23 +1379,6 @@ button {
   color: #fdeceb;
   font-size: 15px;
   cursor: pointer;
-  z-index: 2;
-}
-
-.rider-game__hint {
-  position: absolute;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(10, 4, 24, 0.6);
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  pointer-events: none;
   z-index: 2;
 }
 
@@ -2145,4 +2193,18 @@ button {
   .card-build {
     animation: none !important;
   }
+}
+
+/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
+   so it can cover the full viewport regardless of where it sits in the
+   tab content flow. But `transform` on ANY ancestor - even a finished
+   one sitting at translateY(0) - creates a new containing block for
+   fixed-position descendants, so the tab-build-rise animation above was
+   silently turning that fixed overlay into something positioned/sized
+   relative to this wrapper instead of the viewport, shifting the whole
+   ride screen off to the side. Skip the transform-driven reveal for this
+   tab specifically so the fixed stage stays anchored to the real
+   viewport. */
+.tab-build > .rider-game {
+  animation: none;
 }

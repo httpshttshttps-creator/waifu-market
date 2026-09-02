@@ -72,6 +72,14 @@ const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/l
 const EXPLOSION_DURATION = 700;
 const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
 const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a camera thump
+// Small terrain jitter constantly flickers the wheel-ground contact off and
+// on for a tick or two even though the bike barely left the surface - that
+// used to re-trigger the landing thump every single time. Impact speed on
+// landing tracks how far the wheel actually rose (a harder fall means it
+// had more height to fall from), so gating the sound on a minimum impact
+// speed is the same as gating it on "rose a real amount off the ground":
+// tiny jitter stays silent, an actual hop/jump/gap landing still plays.
+const MIN_LAND_VY = 1.1;
 
 // Matter.js's chassis.angle accumulates without wrapping (it can be well
 // past ±2π after a few flips), so anything that wants to reason about
@@ -1401,7 +1409,9 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       // speed instead.
       if (!wasGrounded && grounded) {
         const impact = Math.abs(lastAirborneVy);
-        playLand(impact / HARD_LANDING_VY);
+        if (impact >= MIN_LAND_VY) {
+          playLand(impact / HARD_LANDING_VY);
+        }
         if (impact > HARD_LANDING_VY) {
           dustParticles.push(
             ...createLandingDust(bike.rearWheel.position.x, bike.rearWheel.position.y, impact / HARD_LANDING_VY)
@@ -1718,7 +1728,6 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       <button type="button" className="rider-game__quit" onClick={onQuit}>
         ✕
       </button>
-      <p className="rider-game__hint">Hold right to accelerate · tap left to jump · double-tap to boost</p>
     </div>
   );
 }
