@@ -188,14 +188,38 @@ function buildTrapBody(trap) {
         collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
         label: "ground",
       });
-    case "pendulum":
+    // RED - moving/rotating hazards
+    case "wreckingBall":
       return Bodies.circle(trap.anchorX, trap.anchorY + trap.length, trap.radius, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
       });
-    case "blade":
+    case "sawBlade":
       return Bodies.circle(trap.x, trap.y, trap.radius * 0.85, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "chaser":
+      return Bodies.circle(trap.x, trap.y, trap.radius, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "spikePillars":
+      return Bodies.rectangle((trap.x1 + trap.x2) / 2, trap.y, trap.x2 - trap.x1, trap.height, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    // rotatingBar (red) and swingGate (blue) share the same physical
+    // shape - a bar hanging from a pivot point at (trap.x, trap.y),
+    // pointing straight down at angle 0 - only how updateMovingTraps
+    // animates their angle over time differs.
+    case "rotatingBar":
+    case "swingGate":
+      return Bodies.rectangle(trap.x, trap.y + trap.length / 2, 12, trap.length, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
@@ -374,28 +398,52 @@ function drawPlatform(ctx, body) {
   ctx.restore();
 }
 
-function drawPendulum(ctx, trap, body) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(242, 184, 75, 0.6)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(trap.anchorX, trap.anchorY);
-  ctx.lineTo(body.position.x, body.position.y);
-  ctx.stroke();
+// ---- RED: moving/rotating hazards ----
 
-  ctx.shadowColor = "#f2b84b";
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = "#ffd989";
+function drawWreckingBall(ctx, trap, body) {
+  ctx.save();
+  // A few short chain-link segments instead of one plain line, for the
+  // "hanging from chains" read.
+  const linkCount = Math.max(3, Math.round(trap.length / 22));
+  ctx.strokeStyle = "rgba(255, 150, 150, 0.55)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < linkCount; i++) {
+    const p0 = i / linkCount;
+    const p1 = (i + 1) / linkCount;
+    const x0 = trap.anchorX + (body.position.x - trap.anchorX) * p0;
+    const y0 = trap.anchorY + (body.position.y - trap.anchorY) * p0;
+    const x1 = trap.anchorX + (body.position.x - trap.anchorX) * p1;
+    const y1 = trap.anchorY + (body.position.y - trap.anchorY) * p1;
+    ctx.beginPath();
+    ctx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, 5, 3, Math.atan2(y1 - y0, x1 - x0), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ff6b6b";
   ctx.beginPath();
   ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffb3b3";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(body.position.x + Math.cos(a) * trap.radius, body.position.y + Math.sin(a) * trap.radius);
+    ctx.lineTo(body.position.x + Math.cos(a) * (trap.radius + 7), body.position.y + Math.sin(a) * (trap.radius + 7));
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
-function drawBlade(ctx, trap, elapsed) {
+function drawSawBlade(ctx, trap, elapsed) {
   const angle = elapsed * trap.speed * 1.6;
+  const x = trap.x + (trap.travelX ? Math.sin(elapsed * trap.travelSpeed) * trap.travelX : 0);
   ctx.save();
-  ctx.translate(trap.x, trap.y);
+  ctx.translate(x, trap.y);
   ctx.rotate(angle);
   ctx.shadowColor = "#ff4d4d";
   ctx.shadowBlur = 12;
@@ -421,6 +469,128 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, 0, trap.radius * 0.25, 0, Math.PI * 2);
+  ctx.fillStyle = "#3b0000";
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawRotatingBar(ctx, trap, body) {
+  ctx.save();
+  ctx.translate(trap.x, trap.y);
+  ctx.rotate(body.angle);
+
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "#ff8080";
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#ff8080";
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, trap.length);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, trap.length, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffb3b3";
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawChaser(ctx, trap, body) {
+  ctx.save();
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#ff5c5c";
+  ctx.beginPath();
+  ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffd0d0";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(body.position.x + Math.cos(a) * trap.radius, body.position.y + Math.sin(a) * trap.radius);
+    ctx.lineTo(body.position.x + Math.cos(a) * (trap.radius + 8), body.position.y + Math.sin(a) * (trap.radius + 8));
+    ctx.stroke();
+  }
+  // A little glint so it visually reads as "hunting" rather than just
+  // another spinning saw.
+  ctx.fillStyle = "#fff3d6";
+  ctx.beginPath();
+  ctx.arc(body.position.x + trap.radius * 0.4, body.position.y - trap.radius * 0.2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSpikePillars(ctx, trap, extension) {
+  ctx.save();
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = "#ff8080";
+  ctx.fillStyle = "rgba(255, 77, 77, 0.35)";
+  ctx.lineWidth = 2.5;
+  const pillarWidth = 10;
+  const raisedHeight = trap.height * extension;
+  for (const px of [trap.x1 + pillarWidth, trap.x2 - pillarWidth]) {
+    ctx.beginPath();
+    ctx.rect(px - pillarWidth / 2, trap.y - raisedHeight, pillarWidth, raisedHeight);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(px - pillarWidth / 2 - 3, trap.y - raisedHeight);
+    ctx.lineTo(px, trap.y - raisedHeight - 12);
+    ctx.lineTo(px + pillarWidth / 2 + 3, trap.y - raisedHeight);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- BLUE: timing gates ----
+
+function drawSwingGate(ctx, trap, body, openFraction) {
+  ctx.save();
+  ctx.translate(trap.x, trap.y);
+  ctx.rotate(body.angle);
+
+  // Dim and translucent while open (low visual weight - it's safe right
+  // now), bright and bold while closing/closed (it reads as active
+  // danger exactly when it is one).
+  const closedness = 1 - openFraction;
+  ctx.shadowColor = "#3b9dff";
+  ctx.shadowBlur = 8 + closedness * 12;
+  ctx.fillStyle = "#4fb0ff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = openFraction > 0.7 ? "rgba(79, 176, 255, 0.35)" : "#4fb0ff";
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, trap.length);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, trap.length, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#bfe3ff";
+  ctx.fill();
   ctx.restore();
 }
 
@@ -947,11 +1117,51 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (trap.type === "platform") {
           const y = trap.y - trap.height + Math.sin(elapsed * trap.speed) * trap.travel;
           Body.setPosition(runtime.body, { x: trap.x, y });
-        } else if (trap.type === "pendulum") {
+        } else if (trap.type === "wreckingBall") {
           const angle = Math.sin(elapsed * trap.speed + trap.phase) * 1.15;
           const x = trap.anchorX + Math.sin(angle) * trap.length;
           const y = trap.anchorY + Math.cos(angle) * trap.length;
           Body.setPosition(runtime.body, { x, y });
+        } else if (trap.type === "sawBlade") {
+          const x = trap.x + (trap.travelX ? Math.sin(elapsed * trap.travelSpeed) * trap.travelX : 0);
+          Body.setPosition(runtime.body, { x, y: trap.y });
+        } else if (trap.type === "rotatingBar") {
+          const angle = elapsed * trap.speed + trap.phase;
+          const midX = trap.x + Math.sin(angle) * (trap.length / 2);
+          const midY = trap.y + Math.cos(angle) * (trap.length / 2);
+          Body.setPosition(runtime.body, { x: midX, y: midY });
+          Body.setAngle(runtime.body, angle);
+        } else if (trap.type === "swingGate") {
+          // Asymmetric duty cycle: open (out of the way) for just over
+          // half the cycle, a clear swing-closed telegraph, a held-closed
+          // window, then swing back open - always a generous, readable
+          // window to actually get through.
+          const cyclePos = (((elapsed + trap.phase) % trap.period) + trap.period) % trap.period / trap.period;
+          let swing;
+          if (cyclePos < 0.5) swing = 0;
+          else if (cyclePos < 0.65) swing = (cyclePos - 0.5) / 0.15;
+          else if (cyclePos < 0.85) swing = 1;
+          else swing = 1 - (cyclePos - 0.85) / 0.15;
+          const angle = swing * Math.PI; // 0 = pointing up (open), PI = pointing down (blocking)
+          const midX = trap.x + Math.sin(angle) * (trap.length / 2);
+          const midY = trap.y - Math.cos(angle) * (trap.length / 2);
+          Body.setPosition(runtime.body, { x: midX, y: midY });
+          Body.setAngle(runtime.body, angle);
+          runtime.openFraction = 1 - swing;
+        } else if (trap.type === "chaser") {
+          // Mutate trap.x directly (not just runtime state) so
+          // pruneBehind - which reads trap.x - always agrees with where
+          // this hazard actually, currently is, instead of judging it by
+          // a stale spawn position from way back down the track.
+          const targetX = bike.chassis.position.x - 90;
+          trap.x += (targetX - trap.x) * trap.followLag;
+          const y = trap.y + Math.sin(elapsed * trap.bobSpeed) * trap.bobAmount;
+          Body.setPosition(runtime.body, { x: trap.x, y });
+        } else if (trap.type === "spikePillars") {
+          const extension = (Math.sin((elapsed * Math.PI * 2) / trap.period + trap.phase) + 1) / 2;
+          const centerY = trap.y + trap.height / 2 - trap.height * extension;
+          Body.setPosition(runtime.body, { x: (trap.x1 + trap.x2) / 2, y: centerY });
+          runtime.extension = extension;
         }
       }
     }
@@ -1445,8 +1655,12 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (trap.type === "spike") drawSpike(ctx, trap);
         else if (trap.type === "pitfloor") drawPitFloor(ctx, trap);
         else if (trap.type === "platform" && runtime) drawPlatform(ctx, runtime.body);
-        else if (trap.type === "pendulum" && runtime) drawPendulum(ctx, trap, runtime.body);
-        else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
+        else if (trap.type === "wreckingBall" && runtime) drawWreckingBall(ctx, trap, runtime.body);
+        else if (trap.type === "sawBlade") drawSawBlade(ctx, trap, elapsedRef);
+        else if (trap.type === "rotatingBar" && runtime) drawRotatingBar(ctx, trap, runtime.body);
+        else if (trap.type === "chaser" && runtime) drawChaser(ctx, trap, runtime.body);
+        else if (trap.type === "spikePillars" && runtime) drawSpikePillars(ctx, trap, runtime.extension ?? 0);
+        else if (trap.type === "swingGate" && runtime) drawSwingGate(ctx, trap, runtime.body, runtime.openFraction ?? 1);
       }
 
       drawExplosion(ctx, dustParticles);
