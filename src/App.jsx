@@ -202,7 +202,8 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app-shell__inner">
-        {activeTab === "home" && (
+        <div className="tab-build" key={activeTab}>
+          {activeTab === "home" && (
           <>
             <ProfileHeader
               name={profile.name}
@@ -250,6 +251,7 @@ export default function App() {
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={setActiveTab} />}
+      </div>
       </div>
 
       <BottomNav active={activeTab} onChange={setActiveTab} />

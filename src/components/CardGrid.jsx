@@ -16,13 +16,14 @@ export default function CardGrid({ characters, ownedIds, balance, onBuy, onClear
 
   return (
     <div className="card-grid">
-      {characters.map((character) => (
+      {characters.map((character, index) => (
         <CharacterCard
           key={character.id}
           character={character}
           owned={ownedIds.has(character.id)}
           canAfford={balance >= character.price}
           onBuy={onBuy}
+          index={index}
         />
       ))}
     </div>

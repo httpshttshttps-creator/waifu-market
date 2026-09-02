@@ -2,7 +2,7 @@ import { useState } from "react";
 import { getRarityTier } from "../data/rarities.js";
 import CardMedia from "./CardMedia.jsx";
 
-export default function OwnedCard({ character, sellPrice, onSell }) {
+export default function OwnedCard({ character, sellPrice, onSell, index = 0 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const tier = getRarityTier(character.rarity);
   const [artFrom, artTo] = character.gradient;
@@ -14,10 +14,11 @@ export default function OwnedCard({ character, sellPrice, onSell }) {
     "--card-accent": tier.accent,
     "--art-from": artFrom,
     "--art-to": artTo,
+    "--i": index,
   };
 
   return (
-    <article className="character-card owned-card" data-glow={tier.glowLevel || undefined} style={style}>
+    <article className="character-card owned-card card-build" data-glow={tier.glowLevel || undefined} style={style}>
       <div className="character-card__art">
         {character.quantity > 1 && <span className="quantity-badge">×{character.quantity}</span>}
         {showImage ? (

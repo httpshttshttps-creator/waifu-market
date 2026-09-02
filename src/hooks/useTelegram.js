@@ -18,6 +18,18 @@ export function useTelegram() {
     if (!webApp) return;
     webApp.ready();
     webApp.expand();
+
+    // Match Telegram's own header/background chrome to our theme instead
+    // of the default gray bar, so the close (✕) button and bot name sit
+    // on the same color as the app underneath it. Keep this in sync with
+    // --ink in index.css if that palette ever changes. Older clients that
+    // don't support setHeaderColor/setBackgroundColor just no-op here.
+    try {
+      webApp.setHeaderColor("#170707");
+      webApp.setBackgroundColor("#170707");
+    } catch {
+      /* unsupported client version - ignore */
+    }
   }, [webApp]);
 
   const user = webApp?.initDataUnsafe?.user ?? null;

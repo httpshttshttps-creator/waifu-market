@@ -28,6 +28,7 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -35,6 +36,17 @@ body {
   margin: 0;
   padding: 0;
   background: var(--ink);
+}
+
+/* Kill the default mobile-browser "link tap" flash (blue/gray highlight
+   + callout menu) on every interactive element - Telegram's own native
+   UI never flashes like that, so our buttons shouldn't either. */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 body {
@@ -2042,5 +2054,95 @@ button {
   }
   100% {
     transform: translateX(380%);
+  }
+}
+
+/* ================================================================
+   Tab "build" transition - plays every time a tab becomes active
+   (App.jsx remounts this wrapper via key={activeTab}), so opening
+   a tab reads as the screen assembling itself rather than just
+   appearing.
+   ================================================================ */
+
+.tab-build > * {
+  animation: tab-build-rise 460ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+}
+
+.tab-build > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.tab-build > *:nth-child(2) {
+  animation-delay: 80ms;
+}
+.tab-build > *:nth-child(3) {
+  animation-delay: 150ms;
+}
+.tab-build > *:nth-child(4) {
+  animation-delay: 220ms;
+}
+
+@keyframes tab-build-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* The player's name gets its own slightly showier reveal instead of the
+   plain rise - it's the first thing they see, worth a beat of polish. */
+.profile-header__name,
+.brand-title {
+  animation: name-reveal 700ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+}
+
+@keyframes name-reveal {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.3em;
+    transform: translateY(6px);
+    filter: blur(5px);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    letter-spacing: normal;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* Cards in a grid rise in one by one instead of popping in as a block.
+   --i is set inline per-card (see CharacterCard / OwnedCard); the delay
+   is capped so a long list doesn't take forever to finish settling. */
+.card-build {
+  animation: card-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  animation-delay: min(calc(var(--i, 0) * 45ms), 480ms);
+}
+
+@keyframes card-build-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-build > *,
+  .profile-header__name,
+  .brand-title,
+  .card-build {
+    animation: none !important;
   }
 }
