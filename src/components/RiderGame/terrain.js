@@ -484,11 +484,6 @@ function pickFeature(lastType, t) {
   return pool[0];
 }
 
-// Every feature above tier 0 has its own distinct tier value, so this is
-// effectively "one milestone hazard per unlock". Sorted ascending so we
-// can walk through them in order as t climbs.
-const TIER_INTRODUCTIONS = FEATURES.filter((f) => f.tier > 0).sort((a, b) => a.tier - b.tier);
-
 export function createTerrainState(baseline) {
   const state = {
     baseline,
@@ -498,15 +493,6 @@ export function createTerrainState(baseline) {
     points: [],
     traps: [],
     lastFeature: null,
-    // How many tier-introduction milestones (TIER_INTRODUCTIONS, in
-    // order) have already been force-shown. Left purely to the weighted
-    // random pool, a freshly-unlocked hazard type has to compete against
-    // an ever-growing field of ~19 other eligible features - it's
-    // entirely possible to go a full run without the dice ever landing
-    // on it. This counter is what guarantees that never happens: the
-    // moment a new tier unlocks, the very next feature generated is
-    // that tier's hazard, no randomness involved.
-    introducedTierCount: 0,
     startSpan(x, y) {
       state.points = [{ x, y }];
       state.spans.push(state.points);
@@ -526,14 +512,7 @@ export function createTerrainState(baseline) {
 export function generateAhead(state, targetX, elapsedSeconds) {
   const t = Math.min(1, elapsedSeconds / 90);
   while (state.cursorX < targetX) {
-    let feature;
-    const next = TIER_INTRODUCTIONS[state.introducedTierCount];
-    if (next && next.tier <= t) {
-      feature = next;
-      state.introducedTierCount++;
-    } else {
-      feature = pickFeature(state.lastFeature, t);
-    }
+    const feature = pickFeature(state.lastFeature, t);
     feature.run(state, t);
     state.lastFeature = feature.type;
   }

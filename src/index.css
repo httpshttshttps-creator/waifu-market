@@ -2129,6 +2129,20 @@ button {
   animation-delay: 220ms;
 }
 
+/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
+   so it can cover the full viewport regardless of where it sits in the
+   tab content flow. But `transform` on ANY ancestor - even a finished
+   one sitting at translateY(0) - creates a new containing block for
+   fixed-position descendants, so the tab-build-rise animation above was
+   silently turning that fixed overlay into something positioned/sized
+   relative to this wrapper instead of the viewport, shifting the whole
+   ride screen off to the side. Skip the transform-driven reveal for this
+   tab specifically so the fixed stage stays anchored to the real
+   viewport. */
+.tab-build > .rider-game {
+  animation: none;
+}
+
 @keyframes tab-build-rise {
   from {
     opacity: 0;
@@ -2193,18 +2207,4 @@ button {
   .card-build {
     animation: none !important;
   }
-}
-
-/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
-   so it can cover the full viewport regardless of where it sits in the
-   tab content flow. But `transform` on ANY ancestor - even a finished
-   one sitting at translateY(0) - creates a new containing block for
-   fixed-position descendants, so the tab-build-rise animation above was
-   silently turning that fixed overlay into something positioned/sized
-   relative to this wrapper instead of the viewport, shifting the whole
-   ride screen off to the side. Skip the transform-driven reveal for this
-   tab specifically so the fixed stage stays anchored to the real
-   viewport. */
-.tab-build > .rider-game {
-  animation: none;
 }

@@ -6,10 +6,10 @@ const STAGE_INTRO = "intro";
 const STAGE_PLAYING = "playing";
 const STAGE_RESULT = "result";
 
-// Best time survived, kept locally on-device (no leaderboard/API for this
-// yet) so the intro screen has something to show even the very first time
-// this loads on a given phone.
-const BEST_SCORE_KEY = "riderGame.bestScore";
+// Best money earned in a single run, kept locally on-device (no
+// leaderboard/API for this yet) so the intro screen has something to show
+// even the very first time this loads on a given phone.
+const BEST_SCORE_KEY = "riderGame.bestMoney";
 
 function readBestScore() {
   try {
@@ -21,9 +21,9 @@ function readBestScore() {
   }
 }
 
-function writeBestScore(score) {
+function writeBestScore(money) {
   try {
-    window.localStorage.setItem(BEST_SCORE_KEY, String(score));
+    window.localStorage.setItem(BEST_SCORE_KEY, String(money));
   } catch {
     /* storage unavailable - ignore */
   }
@@ -40,22 +40,22 @@ export default function RiderGame({ notify, onBalanceChange }) {
     setStage(STAGE_PLAYING);
   }
 
-  async function handleGameOver(score) {
+  async function handleGameOver({ distanceMeters, money }) {
     setStage(STAGE_RESULT);
-    setResult({ score, reward: 0, loading: true });
+    setResult({ distanceMeters, reward: money, loading: true });
 
-    if (score > bestScore) {
-      setBestScore(score);
-      writeBestScore(score);
+    if (money > bestScore) {
+      setBestScore(money);
+      writeBestScore(money);
     }
 
-    const outcome = await submitRiderRun(score);
+    const outcome = await submitRiderRun({ distanceMeters, money });
     if (outcome.ok) {
-      setResult({ score: outcome.score, reward: outcome.reward, loading: false });
+      setResult({ distanceMeters: outcome.distanceMeters, reward: outcome.reward, loading: false });
       onBalanceChange?.(outcome.newBalance);
       if (outcome.reward > 0) notify?.("success");
     } else {
-      setResult({ score, reward: 0, loading: false, failed: true });
+      setResult({ distanceMeters, reward: money, loading: false, failed: true });
     }
   }
 
@@ -73,7 +73,7 @@ export default function RiderGame({ notify, onBalanceChange }) {
           {bestScore > 0 && (
             <div className="rider-game__best">
               <span className="rider-game__best-label">Best run</span>
-              <span className="rider-game__best-value">{bestScore}s</span>
+              <span className="rider-game__best-value">{bestScore} VɎ</span>
             </div>
           )}
 
@@ -96,7 +96,8 @@ export default function RiderGame({ notify, onBalanceChange }) {
             Clear the gaps, don't land on your frame.
           </p>
           <p className="rider-game__intro-text rider-game__intro-text--dim">
-            +1 VɎ for every 10 seconds you survive. No finish line - just go as far as you can.
+            Every 100m earns VɎ - the faster you're going, the more it pays (up to 3× at top
+            speed). No finish line - just go as far and as fast as you can.
           </p>
           <button type="button" className="sheet-button sheet-button--confirm rider-game__start" onClick={startRun}>
             ▶ Start ride
@@ -117,8 +118,8 @@ export default function RiderGame({ notify, onBalanceChange }) {
             </p>
             <div className="confirm-sheet__ledger">
               <div className="confirm-sheet__ledger-row">
-                <span>Time survived</span>
-                <span>{result.score}s</span>
+                <span>Distance</span>
+                <span>{result.distanceMeters}m</span>
               </div>
               <div className="confirm-sheet__ledger-row" data-emphasis="true">
                 <span>Reward</span>
