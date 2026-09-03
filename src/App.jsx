@@ -15,7 +15,7 @@ import BuyConfirmSheet from "./components/BuyConfirmSheet.jsx";
 import SellConfirmSheet from "./components/SellConfirmSheet.jsx";
 import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
-import BottomNav, { TAB_ORDER } from "./components/BottomNav.jsx";
+import BottomNav from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
@@ -29,10 +29,6 @@ export default function App() {
   const { haptic, notify } = useTelegram();
 
   const [activeTab, setActiveTab] = useState("home");
-  // Which side the tab-build animation should slide in from, for the
-  // tab you're about to land on - see changeTab below and the
-  // data-direction rules in index.css.
-  const [tabDirection, setTabDirection] = useState(null);
   const [appReady, setAppReady] = useState(false);
 
   const [characters, setCharacters] = useState([]);
@@ -199,18 +195,6 @@ export default function App() {
     setSellCandidate(null);
   }
 
-  // Switches tabs and records which direction the new one sits in
-  // relative to the current one (using BottomNav's left-to-right
-  // TAB_ORDER), so the tab-build animation can slide in from that side
-  // - see the data-direction rules in index.css.
-  function changeTab(tabId) {
-    if (tabId === activeTab) return;
-    const fromIndex = TAB_ORDER.indexOf(activeTab);
-    const toIndex = TAB_ORDER.indexOf(tabId);
-    setTabDirection(fromIndex === -1 || toIndex === -1 ? null : toIndex > fromIndex ? "right" : "left");
-    setActiveTab(tabId);
-  }
-
   if (!appReady) {
     return <BootScreen />;
   }
@@ -218,7 +202,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="app-shell__inner">
-        <div className="tab-build" data-direction={tabDirection || undefined} key={activeTab}>
+        <div className="tab-build" key={activeTab}>
           {activeTab === "home" && (
           <>
             <ProfileHeader
@@ -230,7 +214,7 @@ export default function App() {
             {profileLoading ? (
               <SkeletonGrid count={4} />
             ) : (
-              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => changeTab("market")} />
+              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => setActiveTab("market")} />
             )}
           </>
         )}
@@ -266,11 +250,11 @@ export default function App() {
 
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
-        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
+        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={setActiveTab} />}
       </div>
       </div>
 
-      <BottomNav active={activeTab} onChange={changeTab} />
+      <BottomNav active={activeTab} onChange={setActiveTab} />
 
       <BuyConfirmSheet
         character={selectedCharacter}

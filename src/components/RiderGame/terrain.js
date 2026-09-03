@@ -393,6 +393,88 @@ function featureSpikePillars(state, t) {
   appendFlat(state, flatLen / 2);
 }
 
+// A dramatically steep ramp straight into a gap - riding up it at any
+// real speed genuinely rockets the bike into the sky instead of just
+// cresting a hill, for a much bigger and more dramatic arc through the
+// air than the plain featureGapJump.
+function featureSkyLaunch(state, t) {
+  appendFlat(state, rand(60, 100));
+  appendRamp(state, rand(90, 130), rand(60, 90 + t * 20));
+  const gapWidth = rand(260, 330 + t * 80);
+  openGap(state, gapWidth, state.baseline);
+  appendFlat(state, rand(90, 140));
+}
+
+// The mirror image - the far side of the gap sits well below baseline,
+// so clearing it means genuinely dropping from a real height before
+// landing, then the ground ramps back up to baseline afterward so
+// everything downstream keeps generating normally.
+function featureBigDrop(state, t) {
+  appendFlat(state, rand(60, 100));
+  const gapWidth = rand(150, 210 + t * 50);
+  const dropDepth = rand(80, 140 + t * 40);
+  openGap(state, gapWidth, state.baseline + dropDepth);
+  appendRamp(state, rand(160, 220), dropDepth);
+  appendFlat(state, rand(80, 120));
+}
+
+// ============================================================================
+// SPECTACLE - scripted 360° loop-de-loops. Genuinely simulating a full
+// vertical loop through raw rigid-body physics (two separate wheel
+// bodies on a compound chassis) is a well-known good way to get
+// glitchy tunneling/instability at the tight curvature involved, and a
+// failed loop would directly break the "every obstacle is standard,
+// passable, and fair" rule. So instead of leaving it to physics, a loop
+// is a SCRIPTED stunt: the ground stays perfectly normal and flat
+// through it, and entering the marked zone (see GameCanvas's
+// `activeLoop` handling) hands the bike's position/angle over to a
+// parametric circle for a fixed, guaranteed-smooth trip around and back
+// to exactly where it left off, at its own entry speed. Always
+// succeeds, every time, for every player - it's a thrill beat, not a
+// skill check.
+// ============================================================================
+
+const LOOP_RADIUS_RANGE = [95, 130];
+
+// A clean loop with nothing inside it - pure "whoa, I just looped".
+function featureLoop(state, t) {
+  const radius = rand(...LOOP_RADIUS_RANGE);
+  appendFlat(state, radius + rand(50, 90));
+  state.traps.push({
+    type: "loop",
+    x: state.cursorX,
+    y: state.baseline,
+    radius,
+    hasSaw: false,
+  });
+  appendFlat(state, radius + rand(90, 140));
+}
+
+// The same loop, but with a spinning saw blade sitting inside it for
+// the "close call" visual thrill from the reference image - the
+// scripted path is sized to always clear it safely, so it's spectacle,
+// not a hidden gotcha.
+function featureLoopWithSaw(state, t) {
+  const radius = rand(...LOOP_RADIUS_RANGE);
+  appendFlat(state, radius + rand(50, 90));
+  const loopX = state.cursorX;
+  state.traps.push({
+    type: "loop",
+    x: loopX,
+    y: state.baseline,
+    radius,
+    hasSaw: true,
+  });
+  state.traps.push({
+    type: "sawBlade",
+    x: loopX,
+    y: state.baseline - radius,
+    radius: radius * 0.4,
+    speed: rand(2.4, 3.4 + t),
+  });
+  appendFlat(state, radius + rand(90, 140));
+}
+
 // ============================================================================
 // BLUE - timing gates. A gate arm pivots between open (out of the way)
 // and closed (blocking) on a steady, readable cycle.
@@ -459,6 +541,12 @@ const FEATURES = [
   { type: "gap", weight: 3, run: featureGapJump, tier: 0 },
   { type: "spikes", weight: 2, run: featureSpikeRow, tier: 0 },
   { type: "platform", weight: 2, run: featureMovingPlatformGap, tier: 0 },
+  { type: "skyLaunch", weight: 2, run: featureSkyLaunch, tier: 0.05 },
+  { type: "bigDrop", weight: 2, run: featureBigDrop, tier: 0.08 },
+
+  // spectacle - scripted, always-safe 360° loops (see the SPECTACLE section above)
+  { type: "loop", weight: 1.5, run: featureLoop, tier: 0.12 },
+  { type: "loopWithSaw", weight: 1.2, run: featureLoopWithSaw, tier: 0.28 },
 
   // red - moving/rotating hazards, unlock progressively through the run
   { type: "wreckingBall", weight: 2, run: featureWreckingBall, tier: 0.1 },
@@ -484,6 +572,11 @@ function pickFeature(lastType, t) {
   return pool[0];
 }
 
+// Every feature above tier 0 has its own distinct tier value, so this is
+// effectively "one milestone hazard per unlock". Sorted ascending so we
+// can walk through them in order as t climbs.
+const TIER_INTRODUCTIONS = FEATURES.filter((f) => f.tier > 0).sort((a, b) => a.tier - b.tier);
+
 export function createTerrainState(baseline) {
   const state = {
     baseline,
@@ -493,6 +586,15 @@ export function createTerrainState(baseline) {
     points: [],
     traps: [],
     lastFeature: null,
+    // How many tier-introduction milestones (TIER_INTRODUCTIONS, in
+    // order) have already been force-shown. Left purely to the weighted
+    // random pool, a freshly-unlocked hazard type has to compete against
+    // an ever-growing field of ~19 other eligible features - it's
+    // entirely possible to go a full run without the dice ever landing
+    // on it. This counter is what guarantees that never happens: the
+    // moment a new tier unlocks, the very next feature generated is
+    // that tier's hazard, no randomness involved.
+    introducedTierCount: 0,
     startSpan(x, y) {
       state.points = [{ x, y }];
       state.spans.push(state.points);
@@ -512,7 +614,14 @@ export function createTerrainState(baseline) {
 export function generateAhead(state, targetX, elapsedSeconds) {
   const t = Math.min(1, elapsedSeconds / 90);
   while (state.cursorX < targetX) {
-    const feature = pickFeature(state.lastFeature, t);
+    let feature;
+    const next = TIER_INTRODUCTIONS[state.introducedTierCount];
+    if (next && next.tier <= t) {
+      feature = next;
+      state.introducedTierCount++;
+    } else {
+      feature = pickFeature(state.lastFeature, t);
+    }
     feature.run(state, t);
     state.lastFeature = feature.type;
   }
