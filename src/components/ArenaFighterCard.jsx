@@ -2,17 +2,17 @@ import { useState } from "react";
 import { getElementInfo } from "../data/elements.js";
 import CardMedia from "./CardMedia.jsx";
 
-export default function ArenaFighterCard({ card, selected, onClick, footer }) {
+export default function ArenaFighterCard({ card, selected, onClick, footer, index = null }) {
   const [imageFailed, setImageFailed] = useState(false);
   const element = getElementInfo(card.element);
   const showImage = card.imageUrl && !imageFailed;
   const [artFrom, artTo] = card.gradient ?? ["#241E33", "#5C5378"];
 
-  const style = { "--card-accent": element.accent, "--art-from": artFrom, "--art-to": artTo };
+  const style = { "--card-accent": element.accent, "--art-from": artFrom, "--art-to": artTo, "--i": index };
 
   return (
     <article
-      className="fighter-card"
+      className={index === null ? "fighter-card" : "fighter-card card-build"}
       style={style}
       data-selected={selected || undefined}
       data-maxed={card.level >= (card.max_level ?? 15) || undefined}
