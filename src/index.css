@@ -2110,36 +2110,192 @@ button {
    (App.jsx remounts this wrapper via key={activeTab}), so opening
    a tab reads as the screen assembling itself rather than just
    appearing.
+
+   Direction: App.jsx tracks which way the tab you tapped sits
+   relative to the one you were on (using BottomNav's left-to-right
+   TAB_ORDER) and stamps that onto data-direction="left" | "right"
+   on this wrapper. The rules further down override the animation
+   to slide from that side instead of the plain vertical rise -
+   whichever tab you land on, it visibly arrives FROM the direction
+   you tapped, like the screens are laid out side by side. Landing
+   here any other way (deep link, programmatic navigation that
+   doesn't go through App.jsx's changeTab) has no data-direction
+   set, so it just falls back to the plain vertical rise below.
    ================================================================ */
 
 .tab-build > * {
-  animation: tab-build-rise 460ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  will-change: transform, opacity, filter;
 }
 
 .tab-build > *:nth-child(1) {
   animation-delay: 0ms;
 }
 .tab-build > *:nth-child(2) {
-  animation-delay: 80ms;
+  animation-delay: 70ms;
 }
 .tab-build > *:nth-child(3) {
-  animation-delay: 150ms;
+  animation-delay: 130ms;
 }
 .tab-build > *:nth-child(4) {
-  animation-delay: 220ms;
+  animation-delay: 190ms;
+}
+.tab-build > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.tab-build > *:nth-child(6) {
+  animation-delay: 280ms;
+}
+.tab-build > *:nth-child(n + 7) {
+  animation-delay: 310ms;
 }
 
 @keyframes tab-build-rise {
   from {
     opacity: 0;
-    transform: translateY(18px);
-    filter: blur(3px);
+    transform: translateY(16px) scale(0.98);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     filter: blur(0);
   }
+}
+
+/* Tabs that are really a single big container (Leaderboard, Arena) get
+   a quick plain fade here instead of the rise above - the rise is
+   handed off to their own top-level sections/rows instead (see the
+   .leaderboard-tab > * / .arena-tab > * rules below), so the page
+   reads as its pieces assembling rather than one flat block sliding
+   in as a whole. */
+.tab-build > .leaderboard-tab,
+.tab-build > .arena-tab {
+  animation: fade-in 0.18s ease both;
+}
+
+.leaderboard-tab > *,
+.arena-tab > * {
+  animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  will-change: transform, opacity, filter;
+}
+.leaderboard-tab > *:nth-child(1),
+.arena-tab > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.leaderboard-tab > *:nth-child(2),
+.arena-tab > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.leaderboard-tab > *:nth-child(3),
+.arena-tab > *:nth-child(3) {
+  animation-delay: 130ms;
+}
+.leaderboard-tab > *:nth-child(4),
+.arena-tab > *:nth-child(4) {
+  animation-delay: 190ms;
+}
+.leaderboard-tab > *:nth-child(5),
+.arena-tab > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.leaderboard-tab > *:nth-child(6),
+.arena-tab > *:nth-child(6) {
+  animation-delay: 280ms;
+}
+.leaderboard-tab > *:nth-child(n + 7),
+.arena-tab > *:nth-child(n + 7) {
+  animation-delay: 310ms;
+}
+
+/* Wrapper elements that contain their own individually-staggered
+   .card-build children (the leaderboard row list, each arena team
+   section wrapping its 3 fighter slots) get JUST a quick opacity fade
+   here instead of the rise/slide above - if the wrapper AND its
+   children both animated opacity independently, the two would
+   multiply together and the content would visibly dim mid-transition
+   instead of assembling cleanly. Marked !important since this needs to
+   win over every rise/slide rule above (including the directional
+   ones) regardless of specificity - see build-fade-only on the
+   .leaderboard-list / .arena-team-section elements in JSX. */
+.build-fade-only {
+  animation: fade-in 0.16s ease both !important;
+}
+
+/* Sheets/overlays (PlayerProfileSheet, ArenaTeamPickerSheet, etc.) can
+   mount as a direct child of these tabs at any point in the session -
+   not just when the tab itself first builds - and already have their
+   own backdrop fade + sheet slide-up (see .sheet-overlay/.confirm-sheet
+   above). Keep them on that original plain fade instead of picking up
+   the tab-build rise/slide meant for the tab's own first-paint content. */
+.leaderboard-tab > .sheet-overlay,
+.arena-tab > .sheet-overlay {
+  animation: fade-in 0.15s ease !important;
+}
+
+/* Directional slide - overrides the animation-name only, keeping the
+   duration/easing/fill from the base rules above. A small vertical
+   lift + blur stays in the mix so it still reads as "build", just
+   biased toward the side you came from. */
+@keyframes tab-build-slide-right {
+  from {
+    opacity: 0;
+    transform: translate(26px, 10px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+@keyframes tab-build-slide-left {
+  from {
+    opacity: 0;
+    transform: translate(-26px, 10px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.tab-build[data-direction="right"] > *,
+.tab-build[data-direction="right"] > .leaderboard-tab > *,
+.tab-build[data-direction="right"] > .arena-tab > * {
+  animation-name: tab-build-slide-right;
+}
+.tab-build[data-direction="left"] > *,
+.tab-build[data-direction="left"] > .leaderboard-tab > *,
+.tab-build[data-direction="left"] > .arena-tab > * {
+  animation-name: tab-build-slide-left;
+}
+/* The container fade (see above) stays a plain fade even when a
+   direction is set - only its inner pieces should slide. */
+.tab-build[data-direction="right"] > .leaderboard-tab,
+.tab-build[data-direction="right"] > .arena-tab,
+.tab-build[data-direction="left"] > .leaderboard-tab,
+.tab-build[data-direction="left"] > .arena-tab {
+  animation-name: fade-in;
+}
+
+/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
+   so it can cover the full viewport regardless of where it sits in the
+   tab content flow. But `transform` on ANY ancestor - even a finished
+   one sitting at translateY(0) - creates a new containing block for
+   fixed-position descendants, so a build/slide animation on this
+   wrapper was silently turning that fixed overlay into something
+   positioned/sized relative to this wrapper instead of the viewport,
+   shifting the whole ride screen off to the side. Skip the
+   transform-driven reveal for this tab specifically, in every
+   direction, so the fixed stage stays anchored to the real viewport.
+   Listed after the direction rules above so it always wins ties. */
+.tab-build > .rider-game,
+.tab-build[data-direction="left"] > .rider-game,
+.tab-build[data-direction="right"] > .rider-game {
+  animation: none;
 }
 
 /* The player's name gets its own slightly showier reveal instead of the
@@ -2167,12 +2323,15 @@ button {
   }
 }
 
-/* Cards in a grid rise in one by one instead of popping in as a block.
-   --i is set inline per-card (see CharacterCard / OwnedCard); the delay
-   is capped so a long list doesn't take forever to finish settling. */
+/* Cards in a grid (and now leaderboard rows / arena fighter slots too)
+   rise in one by one instead of popping in as a block. --i is set
+   inline per-item (see CharacterCard / OwnedCard / PlayerRow /
+   ArenaTab's TeamSlots); the delay is capped so a long list doesn't
+   take forever to finish settling. */
 .card-build {
   animation: card-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
   animation-delay: min(calc(var(--i, 0) * 45ms), 480ms);
+  will-change: transform, opacity;
 }
 
 @keyframes card-build-rise {
@@ -2188,23 +2347,14 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .tab-build > *,
+  .tab-build > .leaderboard-tab,
+  .tab-build > .arena-tab,
+  .leaderboard-tab > *,
+  .arena-tab > *,
+  .build-fade-only,
   .profile-header__name,
   .brand-title,
   .card-build {
     animation: none !important;
   }
-}
-
-/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
-   so it can cover the full viewport regardless of where it sits in the
-   tab content flow. But `transform` on ANY ancestor - even a finished
-   one sitting at translateY(0) - creates a new containing block for
-   fixed-position descendants, so the tab-build-rise animation above was
-   silently turning that fixed overlay into something positioned/sized
-   relative to this wrapper instead of the viewport, shifting the whole
-   ride screen off to the side. Skip the transform-driven reveal for this
-   tab specifically so the fixed stage stays anchored to the real
-   viewport. */
-.tab-build > .rider-game {
-  animation: none;
 }

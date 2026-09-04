@@ -84,6 +84,31 @@ const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a
 // tiny jitter stays silent, an actual hop/jump/gap landing still plays.
 const MIN_LAND_VY = 1.1;
 
+// ---------------- scoring: distance + speed based currency ----------------
+// The world is scaled at PX_PER_METER px per in-game meter (matches
+// GROUND_STEP, so one generated terrain step is roughly one meter) - this
+// is what turns the bike's raw pixel position/velocity into real-feeling
+// meters and km/h for the HUD and the reward math below.
+const PX_PER_METER = 24;
+const TICKS_PER_SECOND = 1000 / FIXED_DT; // physics ticks per real second
+const REWARD_DISTANCE_METERS = 100; // a payout fires every time this many more meters are cleared
+const REWARD_DISTANCE_PX = REWARD_DISTANCE_METERS * PX_PER_METER;
+
+function velocityToKmh(vx) {
+  const metersPerSecond = (vx * TICKS_PER_SECOND) / PX_PER_METER;
+  return Math.max(0, metersPerSecond * 3.6);
+}
+
+// Reward per 100m scales with how fast the bike was going when that
+// stretch was cleared: bottom third of top speed pays 1 unit, middle
+// third pays 2, and the top third (or anything boosting past MAX_SPEED)
+// pays 3 - the ceiling of the 3 tiers, never above 3, never below 1 for
+// genuine forward progress.
+function speedRewardTier(speedFraction) {
+  const fraction = Math.min(1, Math.max(0, speedFraction));
+  return Math.max(1, Math.min(3, Math.ceil(fraction * 3)));
+}
+
 // Matter.js's chassis.angle accumulates without wrapping (it can be well
 // past ±2π after a few flips), so anything that wants to reason about
 // "which way is the nose pointing right now" needs this first.
@@ -932,17 +957,23 @@ function drawSpeedLines(ctx, lines, width, boosted) {
   ctx.restore();
 }
 
-function drawHud(ctx, seconds, width, pulseFraction) {
+// Three-part HUD: instant speed on the left, distance covered in the
+// center pill, and the running total of money earned this run on the
+// right - all live, all updating every frame.
+function drawHud(ctx, hud, width, pulseFraction) {
+  const { speedKmh, distanceMeters, money } = hud;
+
+  // ---- center: distance pill (same pill chrome the old timer used) ----
   ctx.save();
-  const label = `⏱ ${seconds}s`;
+  const label = `${Math.floor(distanceMeters)}m`;
   ctx.font = "700 20px 'IBM Plex Mono', monospace";
   const textWidth = ctx.measureText(label).width;
   const pillWidth = textWidth + 32;
   const pillCenterX = width / 2;
   const pillCenterY = 14 + 18;
 
-  // Brief scale-up pulse right when a 10s currency milestone hits, so
-  // the counter itself visibly celebrates the moment instead of just
+  // Brief scale-up pulse right when a 100m currency payout hits, so the
+  // counter itself visibly celebrates the moment instead of just
   // silently ticking - decays back to normal over ~400ms (see caller).
   const scale = 1 + pulseFraction * 0.28;
   ctx.translate(pillCenterX, pillCenterY);
@@ -968,6 +999,34 @@ function drawHud(ctx, seconds, width, pulseFraction) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, width / 2, 14 + 18);
+  ctx.restore();
+
+  // ---- left: live instantaneous speed ----
+  ctx.save();
+  ctx.font = "600 13px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const speedLabel = `${Math.round(speedKmh)} km/h`;
+  const speedTextWidth = ctx.measureText(speedLabel).width;
+  ctx.fillStyle = "rgba(20, 6, 14, 0.55)";
+  roundedRectPath(ctx, 10, 16, speedTextWidth + 20, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = "#bdeaff";
+  ctx.fillText(speedLabel, 20, 29);
+  ctx.restore();
+
+  // ---- right: total money earned so far this run ----
+  ctx.save();
+  ctx.font = "700 13px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const moneyLabel = `${money} VɎ`;
+  const moneyTextWidth = ctx.measureText(moneyLabel).width;
+  ctx.fillStyle = "rgba(20, 6, 14, 0.55)";
+  roundedRectPath(ctx, width - 10 - (moneyTextWidth + 20), 16, moneyTextWidth + 20, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = "#ffe07a";
+  ctx.fillText(moneyLabel, width - 20, 29);
   ctx.restore();
 }
 
@@ -1238,12 +1297,18 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let gameOverFired = false;
     let explosionStartedAt = null;
     let explosionParticles = [];
-    let pendingScore = 0;
+    let pendingResult = { distanceMeters: 0, money: 0 };
+
+    // ---- distance + speed based currency tracking ----
+    const startX = bike.chassis.position.x; // matches createBike's spawn x above
+    let distanceMeters = 0;
+    let moneyEarned = 0;
+    let nextRewardAtPx = REWARD_DISTANCE_PX;
 
     function triggerCrash(elapsedSeconds) {
       if (crashed) return;
       crashed = true;
-      pendingScore = Math.max(0, Math.floor(elapsedSeconds));
+      pendingResult = { distanceMeters: Math.floor(distanceMeters), money: moneyEarned };
       explosionStartedAt = performance.now();
       explosionParticles = createExplosionParticles(bike.chassis.position.x, bike.chassis.position.y);
       playCrash();
@@ -1432,7 +1497,6 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let activeLoop = null;
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
-    let lastScoreMilestone = 0;
     let scorePulseRemaining = 0; // ms left in the current HUD pulse - see drawHud
     const trail = [];
     let dustParticles = [];
@@ -1480,13 +1544,6 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         }
       }
 
-      const milestone = Math.floor(elapsedRef / 10);
-      if (milestone > lastScoreMilestone) {
-        lastScoreMilestone = milestone;
-        scorePulseRemaining = 400;
-        playScore();
-      }
-
       // Landing detection - by the time `grounded` flips true here, the
       // collision may already have changed bike.chassis.velocity.y this
       // tick, so we use whatever velocity was recorded on the LAST tick
@@ -1507,6 +1564,22 @@ export default function GameCanvas({ onGameOver, onQuit }) {
 
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
       updateEngine((grounded || activeLoop) && gasRef.current, speedFraction);
+
+      // ---- distance + speed based currency ----
+      // Distance is the furthest the bike has ever reached (never drops
+      // if it bounces back a touch), and every REWARD_DISTANCE_PX of that
+      // triggers a payout sized by however fast the bike was going right
+      // now - see speedRewardTier. The while-loop (not an if) covers a
+      // single fast/boosted tick that crosses more than one 100m mark at
+      // once, so no payout ever gets skipped.
+      const traveledMeters = Math.max(0, (bike.chassis.position.x - startX) / PX_PER_METER);
+      if (traveledMeters > distanceMeters) distanceMeters = traveledMeters;
+      while (distanceMeters * PX_PER_METER >= nextRewardAtPx) {
+        moneyEarned += speedRewardTier(speedFraction);
+        nextRewardAtPx += REWARD_DISTANCE_PX;
+        scorePulseRemaining = 400;
+        playScore();
+      }
 
       if (!activeLoop) {
       // ---- boost: timers + the actual speed effect ----
@@ -1712,7 +1785,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         }
         if (explosionAge > EXPLOSION_DURATION && !gameOverFired) {
           gameOverFired = true;
-          onGameOverRef.current(pendingScore);
+          onGameOverRef.current(pendingResult);
         }
       }
 
@@ -1834,7 +1907,16 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         ctx.restore();
       }
       drawSpeedLines(ctx, speedLines, viewWidth, boostActive);
-      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr, scorePulseRemaining / 400);
+      drawHud(
+        ctx,
+        {
+          speedKmh: velocityToKmh(bike.chassis.velocity.x),
+          distanceMeters,
+          money: moneyEarned,
+        },
+        canvas.width / dpr,
+        scorePulseRemaining / 400
+      );
       drawBoostBar(ctx, viewWidth, 1 - boostCooldownRemaining / BOOST_COOLDOWN_MS, boostActive);
       ctx.restore();
 
