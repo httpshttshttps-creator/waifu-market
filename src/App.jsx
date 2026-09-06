@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTelegram } from "./hooks/useTelegram.js";
+import { useTheme, THEME_CHROME } from "./hooks/useTheme.js";
 import {
   fetchCharacters,
   fetchBalance,
@@ -15,7 +16,7 @@ import BuyConfirmSheet from "./components/BuyConfirmSheet.jsx";
 import SellConfirmSheet from "./components/SellConfirmSheet.jsx";
 import SettingsSheet from "./components/SettingsSheet.jsx";
 import Toast from "./components/Toast.jsx";
-import BottomNav from "./components/BottomNav.jsx";
+import BottomNav, { TAB_ORDER } from "./components/BottomNav.jsx";
 import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
@@ -26,26 +27,15 @@ import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 import BootScreen from "./components/BootScreen.jsx";
 
 export default function App() {
-  const { haptic, notify } = useTelegram();
+  const [theme, setTheme] = useTheme();
+  const { haptic, notify } = useTelegram(THEME_CHROME[theme]);
 
   const [activeTab, setActiveTab] = useState("home");
+  // Which side the tab-build animation should slide in from, for the
+  // tab you're about to land on - see changeTab below and the
+  // data-direction rules in index.css.
+  const [tabDirection, setTabDirection] = useState(null);
   const [appReady, setAppReady] = useState(false);
-  const [theme, setTheme] = useState(() => {
-    try {
-      return localStorage.getItem("theme") || "default";
-    } catch {
-      return "default";
-    }
-  });
-
-  function handleSelectTheme(id) {
-    setTheme(id);
-    try {
-      localStorage.setItem("theme", id);
-    } catch {
-      // ignore storage failures (private mode, etc.)
-    }
-  }
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -215,10 +205,23 @@ export default function App() {
     return <BootScreen />;
   }
 
+  // Switches tabs and records which direction the new one sits in
+  // relative to the current one (using BottomNav's left-to-right
+  // TAB_ORDER), so the tab-build animation can slide in from that side
+  // - see the data-direction rules in index.css.
+  function changeTab(tabId) {
+    if (tabId === activeTab) return;
+    const fromIndex = TAB_ORDER.indexOf(activeTab);
+    const toIndex = TAB_ORDER.indexOf(tabId);
+    setTabDirection(fromIndex === -1 || toIndex === -1 ? null : toIndex > fromIndex ? "right" : "left");
+    setActiveTab(tabId);
+  }
+
   return (
-    <div className="app-shell" data-theme={theme}>
+    <div className="app-shell">
       <div className="app-shell__inner">
-        {activeTab === "home" && (
+        <div className="tab-build" data-direction={tabDirection || undefined} key={activeTab}>
+          {activeTab === "home" && (
           <>
             <ProfileHeader
               name={profile.name}
@@ -229,7 +232,7 @@ export default function App() {
             {profileLoading ? (
               <SkeletonGrid count={4} />
             ) : (
-              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => setActiveTab("market")} />
+              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => changeTab("market")} />
             )}
           </>
         )}
@@ -265,10 +268,11 @@ export default function App() {
 
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
-        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={setActiveTab} />}
+        {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
+      </div>
       </div>
 
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav active={activeTab} onChange={changeTab} />
 
       <BuyConfirmSheet
         character={selectedCharacter}
@@ -291,7 +295,7 @@ export default function App() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         theme={theme}
-        onSelectTheme={handleSelectTheme}
+        onThemeChange={setTheme}
       />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />

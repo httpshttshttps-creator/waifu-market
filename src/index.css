@@ -13,6 +13,12 @@
   --text-faint: #93615c;
   --line: rgba(253, 236, 235, 0.1);
   --danger: #ff8c42;
+  /* text color used on solid var(--gold)/var(--gold-bright) fills
+     (buy button, active filter chip, active leaderboard toggle, task
+     claim button, fighter check badge...) - kept as its own variable
+     so a theme with a much lighter gold (Seraphim) can swap it for a
+     dark ink instead of white without touching every call site. */
+  --on-gold: #fff2f0;
 
   /* -- type -- */
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -26,8 +32,40 @@
   color-scheme: dark;
 }
 
+/* ================================================================
+   THEME: Seraphim - the premium alt skin.
+   Everything above is styled off these variables, so redefining them
+   here re-skins the whole app for free (cards, buttons, chips, sheets,
+   nav, boot screen...). Past the variable block is the part Seraphim
+   has that the base theme doesn't: an ambient light layer behind every
+   screen, a halo on the boot icon, a burst of light rays behind every
+   card pull, and a glow under the active tab - so no single screen in
+   the app reads as "just a recolor".
+   ================================================================ */
+:root[data-theme="seraphim"] {
+  --ink: #fdf7e8;
+  --ink-glow: #fff0c2;
+  --surface: #fffdf6;
+  --surface-raised: #fff6df;
+  --paper: #ffe9ad;
+  --paper-shadow: #d9b563;
+  --gold: #c99a2e;
+  --gold-bright: #f4c752;
+  --text: #4a3814;
+  --text-dim: #8a713c;
+  --text-faint: #b7a373;
+  --line: rgba(154, 116, 30, 0.22);
+  --danger: #c1443a;
+  --on-gold: #33230a;
+
+  --font-display: "Cormorant Garamond", "Bricolage Grotesque", system-ui, serif;
+
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -35,6 +73,17 @@ body {
   margin: 0;
   padding: 0;
   background: var(--ink);
+}
+
+/* Kill the default mobile-browser "link tap" flash (blue/gray highlight
+   + callout menu) on every interactive element - Telegram's own native
+   UI never flashes like that, so our buttons shouldn't either. */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 body {
@@ -66,8 +115,17 @@ button {
 .app-shell {
   min-height: 100dvh;
   min-height: 100vh;
+  /* The glow's center used to sit just above the viewport (50% -10%),
+     which meant it was already ~70% intensity right at the very top
+     edge - exactly where this content butts up against Telegram's
+     native header bar. useTelegram.js sets that header to flat
+     var(--ink), so a warm glow bleeding all the way up to y=0 made the
+     header and the page look like two different colors. Moving the
+     glow's center down into the visible area (and tightening its
+     radius) makes it fade out completely by y=0, so the top edge here
+     is pure var(--ink) too - an exact match with the native header. */
   background:
-    radial-gradient(120% 60% at 50% -10%, var(--ink-glow) 0%, transparent 60%),
+    radial-gradient(130% 40% at 50% 32%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
   padding: max(20px, env(safe-area-inset-top)) 16px
     calc(84px + env(safe-area-inset-bottom));
@@ -171,7 +229,7 @@ button {
 .filter-chip[data-active="true"] {
   background: var(--gold);
   border-color: var(--gold);
-  color: #fff2f0;
+  color: var(--on-gold);
 }
 
 .search-input {
@@ -224,6 +282,10 @@ button {
 .character-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme="seraphim"] .character-card:hover {
+  box-shadow: 0 10px 26px -8px rgba(154, 116, 30, 0.4);
 }
 
 .character-card__art {
@@ -401,7 +463,7 @@ button {
   font-size: 12.5px;
   cursor: pointer;
   background: var(--gold);
-  color: #fff2f0;
+  color: var(--on-gold);
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
@@ -438,6 +500,10 @@ button {
   justify-content: center;
   z-index: 100;
   animation: fade-in 0.15s ease;
+}
+
+:root[data-theme="seraphim"] .sheet-overlay {
+  background: rgba(46, 32, 6, 0.45);
 }
 
 @keyframes fade-in {
@@ -579,7 +645,7 @@ button {
 
 .sheet-button--confirm {
   background: var(--gold);
-  color: #fff2f0;
+  color: var(--on-gold);
 }
 
 .sheet-button--confirm:disabled {
@@ -639,6 +705,18 @@ button {
   opacity: 0.55;
 }
 
+/* Seraphim's card in the picker gets a quiet gold edge + glow even
+   when not selected yet, so it visibly reads as the premium option
+   among plain swatches - the pitch starts here, before it's active. */
+.theme-option[data-premium="true"] {
+  border-color: rgba(232, 185, 35, 0.5);
+  box-shadow: 0 0 0 1px rgba(232, 185, 35, 0.12), 0 4px 14px -6px rgba(232, 185, 35, 0.35);
+}
+
+.theme-option[data-premium="true"][data-active="true"] {
+  border-color: var(--gold-bright);
+}
+
 .theme-option__swatch {
   position: relative;
   width: 100%;
@@ -657,6 +735,10 @@ button {
 
 .theme-option__check {
   color: #fff;
+}
+
+.theme-option__lock--premium {
+  color: #ffd75e;
 }
 
 .theme-option__name {
@@ -775,12 +857,26 @@ button {
 }
 
 .bottom-nav__item[data-active="true"] {
+  position: relative;
   color: var(--gold-bright);
   background: var(--surface-raised);
 }
 
 .bottom-nav__item[data-active="true"] svg {
   transform: translateY(-1px);
+}
+
+:root[data-theme="seraphim"] .bottom-nav {
+  background: rgba(255, 250, 233, 0.86);
+}
+
+:root[data-theme="seraphim"] .bottom-nav__item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--radius-md);
+  background: radial-gradient(60% 70% at 50% 30%, rgba(244, 199, 82, 0.4), transparent 75%);
 }
 
 /* ---------------- profile header (Home tab) ---------------- */
@@ -909,7 +1005,7 @@ button {
 
 .leaderboard-toggle button[data-active="true"] {
   background: var(--gold);
-  color: #fff2f0;
+  color: var(--on-gold);
   border-color: var(--gold);
 }
 
@@ -1051,7 +1147,7 @@ button {
   border-radius: var(--radius-md);
   border: 1px solid var(--gold);
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: #fff2f0;
+  color: var(--on-gold);
   font-weight: 800;
   font-size: 14px;
   cursor: pointer;
@@ -1265,6 +1361,62 @@ button {
   font-size: 12px;
 }
 
+.rider-game__best {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(242, 193, 78, 0.12);
+  border: 1px solid rgba(242, 193, 78, 0.3);
+}
+
+.rider-game__best-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.rider-game__best-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--neon-gold);
+}
+
+.rider-game__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(10, 4, 24, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.rider-game__controls-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.rider-game__controls-key {
+  flex: 0 0 auto;
+  min-width: 74px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--neon-magenta);
+}
+
 .rider-game__start {
   margin-top: 10px;
   padding: 14px 32px;
@@ -1305,23 +1457,6 @@ button {
   z-index: 2;
 }
 
-.rider-game__hint {
-  position: absolute;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(10, 4, 24, 0.6);
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  pointer-events: none;
-  z-index: 2;
-}
-
 .rider-game__result {
   --card-accent: var(--neon-gold);
   /* The bottom nav sits fixed at the very bottom of the screen too - pad
@@ -1353,7 +1488,7 @@ button {
   border-radius: 999px;
   border: 1px solid var(--gold);
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: #fff2f0;
+  color: var(--on-gold);
   font-weight: 700;
   font-size: 13.5px;
   cursor: pointer;
@@ -1575,7 +1710,7 @@ button {
   right: 6px;
   z-index: 2;
   background: var(--gold);
-  color: #fff2f0;
+  color: var(--on-gold);
   border-radius: 999px;
   width: 20px;
   height: 20px;
@@ -1714,6 +1849,53 @@ button {
   z-index: 1;
 }
 
+/* ---------------- Seraphim: ambient light layer ---------------- */
+/* Replaces the base theme's dark corner-glow with light falling from
+   above, plus a slow field of drifting gold motes behind every screen
+   in the app (both are fixed, so they read as coming from the room,
+   not from any one tab). Grain stays on, just dialed back since it
+   reads heavier on a light surface. */
+
+:root[data-theme="seraphim"] .app-shell {
+  background:
+    radial-gradient(65% 38% at 50% 0%, rgba(255, 240, 194, 0.95) 0%, transparent 72%),
+    radial-gradient(140% 45% at 50% 30%, var(--ink-glow) 0%, transparent 65%),
+    var(--ink);
+}
+
+:root[data-theme="seraphim"] .app-shell::before {
+  opacity: 0.03;
+}
+
+:root[data-theme="seraphim"] .app-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.6;
+  background-repeat: no-repeat;
+  background-image: radial-gradient(2px 2px at 8% 18%, rgba(201, 154, 46, 0.85), transparent 60%),
+    radial-gradient(1.5px 1.5px at 82% 12%, rgba(201, 154, 46, 0.7), transparent 60%),
+    radial-gradient(2px 2px at 62% 68%, rgba(201, 154, 46, 0.55), transparent 60%),
+    radial-gradient(1.5px 1.5px at 22% 82%, rgba(201, 154, 46, 0.8), transparent 60%),
+    radial-gradient(1.5px 1.5px at 92% 58%, rgba(201, 154, 46, 0.6), transparent 60%),
+    radial-gradient(2px 2px at 42% 32%, rgba(201, 154, 46, 0.5), transparent 60%),
+    radial-gradient(1.5px 1.5px at 12% 52%, rgba(201, 154, 46, 0.7), transparent 60%),
+    radial-gradient(2px 2px at 72% 92%, rgba(201, 154, 46, 0.5), transparent 60%);
+  animation: seraphim-motes-drift 22s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes seraphim-motes-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-16px, -24px, 0);
+  }
+}
+
 /* ---------------- Card reveal overlay (graphics upgrade) ---------------- */
 
 .reveal-overlay {
@@ -1732,6 +1914,10 @@ button {
   background: rgba(8, 4, 18, 0.82);
 }
 
+:root[data-theme="seraphim"] .reveal-overlay[data-visible="true"] {
+  background: rgba(38, 26, 4, 0.8);
+}
+
 .reveal-card {
   position: relative;
   width: min(280px, 100%);
@@ -1747,6 +1933,50 @@ button {
   opacity: 0;
   transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.35s ease;
   box-shadow: 0 0 30px -6px var(--card-accent, transparent);
+}
+
+/* Seraphim: every pull gets a spinning burst of light behind the card,
+   not just rarity tiers with glowLevel 2 - this is the theme's whole
+   "worth paying for" moment. Sits at z-index -1 inside the card's own
+   stacking context, so it burns outward around the edges and behind
+   the art/name/rarity chip rather than covering them. */
+:root[data-theme="seraphim"] .reveal-card::before {
+  content: "";
+  position: absolute;
+  inset: -70px;
+  z-index: -1;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(244, 199, 82, 0.4) 10deg,
+    transparent 20deg,
+    transparent 70deg,
+    rgba(244, 199, 82, 0.32) 80deg,
+    transparent 90deg,
+    transparent 140deg,
+    rgba(244, 199, 82, 0.4) 150deg,
+    transparent 160deg,
+    transparent 210deg,
+    rgba(244, 199, 82, 0.32) 220deg,
+    transparent 230deg,
+    transparent 280deg,
+    rgba(244, 199, 82, 0.4) 290deg,
+    transparent 300deg,
+    transparent 350deg,
+    rgba(244, 199, 82, 0.32) 360deg
+  );
+  filter: blur(3px);
+  animation: seraphim-rays-spin 14s linear infinite;
+}
+
+@keyframes seraphim-rays-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .reveal-overlay[data-visible="true"] .reveal-card {
@@ -1977,11 +2207,36 @@ button {
 }
 
 .boot-screen__icon {
+  position: relative;
   font-size: 42px;
   line-height: 1;
   color: var(--gold-bright);
   text-shadow: 0 0 24px var(--gold-bright);
   animation: boot-pulse 1.4s ease-in-out infinite;
+}
+
+/* Seraphim: a breathing halo ring behind the boot mark, like the icon
+   itself is the light source. */
+:root[data-theme="seraphim"] .boot-screen__icon::before {
+  content: "";
+  position: absolute;
+  inset: -22px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 199, 82, 0.55), transparent 70%);
+  animation: seraphim-halo-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes seraphim-halo-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
 }
 
 @keyframes boot-pulse {
@@ -2046,137 +2301,255 @@ button {
 }
 
 /* ================================================================
-   THEME: Seraphim
-   Scoped strictly to the pieces redesigned so far: the Home tab's
-   player name color, the balance/cards-owned frame, the "no cards
-   yet" empty state, and the bottom tab bar + its five tab icons.
-   Nothing else is touched - nested selectors are left to inherit
-   the default theme's variables until later passes cover them.
+   Tab "build" transition - plays every time a tab becomes active
+   (App.jsx remounts this wrapper via key={activeTab}), so opening
+   a tab reads as the screen assembling itself rather than just
+   appearing.
+
+   Direction: App.jsx tracks which way the tab you tapped sits
+   relative to the one you were on (using BottomNav's left-to-right
+   TAB_ORDER) and stamps that onto data-direction="left" | "right"
+   on this wrapper. The rules further down override the animation
+   to slide from that side instead of the plain vertical rise -
+   whichever tab you land on, it visibly arrives FROM the direction
+   you tapped, like the screens are laid out side by side. Landing
+   here any other way (deep link, programmatic navigation that
+   doesn't go through App.jsx's changeTab) has no data-direction
+   set, so it just falls back to the plain vertical rise below.
    ================================================================ */
 
-/* -- Home tab: player name -- */
-
-[data-theme="seraphim"] .profile-header__name {
-  background: none;
-  -webkit-text-fill-color: unset;
-  color: #865727;
+.tab-build > * {
+  animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  will-change: transform, opacity, filter;
 }
 
-/* -- Home tab: balance / cards-owned frame -- */
-
-[data-theme="seraphim"] .profile-stats {
-  border: none;
-  background-color: transparent;
-  background-image: url("./assets/seraphim/balance-frame.png");
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  padding: 14px 18px 14px 76px;
+.tab-build > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.tab-build > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.tab-build > *:nth-child(3) {
+  animation-delay: 130ms;
+}
+.tab-build > *:nth-child(4) {
+  animation-delay: 190ms;
+}
+.tab-build > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.tab-build > *:nth-child(6) {
+  animation-delay: 280ms;
+}
+.tab-build > *:nth-child(n + 7) {
+  animation-delay: 310ms;
 }
 
-[data-theme="seraphim"] .profile-stat__value,
-[data-theme="seraphim"] .profile-stat__value--gold {
-  color: #4a2708;
+@keyframes tab-build-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
 }
 
-[data-theme="seraphim"] .profile-stat__label {
-  color: #8a6440;
+/* Tabs that are really a single big container (Leaderboard, Arena) get
+   a quick plain fade here instead of the rise above - the rise is
+   handed off to their own top-level sections/rows instead (see the
+   .leaderboard-tab > * / .arena-tab > * rules below), so the page
+   reads as its pieces assembling rather than one flat block sliding
+   in as a whole. */
+.tab-build > .leaderboard-tab,
+.tab-build > .arena-tab {
+  animation: fade-in 0.18s ease both;
 }
 
-[data-theme="seraphim"] .profile-stat__divider {
-  background: transparent;
+.leaderboard-tab > *,
+.arena-tab > * {
+  animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  will-change: transform, opacity, filter;
+}
+.leaderboard-tab > *:nth-child(1),
+.arena-tab > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.leaderboard-tab > *:nth-child(2),
+.arena-tab > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.leaderboard-tab > *:nth-child(3),
+.arena-tab > *:nth-child(3) {
+  animation-delay: 130ms;
+}
+.leaderboard-tab > *:nth-child(4),
+.arena-tab > *:nth-child(4) {
+  animation-delay: 190ms;
+}
+.leaderboard-tab > *:nth-child(5),
+.arena-tab > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.leaderboard-tab > *:nth-child(6),
+.arena-tab > *:nth-child(6) {
+  animation-delay: 280ms;
+}
+.leaderboard-tab > *:nth-child(n + 7),
+.arena-tab > *:nth-child(n + 7) {
+  animation-delay: 310ms;
 }
 
-/* -- Home tab: empty "no cards yet" state -- */
-
-[data-theme="seraphim"] .empty-state--action::before {
-  content: "";
-  display: block;
-  width: 100%;
-  max-width: 420px;
-  height: 60px;
-  margin: 0 auto 2px;
-  background-image: url("./assets/seraphim/divider-wings.png");
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+/* Wrapper elements that contain their own individually-staggered
+   .card-build children (the leaderboard row list, each arena team
+   section wrapping its 3 fighter slots) get JUST a quick opacity fade
+   here instead of the rise/slide above - if the wrapper AND its
+   children both animated opacity independently, the two would
+   multiply together and the content would visibly dim mid-transition
+   instead of assembling cleanly. Marked !important since this needs to
+   win over every rise/slide rule above (including the directional
+   ones) regardless of specificity - see build-fade-only on the
+   .leaderboard-list / .arena-team-section elements in JSX. */
+.build-fade-only {
+  animation: fade-in 0.16s ease both !important;
 }
 
-[data-theme="seraphim"] .empty-state--action p {
-  color: #4a2708;
+/* Sheets/overlays (PlayerProfileSheet, ArenaTeamPickerSheet, etc.) can
+   mount as a direct child of these tabs at any point in the session -
+   not just when the tab itself first builds - and already have their
+   own backdrop fade + sheet slide-up (see .sheet-overlay/.confirm-sheet
+   above). Keep them on that original plain fade instead of picking up
+   the tab-build rise/slide meant for the tab's own first-paint content. */
+.leaderboard-tab > .sheet-overlay,
+.arena-tab > .sheet-overlay {
+  animation: fade-in 0.15s ease !important;
 }
 
-[data-theme="seraphim"] .empty-state__cta {
-  border: none;
-  background-color: transparent;
-  background-image: url("./assets/seraphim/market-button.png");
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  color: transparent;
-  padding: 12px 30px;
+/* Directional slide - overrides the animation-name only, keeping the
+   duration/easing/fill from the base rules above. A small vertical
+   lift + blur stays in the mix so it still reads as "build", just
+   biased toward the side you came from. */
+@keyframes tab-build-slide-right {
+  from {
+    opacity: 0;
+    transform: translate(26px, 10px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+@keyframes tab-build-slide-left {
+  from {
+    opacity: 0;
+    transform: translate(-26px, 10px) scale(0.98);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+    filter: blur(0);
+  }
 }
 
-/* -- bottom tab bar -- */
-
-[data-theme="seraphim"] .bottom-nav {
-  background-color: transparent;
-  background-image: url("./assets/seraphim/bottom-bar.png");
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-top: none;
-  padding: 16px 22px calc(18px + env(safe-area-inset-bottom));
+.tab-build[data-direction="right"] > *,
+.tab-build[data-direction="right"] > .leaderboard-tab > *,
+.tab-build[data-direction="right"] > .arena-tab > * {
+  animation-name: tab-build-slide-right;
+}
+.tab-build[data-direction="left"] > *,
+.tab-build[data-direction="left"] > .leaderboard-tab > *,
+.tab-build[data-direction="left"] > .arena-tab > * {
+  animation-name: tab-build-slide-left;
+}
+/* The container fade (see above) stays a plain fade even when a
+   direction is set - only its inner pieces should slide. */
+.tab-build[data-direction="right"] > .leaderboard-tab,
+.tab-build[data-direction="right"] > .arena-tab,
+.tab-build[data-direction="left"] > .leaderboard-tab,
+.tab-build[data-direction="left"] > .arena-tab {
+  animation-name: fade-in;
 }
 
-[data-theme="seraphim"] .bottom-nav__item {
-  color: #9c7a52;
-  font-family: var(--font-display);
-  letter-spacing: normal;
+/* The rider game's in-run stage (.rider-game__stage) is `position: fixed`
+   so it can cover the full viewport regardless of where it sits in the
+   tab content flow. But `transform` on ANY ancestor - even a finished
+   one sitting at translateY(0) - creates a new containing block for
+   fixed-position descendants, so a build/slide animation on this
+   wrapper was silently turning that fixed overlay into something
+   positioned/sized relative to this wrapper instead of the viewport,
+   shifting the whole ride screen off to the side. Skip the
+   transform-driven reveal for this tab specifically, in every
+   direction, so the fixed stage stays anchored to the real viewport.
+   Listed after the direction rules above so it always wins ties. */
+.tab-build > .rider-game,
+.tab-build[data-direction="left"] > .rider-game,
+.tab-build[data-direction="right"] > .rider-game {
+  animation: none;
 }
 
-[data-theme="seraphim"] .bottom-nav__item:hover {
-  color: #7a5a3a;
+/* The player's name gets its own slightly showier reveal instead of the
+   plain rise - it's the first thing they see, worth a beat of polish. */
+.profile-header__name,
+.brand-title {
+  animation: name-reveal 700ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
 }
 
-[data-theme="seraphim"] .bottom-nav__item[data-active="true"] {
-  background: transparent;
-  color: #4a2708;
+@keyframes name-reveal {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.3em;
+    transform: translateY(6px);
+    filter: blur(5px);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    letter-spacing: normal;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
-[data-theme="seraphim"] .bottom-nav__item svg {
-  display: none;
+/* Cards in a grid (and now leaderboard rows / arena fighter slots too)
+   rise in one by one instead of popping in as a block. --i is set
+   inline per-item (see CharacterCard / OwnedCard / PlayerRow /
+   ArenaTab's TeamSlots); the delay is capped so a long list doesn't
+   take forever to finish settling. */
+.card-build {
+  animation: card-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
+  animation-delay: min(calc(var(--i, 0) * 45ms), 480ms);
+  will-change: transform, opacity;
 }
 
-[data-theme="seraphim"] .bottom-nav__item::before {
-  content: "";
-  display: block;
-  width: 26px;
-  height: 26px;
-  background-repeat: no-repeat;
-  background-size: contain;
-  background-position: center;
-  transition: transform 0.15s ease;
+@keyframes card-build-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-[data-theme="seraphim"] .bottom-nav__item[data-active="true"]::before {
-  transform: translateY(-1px) scale(1.1);
-}
-
-[data-theme="seraphim"] .bottom-nav__item:nth-child(1)::before {
-  background-image: url("./assets/seraphim/icon-home.png");
-}
-
-[data-theme="seraphim"] .bottom-nav__item:nth-child(2)::before {
-  background-image: url("./assets/seraphim/icon-market.png");
-}
-
-[data-theme="seraphim"] .bottom-nav__item:nth-child(3)::before {
-  background-image: url("./assets/seraphim/icon-ride.png");
-}
-
-[data-theme="seraphim"] .bottom-nav__item:nth-child(4)::before {
-  background-image: url("./assets/seraphim/icon-leaderboard.png");
-}
-
-[data-theme="seraphim"] .bottom-nav__item:nth-child(5)::before {
-  background-image: url("./assets/seraphim/icon-arena.png");
+@media (prefers-reduced-motion: reduce) {
+  .tab-build > *,
+  .tab-build > .leaderboard-tab,
+  .tab-build > .arena-tab,
+  .leaderboard-tab > *,
+  .arena-tab > *,
+  .build-fade-only,
+  .profile-header__name,
+  .brand-title,
+  .card-build {
+    animation: none !important;
+  }
 }

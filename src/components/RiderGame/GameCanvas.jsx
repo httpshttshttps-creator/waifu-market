@@ -60,6 +60,9 @@ const AIR_PITCH_TORQUE = 0.0044; // doubled - ramps up over ~1.1s of holding - d
 const AIR_PITCH_MAX_SPIN = 4.8; // rad/s - doubled - more room to commit to a full flip on a big jump
 const AUTO_LEVEL_DAMPING = 0.006; // barely bleeds off existing spin - a flip keeps turning once started
 const FALL_DEATH_OFFSET = 1400; // generous last-resort net; the real catch is the pit's spike floor
+
+const LOOP_DURATION_MS = 900; // fixed time to complete a scripted 360° loop, regardless of entry speed
+const LOOP_MIN_EXIT_SPEED = 8; // even a bike that entered slowly exits the loop with at least this much speed
 const CAMERA_LEAD_X = 0.32;
 const CAMERA_FOLLOW_X = 0.09;
 const CAMERA_FOLLOW_Y = 0.08;
@@ -72,6 +75,39 @@ const MAX_STEPS_PER_FRAME = 5; // avoid a "spiral of death" after a tab switch/l
 const EXPLOSION_DURATION = 700;
 const TRAIL_LENGTH = 14; // rear-wheel light-trail particle count
 const HARD_LANDING_VY = 3; // impact speed above which a landing spawns dust + a camera thump
+// Small terrain jitter constantly flickers the wheel-ground contact off and
+// on for a tick or two even though the bike barely left the surface - that
+// used to re-trigger the landing thump every single time. Impact speed on
+// landing tracks how far the wheel actually rose (a harder fall means it
+// had more height to fall from), so gating the sound on a minimum impact
+// speed is the same as gating it on "rose a real amount off the ground":
+// tiny jitter stays silent, an actual hop/jump/gap landing still plays.
+const MIN_LAND_VY = 1.1;
+
+// ---------------- scoring: distance + speed based currency ----------------
+// The world is scaled at PX_PER_METER px per in-game meter (matches
+// GROUND_STEP, so one generated terrain step is roughly one meter) - this
+// is what turns the bike's raw pixel position/velocity into real-feeling
+// meters and km/h for the HUD and the reward math below.
+const PX_PER_METER = 24;
+const TICKS_PER_SECOND = 1000 / FIXED_DT; // physics ticks per real second
+const REWARD_DISTANCE_METERS = 100; // a payout fires every time this many more meters are cleared
+const REWARD_DISTANCE_PX = REWARD_DISTANCE_METERS * PX_PER_METER;
+
+function velocityToKmh(vx) {
+  const metersPerSecond = (vx * TICKS_PER_SECOND) / PX_PER_METER;
+  return Math.max(0, metersPerSecond * 3.6);
+}
+
+// Reward per 100m scales with how fast the bike was going when that
+// stretch was cleared: bottom third of top speed pays 1 unit, middle
+// third pays 2, and the top third (or anything boosting past MAX_SPEED)
+// pays 3 - the ceiling of the 3 tiers, never above 3, never below 1 for
+// genuine forward progress.
+function speedRewardTier(speedFraction) {
+  const fraction = Math.min(1, Math.max(0, speedFraction));
+  return Math.max(1, Math.min(3, Math.ceil(fraction * 3)));
+}
 
 // Matter.js's chassis.angle accumulates without wrapping (it can be well
 // past ±2π after a few flips), so anything that wants to reason about
@@ -188,18 +224,48 @@ function buildTrapBody(trap) {
         collisionFilter: { category: CATEGORY_GROUND, mask: CATEGORY_BIKE },
         label: "ground",
       });
-    case "pendulum":
+    // RED - moving/rotating hazards
+    case "wreckingBall":
       return Bodies.circle(trap.anchorX, trap.anchorY + trap.length, trap.radius, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
       });
-    case "blade":
+    case "sawBlade":
       return Bodies.circle(trap.x, trap.y, trap.radius * 0.85, {
         isStatic: true,
         collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
         label: "trap",
       });
+    case "chaser":
+      return Bodies.circle(trap.x, trap.y, trap.radius, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    case "spikePillars":
+      return Bodies.rectangle((trap.x1 + trap.x2) / 2, trap.y, trap.x2 - trap.x1, trap.height, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    // rotatingBar (red) and swingGate (blue) share the same physical
+    // shape - a bar hanging from a pivot point at (trap.x, trap.y),
+    // pointing straight down at angle 0 - only how updateMovingTraps
+    // animates their angle over time differs.
+    case "rotatingBar":
+    case "swingGate":
+      return Bodies.rectangle(trap.x, trap.y + trap.length / 2, 12, trap.length, {
+        isStatic: true,
+        collisionFilter: { category: CATEGORY_TRAP, mask: CATEGORY_BIKE },
+        label: "trap",
+      });
+    // "loop" is a pure scripted-position stunt with no physics body at
+    // all (see activeLoop handling in stepPhysics) - the ground stays
+    // flat and collidable right through its zone, and the loop ring is
+    // purely visual + a position/angle override triggered by x-crossing.
+    case "loop":
+      return null;
     default:
       return null;
   }
@@ -374,28 +440,52 @@ function drawPlatform(ctx, body) {
   ctx.restore();
 }
 
-function drawPendulum(ctx, trap, body) {
-  ctx.save();
-  ctx.strokeStyle = "rgba(242, 184, 75, 0.6)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(trap.anchorX, trap.anchorY);
-  ctx.lineTo(body.position.x, body.position.y);
-  ctx.stroke();
+// ---- RED: moving/rotating hazards ----
 
-  ctx.shadowColor = "#f2b84b";
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = "#ffd989";
+function drawWreckingBall(ctx, trap, body) {
+  ctx.save();
+  // A few short chain-link segments instead of one plain line, for the
+  // "hanging from chains" read.
+  const linkCount = Math.max(3, Math.round(trap.length / 22));
+  ctx.strokeStyle = "rgba(255, 150, 150, 0.55)";
+  ctx.lineWidth = 3;
+  for (let i = 0; i < linkCount; i++) {
+    const p0 = i / linkCount;
+    const p1 = (i + 1) / linkCount;
+    const x0 = trap.anchorX + (body.position.x - trap.anchorX) * p0;
+    const y0 = trap.anchorY + (body.position.y - trap.anchorY) * p0;
+    const x1 = trap.anchorX + (body.position.x - trap.anchorX) * p1;
+    const y1 = trap.anchorY + (body.position.y - trap.anchorY) * p1;
+    ctx.beginPath();
+    ctx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, 5, 3, Math.atan2(y1 - y0, x1 - x0), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ff6b6b";
   ctx.beginPath();
   ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffb3b3";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(body.position.x + Math.cos(a) * trap.radius, body.position.y + Math.sin(a) * trap.radius);
+    ctx.lineTo(body.position.x + Math.cos(a) * (trap.radius + 7), body.position.y + Math.sin(a) * (trap.radius + 7));
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
-function drawBlade(ctx, trap, elapsed) {
+function drawSawBlade(ctx, trap, elapsed) {
   const angle = elapsed * trap.speed * 1.6;
+  const x = trap.x + (trap.travelX ? Math.sin(elapsed * trap.travelSpeed) * trap.travelX : 0);
   ctx.save();
-  ctx.translate(trap.x, trap.y);
+  ctx.translate(x, trap.y);
   ctx.rotate(angle);
   ctx.shadowColor = "#ff4d4d";
   ctx.shadowBlur = 12;
@@ -421,6 +511,173 @@ function drawBlade(ctx, trap, elapsed) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, 0, trap.radius * 0.25, 0, Math.PI * 2);
+  ctx.fillStyle = "#3b0000";
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawRotatingBar(ctx, trap, body) {
+  ctx.save();
+  ctx.translate(trap.x, trap.y);
+  ctx.rotate(body.angle);
+
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = "#ff8080";
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#ff8080";
+  ctx.lineWidth = 8;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, trap.length);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, trap.length, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#ffb3b3";
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawChaser(ctx, trap, body) {
+  ctx.save();
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 16;
+  ctx.fillStyle = "#ff5c5c";
+  ctx.beginPath();
+  ctx.arc(body.position.x, body.position.y, trap.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "#ffd0d0";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(body.position.x + Math.cos(a) * trap.radius, body.position.y + Math.sin(a) * trap.radius);
+    ctx.lineTo(body.position.x + Math.cos(a) * (trap.radius + 8), body.position.y + Math.sin(a) * (trap.radius + 8));
+    ctx.stroke();
+  }
+  // A little glint so it visually reads as "hunting" rather than just
+  // another spinning saw.
+  ctx.fillStyle = "#fff3d6";
+  ctx.beginPath();
+  ctx.arc(body.position.x + trap.radius * 0.4, body.position.y - trap.radius * 0.2, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSpikePillars(ctx, trap, extension) {
+  ctx.save();
+  ctx.shadowColor = "#ff4d4d";
+  ctx.shadowBlur = 10;
+  ctx.strokeStyle = "#ff8080";
+  ctx.fillStyle = "rgba(255, 77, 77, 0.35)";
+  ctx.lineWidth = 2.5;
+  const pillarWidth = 10;
+  const raisedHeight = trap.height * extension;
+  for (const px of [trap.x1 + pillarWidth, trap.x2 - pillarWidth]) {
+    ctx.beginPath();
+    ctx.rect(px - pillarWidth / 2, trap.y - raisedHeight, pillarWidth, raisedHeight);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(px - pillarWidth / 2 - 3, trap.y - raisedHeight);
+    ctx.lineTo(px, trap.y - raisedHeight - 12);
+    ctx.lineTo(px + pillarWidth / 2 + 3, trap.y - raisedHeight);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- BLUE: timing gates ----
+
+// ---- SPECTACLE: scripted 360° loop ring ----
+// Colored to match the two reference looks: a clean loop glows warm
+// gold, a loop with a saw blade waiting inside glows icy blue-white so
+// it visually reads as "sharper/more dangerous" before you even spot
+// the blade itself.
+function drawLoopRing(ctx, trap) {
+  const centerX = trap.x;
+  const centerY = trap.y - trap.radius;
+  const base = trap.hasSaw ? "#eaf6ff" : "#f2c14e";
+  const bright = trap.hasSaw ? "#9fd8ff" : "#ffd989";
+
+  ctx.save();
+  ctx.shadowColor = base;
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = base;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, trap.radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.shadowBlur = 8;
+  ctx.strokeStyle = bright;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, trap.radius - 5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // A few small glowing marker pips around the ring, matching the
+  // reference images' diamond accents - purely decorative.
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = bright;
+  const pipCount = 5;
+  for (let i = 0; i < pipCount; i++) {
+    const a = (i / pipCount) * Math.PI * 2 - Math.PI / 2;
+    const px = centerX + Math.cos(a) * (trap.radius + 14);
+    const py = centerY + Math.sin(a) * (trap.radius + 14);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-4, -4, 8, 8);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function drawSwingGate(ctx, trap, body, openFraction) {
+  ctx.save();
+  ctx.translate(trap.x, trap.y);
+  ctx.rotate(body.angle);
+
+  // Dim and translucent while open (low visual weight - it's safe right
+  // now), bright and bold while closing/closed (it reads as active
+  // danger exactly when it is one).
+  const closedness = 1 - openFraction;
+  ctx.shadowColor = "#3b9dff";
+  ctx.shadowBlur = 8 + closedness * 12;
+  ctx.fillStyle = "#4fb0ff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = openFraction > 0.7 ? "rgba(79, 176, 255, 0.35)" : "#4fb0ff";
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, trap.length);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, trap.length, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#bfe3ff";
+  ctx.fill();
   ctx.restore();
 }
 
@@ -700,17 +957,23 @@ function drawSpeedLines(ctx, lines, width, boosted) {
   ctx.restore();
 }
 
-function drawHud(ctx, seconds, width, pulseFraction) {
+// Three-part HUD: instant speed on the left, distance covered in the
+// center pill, and the running total of money earned this run on the
+// right - all live, all updating every frame.
+function drawHud(ctx, hud, width, pulseFraction) {
+  const { speedKmh, distanceMeters, money } = hud;
+
+  // ---- center: distance pill (same pill chrome the old timer used) ----
   ctx.save();
-  const label = `⏱ ${seconds}s`;
+  const label = `${Math.floor(distanceMeters)}m`;
   ctx.font = "700 20px 'IBM Plex Mono', monospace";
   const textWidth = ctx.measureText(label).width;
   const pillWidth = textWidth + 32;
   const pillCenterX = width / 2;
   const pillCenterY = 14 + 18;
 
-  // Brief scale-up pulse right when a 10s currency milestone hits, so
-  // the counter itself visibly celebrates the moment instead of just
+  // Brief scale-up pulse right when a 100m currency payout hits, so the
+  // counter itself visibly celebrates the moment instead of just
   // silently ticking - decays back to normal over ~400ms (see caller).
   const scale = 1 + pulseFraction * 0.28;
   ctx.translate(pillCenterX, pillCenterY);
@@ -736,6 +999,34 @@ function drawHud(ctx, seconds, width, pulseFraction) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label, width / 2, 14 + 18);
+  ctx.restore();
+
+  // ---- left: live instantaneous speed ----
+  ctx.save();
+  ctx.font = "600 13px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const speedLabel = `${Math.round(speedKmh)} km/h`;
+  const speedTextWidth = ctx.measureText(speedLabel).width;
+  ctx.fillStyle = "rgba(20, 6, 14, 0.55)";
+  roundedRectPath(ctx, 10, 16, speedTextWidth + 20, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = "#bdeaff";
+  ctx.fillText(speedLabel, 20, 29);
+  ctx.restore();
+
+  // ---- right: total money earned so far this run ----
+  ctx.save();
+  ctx.font = "700 13px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  const moneyLabel = `${money} VɎ`;
+  const moneyTextWidth = ctx.measureText(moneyLabel).width;
+  ctx.fillStyle = "rgba(20, 6, 14, 0.55)";
+  roundedRectPath(ctx, width - 10 - (moneyTextWidth + 20), 16, moneyTextWidth + 20, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = "#ffe07a";
+  ctx.fillText(moneyLabel, width - 20, 29);
   ctx.restore();
 }
 
@@ -947,11 +1238,51 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (trap.type === "platform") {
           const y = trap.y - trap.height + Math.sin(elapsed * trap.speed) * trap.travel;
           Body.setPosition(runtime.body, { x: trap.x, y });
-        } else if (trap.type === "pendulum") {
+        } else if (trap.type === "wreckingBall") {
           const angle = Math.sin(elapsed * trap.speed + trap.phase) * 1.15;
           const x = trap.anchorX + Math.sin(angle) * trap.length;
           const y = trap.anchorY + Math.cos(angle) * trap.length;
           Body.setPosition(runtime.body, { x, y });
+        } else if (trap.type === "sawBlade") {
+          const x = trap.x + (trap.travelX ? Math.sin(elapsed * trap.travelSpeed) * trap.travelX : 0);
+          Body.setPosition(runtime.body, { x, y: trap.y });
+        } else if (trap.type === "rotatingBar") {
+          const angle = elapsed * trap.speed + trap.phase;
+          const midX = trap.x + Math.sin(angle) * (trap.length / 2);
+          const midY = trap.y + Math.cos(angle) * (trap.length / 2);
+          Body.setPosition(runtime.body, { x: midX, y: midY });
+          Body.setAngle(runtime.body, angle);
+        } else if (trap.type === "swingGate") {
+          // Asymmetric duty cycle: open (out of the way) for just over
+          // half the cycle, a clear swing-closed telegraph, a held-closed
+          // window, then swing back open - always a generous, readable
+          // window to actually get through.
+          const cyclePos = (((elapsed + trap.phase) % trap.period) + trap.period) % trap.period / trap.period;
+          let swing;
+          if (cyclePos < 0.5) swing = 0;
+          else if (cyclePos < 0.65) swing = (cyclePos - 0.5) / 0.15;
+          else if (cyclePos < 0.85) swing = 1;
+          else swing = 1 - (cyclePos - 0.85) / 0.15;
+          const angle = swing * Math.PI; // 0 = pointing up (open), PI = pointing down (blocking)
+          const midX = trap.x + Math.sin(angle) * (trap.length / 2);
+          const midY = trap.y - Math.cos(angle) * (trap.length / 2);
+          Body.setPosition(runtime.body, { x: midX, y: midY });
+          Body.setAngle(runtime.body, angle);
+          runtime.openFraction = 1 - swing;
+        } else if (trap.type === "chaser") {
+          // Mutate trap.x directly (not just runtime state) so
+          // pruneBehind - which reads trap.x - always agrees with where
+          // this hazard actually, currently is, instead of judging it by
+          // a stale spawn position from way back down the track.
+          const targetX = bike.chassis.position.x - 90;
+          trap.x += (targetX - trap.x) * trap.followLag;
+          const y = trap.y + Math.sin(elapsed * trap.bobSpeed) * trap.bobAmount;
+          Body.setPosition(runtime.body, { x: trap.x, y });
+        } else if (trap.type === "spikePillars") {
+          const extension = (Math.sin((elapsed * Math.PI * 2) / trap.period + trap.phase) + 1) / 2;
+          const centerY = trap.y + trap.height / 2 - trap.height * extension;
+          Body.setPosition(runtime.body, { x: (trap.x1 + trap.x2) / 2, y: centerY });
+          runtime.extension = extension;
         }
       }
     }
@@ -966,12 +1297,18 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let gameOverFired = false;
     let explosionStartedAt = null;
     let explosionParticles = [];
-    let pendingScore = 0;
+    let pendingResult = { distanceMeters: 0, money: 0 };
+
+    // ---- distance + speed based currency tracking ----
+    const startX = bike.chassis.position.x; // matches createBike's spawn x above
+    let distanceMeters = 0;
+    let moneyEarned = 0;
+    let nextRewardAtPx = REWARD_DISTANCE_PX;
 
     function triggerCrash(elapsedSeconds) {
       if (crashed) return;
       crashed = true;
-      pendingScore = Math.max(0, Math.floor(elapsedSeconds));
+      pendingResult = { distanceMeters: Math.floor(distanceMeters), money: moneyEarned };
       explosionStartedAt = performance.now();
       explosionParticles = createExplosionParticles(bike.chassis.position.x, bike.chassis.position.y);
       playCrash();
@@ -1153,9 +1490,13 @@ export default function GameCanvas({ onGameOver, onQuit }) {
     let hasLandedOnce = false;
     let msSinceGrounded = 0; // ms since ANY wheel last touched ground - drives JUMP_COYOTE_MS below
     let justJumped = false; // true only on the exact tick a jump fires - see the ground-lock clamp below
+
+    // Scripted 360° loop state - see the SPECTACLE section in terrain.js
+    // for why this is a guaranteed animation rather than raw physics.
+    // null when no loop is in progress.
+    let activeLoop = null;
     let lastAirborneVy = 0; // velocity.y as of the last tick we were still airborne - see landing detection below
     let landingShake = 0; // decays each frame; added on top of the speed-based camera shake
-    let lastScoreMilestone = 0;
     let scorePulseRemaining = 0; // ms left in the current HUD pulse - see drawHud
     const trail = [];
     let dustParticles = [];
@@ -1177,11 +1518,30 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       else msSinceGrounded += dtMs;
       const canJump = grounded || msSinceGrounded <= JUMP_COYOTE_MS;
 
-      const milestone = Math.floor(elapsedRef / 10);
-      if (milestone > lastScoreMilestone) {
-        lastScoreMilestone = milestone;
-        scorePulseRemaining = 400;
-        playScore();
+      // ---- scripted loop trigger ----
+      // Only checked while grounded and moving forward at a real clip,
+      // and only when no loop is already in progress - see the
+      // SPECTACLE section in terrain.js for why this is scripted rather
+      // than raw physics. trap.triggered guards against re-triggering
+      // the same loop a second time later (e.g. if somehow re-approached).
+      if (!activeLoop && grounded && bike.chassis.velocity.x > 2) {
+        for (const trap of terrain.traps) {
+          if (trap.type !== "loop" || trap.triggered) continue;
+          if (Math.abs(bike.chassis.position.x - trap.x) < 6) {
+            trap.triggered = true;
+            const wheelSpan = Math.hypot(
+              bike.frontWheel.position.x - bike.rearWheel.position.x,
+              bike.frontWheel.position.y - bike.rearWheel.position.y
+            );
+            activeLoop = {
+              trap,
+              elapsed: 0,
+              exitSpeed: Math.max(bike.chassis.velocity.x, LOOP_MIN_EXIT_SPEED),
+              wheelAngleOffset: wheelSpan / 2 / trap.radius, // half-wheelbase as an angle around the loop's circle
+            };
+            break;
+          }
+        }
       }
 
       // Landing detection - by the time `grounded` flips true here, the
@@ -1189,9 +1549,11 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       // tick, so we use whatever velocity was recorded on the LAST tick
       // we were still genuinely airborne (lastAirborneVy) as the impact
       // speed instead.
-      if (!wasGrounded && grounded) {
+      if (!activeLoop && !wasGrounded && grounded) {
         const impact = Math.abs(lastAirborneVy);
-        playLand(impact / HARD_LANDING_VY);
+        if (impact >= MIN_LAND_VY) {
+          playLand(impact / HARD_LANDING_VY);
+        }
         if (impact > HARD_LANDING_VY) {
           dustParticles.push(
             ...createLandingDust(bike.rearWheel.position.x, bike.rearWheel.position.y, impact / HARD_LANDING_VY)
@@ -1201,8 +1563,25 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       }
 
       const speedFraction = Math.min(1, Math.max(0, bike.chassis.velocity.x / MAX_SPEED));
-      updateEngine(grounded && gasRef.current, speedFraction);
+      updateEngine((grounded || activeLoop) && gasRef.current, speedFraction);
 
+      // ---- distance + speed based currency ----
+      // Distance is the furthest the bike has ever reached (never drops
+      // if it bounces back a touch), and every REWARD_DISTANCE_PX of that
+      // triggers a payout sized by however fast the bike was going right
+      // now - see speedRewardTier. The while-loop (not an if) covers a
+      // single fast/boosted tick that crosses more than one 100m mark at
+      // once, so no payout ever gets skipped.
+      const traveledMeters = Math.max(0, (bike.chassis.position.x - startX) / PX_PER_METER);
+      if (traveledMeters > distanceMeters) distanceMeters = traveledMeters;
+      while (distanceMeters * PX_PER_METER >= nextRewardAtPx) {
+        moneyEarned += speedRewardTier(speedFraction);
+        nextRewardAtPx += REWARD_DISTANCE_PX;
+        scorePulseRemaining = 400;
+        playScore();
+      }
+
+      if (!activeLoop) {
       // ---- boost: timers + the actual speed effect ----
       // Deliberately NOT gated on grounded/airborne, and NOT locked to the
       // +x axis - a boost pushes velocity toward boostDirX/boostDirY (the
@@ -1291,6 +1670,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         // going into the jump.
         Body.setAngularVelocity(bike.chassis, bike.chassis.angularVelocity * (1 - AUTO_LEVEL_DAMPING));
       }
+      } // end if (!activeLoop)
 
       wasGrounded = grounded;
       if (!grounded) lastAirborneVy = bike.chassis.velocity.y;
@@ -1313,8 +1693,60 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       // this tick's collisions (which is exactly where a bump would have
       // injected an upward kick), so this is the right place to cancel
       // any of that back out.
-      if (grounded && !justJumped && bike.chassis.velocity.y < 0) {
+      if (!activeLoop && grounded && !justJumped && bike.chassis.velocity.y < 0) {
         Body.setVelocity(bike.chassis, { x: bike.chassis.velocity.x, y: 0 });
+      }
+
+      // ---- scripted loop: the actual takeover ----
+      // Runs AFTER Engine.update so it has the final say regardless of
+      // whatever gravity/collision did to the bike's bodies this tick -
+      // for the loop's fixed duration, the bike's position/angle is a
+      // pure function of elapsed time on a parametric circle, not a
+      // physics simulation. See the SPECTACLE section in terrain.js.
+      if (activeLoop) {
+        activeLoop.elapsed += dtMs;
+        const p = Math.min(1, activeLoop.elapsed / LOOP_DURATION_MS);
+        const { trap, wheelAngleOffset, exitSpeed } = activeLoop;
+        const R = trap.radius;
+        const centerX = trap.x;
+        const centerY = trap.y - R;
+        const theta = p * Math.PI * 2;
+
+        const pointOnCircle = (a) => ({
+          x: centerX + R * Math.sin(a),
+          y: centerY + R * Math.cos(a),
+        });
+
+        const chassisPos = pointOnCircle(theta);
+        const facing = -theta; // tangent direction; matches the boost/CyberBike nose-direction convention
+        Body.setPosition(bike.chassis, chassisPos);
+        Body.setAngle(bike.chassis, facing);
+        Body.setVelocity(bike.chassis, { x: 0, y: 0 });
+        Body.setAngularVelocity(bike.chassis, 0);
+
+        const rearPos = pointOnCircle(theta - wheelAngleOffset);
+        const frontPos = pointOnCircle(theta + wheelAngleOffset);
+        Body.setPosition(bike.rearWheel, rearPos);
+        Body.setPosition(bike.frontWheel, frontPos);
+        Body.setVelocity(bike.rearWheel, { x: 0, y: 0 });
+        Body.setVelocity(bike.frontWheel, { x: 0, y: 0 });
+        Body.setAngularVelocity(bike.rearWheel, 0);
+        Body.setAngularVelocity(bike.frontWheel, 0);
+
+        if (p >= 1) {
+          // Hand control back exactly where the loop started, moving
+          // level at (at least) whatever speed it entered with.
+          Body.setPosition(bike.chassis, { x: trap.x, y: trap.y });
+          Body.setAngle(bike.chassis, 0);
+          Body.setVelocity(bike.chassis, { x: exitSpeed, y: 0 });
+          const rearRest = { x: trap.x - wheelAngleOffset * R, y: trap.y };
+          const frontRest = { x: trap.x + wheelAngleOffset * R, y: trap.y };
+          Body.setPosition(bike.rearWheel, rearRest);
+          Body.setPosition(bike.frontWheel, frontRest);
+          Body.setVelocity(bike.rearWheel, { x: exitSpeed, y: 0 });
+          Body.setVelocity(bike.frontWheel, { x: exitSpeed, y: 0 });
+          activeLoop = null;
+        }
       }
 
       if (bike.chassis.position.y > terrain.baseline + FALL_DEATH_OFFSET) {
@@ -1353,7 +1785,7 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         }
         if (explosionAge > EXPLOSION_DURATION && !gameOverFired) {
           gameOverFired = true;
-          onGameOverRef.current(pendingScore);
+          onGameOverRef.current(pendingResult);
         }
       }
 
@@ -1445,8 +1877,13 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         if (trap.type === "spike") drawSpike(ctx, trap);
         else if (trap.type === "pitfloor") drawPitFloor(ctx, trap);
         else if (trap.type === "platform" && runtime) drawPlatform(ctx, runtime.body);
-        else if (trap.type === "pendulum" && runtime) drawPendulum(ctx, trap, runtime.body);
-        else if (trap.type === "blade") drawBlade(ctx, trap, elapsedRef);
+        else if (trap.type === "wreckingBall" && runtime) drawWreckingBall(ctx, trap, runtime.body);
+        else if (trap.type === "sawBlade") drawSawBlade(ctx, trap, elapsedRef);
+        else if (trap.type === "rotatingBar" && runtime) drawRotatingBar(ctx, trap, runtime.body);
+        else if (trap.type === "chaser" && runtime) drawChaser(ctx, trap, runtime.body);
+        else if (trap.type === "spikePillars" && runtime) drawSpikePillars(ctx, trap, runtime.extension ?? 0);
+        else if (trap.type === "swingGate" && runtime) drawSwingGate(ctx, trap, runtime.body, runtime.openFraction ?? 1);
+        else if (trap.type === "loop") drawLoopRing(ctx, trap);
       }
 
       drawExplosion(ctx, dustParticles);
@@ -1470,7 +1907,16 @@ export default function GameCanvas({ onGameOver, onQuit }) {
         ctx.restore();
       }
       drawSpeedLines(ctx, speedLines, viewWidth, boostActive);
-      drawHud(ctx, Math.floor(elapsedRef), canvas.width / dpr, scorePulseRemaining / 400);
+      drawHud(
+        ctx,
+        {
+          speedKmh: velocityToKmh(bike.chassis.velocity.x),
+          distanceMeters,
+          money: moneyEarned,
+        },
+        canvas.width / dpr,
+        scorePulseRemaining / 400
+      );
       drawBoostBar(ctx, viewWidth, 1 - boostCooldownRemaining / BOOST_COOLDOWN_MS, boostActive);
       ctx.restore();
 
@@ -1504,7 +1950,6 @@ export default function GameCanvas({ onGameOver, onQuit }) {
       <button type="button" className="rider-game__quit" onClick={onQuit}>
         ✕
       </button>
-      <p className="rider-game__hint">Hold right to accelerate · tap left to jump · double-tap to boost</p>
     </div>
   );
 }

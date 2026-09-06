@@ -5,11 +5,12 @@ import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
 import TaskPanel from "./TaskPanel.jsx";
 import { SkeletonRowList } from "./SkeletonRow.jsx";
 
-function PlayerRow({ rank, row, metric, onSelectPlayer }) {
+function PlayerRow({ rank, row, metric, index, onSelectPlayer }) {
   return (
     <button
       type="button"
-      className="leaderboard-row leaderboard-row--flat leaderboard-row--player"
+      className="leaderboard-row leaderboard-row--flat leaderboard-row--player card-build"
+      style={{ "--i": index }}
       onClick={() => onSelectPlayer(row.user_id)}
     >
       <span className="leaderboard-row__rank">#{rank}</span>
@@ -67,7 +68,7 @@ export default function LeaderboardTab({ notify }) {
         </button>
       </div>
 
-      <div className="leaderboard-list">
+      <div className="leaderboard-list build-fade-only">
         {mode === "collectors" ? (
           collectors === null ? (
             <SkeletonRowList count={6} />
@@ -80,6 +81,7 @@ export default function LeaderboardTab({ notify }) {
                 rank={index + 1}
                 row={row}
                 metric={`${row.card_count} 🧑`}
+                index={index}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))
@@ -95,6 +97,7 @@ export default function LeaderboardTab({ notify }) {
               rank={index + 1}
               row={row}
               metric={`${row.balance} VɎ`}
+              index={index}
               onSelectPlayer={setSelectedPlayerId}
             />
           ))

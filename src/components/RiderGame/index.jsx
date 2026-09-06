@@ -6,27 +6,56 @@ const STAGE_INTRO = "intro";
 const STAGE_PLAYING = "playing";
 const STAGE_RESULT = "result";
 
+// Best money earned in a single run, kept locally on-device (no
+// leaderboard/API for this yet) so the intro screen has something to show
+// even the very first time this loads on a given phone.
+const BEST_SCORE_KEY = "riderGame.bestMoney";
+
+function readBestScore() {
+  try {
+    const raw = window.localStorage.getItem(BEST_SCORE_KEY);
+    const parsed = raw === null ? 0 : Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0; // storage unavailable (e.g. private mode) - just don't persist
+  }
+}
+
+function writeBestScore(money) {
+  try {
+    window.localStorage.setItem(BEST_SCORE_KEY, String(money));
+  } catch {
+    /* storage unavailable - ignore */
+  }
+}
+
 export default function RiderGame({ notify, onBalanceChange }) {
   const [stage, setStage] = useState(STAGE_INTRO);
   const [result, setResult] = useState(null);
   const [runKey, setRunKey] = useState(0);
+  const [bestScore, setBestScore] = useState(readBestScore);
 
   function startRun() {
     setResult(null);
     setStage(STAGE_PLAYING);
   }
 
-  async function handleGameOver(score) {
+  async function handleGameOver({ distanceMeters, money }) {
     setStage(STAGE_RESULT);
-    setResult({ score, reward: 0, loading: true });
+    setResult({ distanceMeters, reward: money, loading: true });
 
-    const outcome = await submitRiderRun(score);
+    if (money > bestScore) {
+      setBestScore(money);
+      writeBestScore(money);
+    }
+
+    const outcome = await submitRiderRun({ distanceMeters, money });
     if (outcome.ok) {
-      setResult({ score: outcome.score, reward: outcome.reward, loading: false });
+      setResult({ distanceMeters: outcome.distanceMeters, reward: outcome.reward, loading: false });
       onBalanceChange?.(outcome.newBalance);
       if (outcome.reward > 0) notify?.("success");
     } else {
-      setResult({ score, reward: 0, loading: false, failed: true });
+      setResult({ distanceMeters, reward: money, loading: false, failed: true });
     }
   }
 
@@ -40,13 +69,35 @@ export default function RiderGame({ notify, onBalanceChange }) {
       {stage === STAGE_INTRO && (
         <div className="rider-game__intro">
           <h1 className="brand-title">🏍 NEON RIDER</h1>
+
+          {bestScore > 0 && (
+            <div className="rider-game__best">
+              <span className="rider-game__best-label">Best run</span>
+              <span className="rider-game__best-value">{bestScore} VɎ</span>
+            </div>
+          )}
+
+          <div className="rider-game__controls">
+            <div className="rider-game__controls-row">
+              <span className="rider-game__controls-key">Hold right</span>
+              <span>accelerate</span>
+            </div>
+            <div className="rider-game__controls-row">
+              <span className="rider-game__controls-key">Tap left</span>
+              <span>jump - keeps your speed if you were moving, hops straight up if not</span>
+            </div>
+            <div className="rider-game__controls-row">
+              <span className="rider-game__controls-key">Double-tap</span>
+              <span>speed boost</span>
+            </div>
+          </div>
+
           <p className="rider-game__intro-text">
-            Hold anywhere to accelerate. Double-tap to jump - moving keeps its speed in the
-            air, standing still just hops straight up. Clear the gaps, don't land on your
-            frame.
+            Clear the gaps, don't land on your frame.
           </p>
           <p className="rider-game__intro-text rider-game__intro-text--dim">
-            +1 VɎ for every 10 seconds you survive. No finish line - just go as far as you can.
+            Every 100m earns VɎ - the faster you're going, the more it pays (up to 3× at top
+            speed). No finish line - just go as far and as fast as you can.
           </p>
           <button type="button" className="sheet-button sheet-button--confirm rider-game__start" onClick={startRun}>
             ▶ Start ride
@@ -67,8 +118,8 @@ export default function RiderGame({ notify, onBalanceChange }) {
             </p>
             <div className="confirm-sheet__ledger">
               <div className="confirm-sheet__ledger-row">
-                <span>Time survived</span>
-                <span>{result.score}s</span>
+                <span>Distance</span>
+                <span>{result.distanceMeters}m</span>
               </div>
               <div className="confirm-sheet__ledger-row" data-emphasis="true">
                 <span>Reward</span>

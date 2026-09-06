@@ -105,6 +105,10 @@ const TABS = [
   { id: "arena", label: "Arena", Icon: ArenaIcon },
 ];
 
+// Exported so App.jsx can tell which way a tab switch "moved" (for the
+// directional tab-build slide animation) without duplicating this list.
+export const TAB_ORDER = TABS.map((tab) => tab.id);
+
 export default function BottomNav({ active, onChange }) {
   const { haptic } = useTelegram();
 

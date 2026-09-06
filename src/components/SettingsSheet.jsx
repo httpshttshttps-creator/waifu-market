@@ -8,8 +8,9 @@ const THEMES = [
   {
     id: "seraphim",
     name: "Seraphim",
-    tagline: "Gilded halls of the faithful",
+    tagline: "Gilded & radiant - premium",
     swatch: ["#fff8e7", "#e8b923"],
+    premium: true,
   },
   {
     id: "tenebris",
@@ -20,7 +21,7 @@ const THEMES = [
   },
 ];
 
-export default function SettingsSheet({ open, onClose, theme, onSelectTheme }) {
+export default function SettingsSheet({ open, onClose, theme = "default", onThemeChange }) {
   if (!open) return null;
 
   return (
@@ -43,14 +44,20 @@ export default function SettingsSheet({ open, onClose, theme, onSelectTheme }) {
                   className="theme-option"
                   data-active={active || undefined}
                   data-locked={t.comingSoon || undefined}
+                  data-premium={t.premium || undefined}
                   disabled={t.comingSoon}
-                  onClick={() => !t.comingSoon && onSelectTheme(t.id)}
+                  onClick={() => {
+                    if (!t.comingSoon) onThemeChange?.(t.id);
+                  }}
                 >
                   <span
                     className="theme-option__swatch"
                     style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
                   >
                     {t.comingSoon && <span className="theme-option__lock">⏳</span>}
+                    {!t.comingSoon && t.premium && !active && (
+                      <span className="theme-option__lock theme-option__lock--premium">✦</span>
+                    )}
                     {active && <span className="theme-option__check">✓</span>}
                   </span>
                   <span className="theme-option__name">{t.name}</span>
