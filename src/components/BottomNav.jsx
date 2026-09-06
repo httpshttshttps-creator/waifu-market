@@ -82,7 +82,11 @@ function ArenaIcon({ active }) {
 }
 
 const TABS = [
-  { id: "home", label: "Home", Icon: HomeIcon },
+  // hideLabel: this tab's icon graphic already contains its own label
+  // text baked into the artwork (see nav-home-seraphim.png), so the
+  // separate <span> text underneath would be redundant - the button
+  // keeps an aria-label instead so it's still announced for screen readers.
+  { id: "home", label: "Home", Icon: HomeIcon, hideLabel: true },
   { id: "market", label: "Market", Icon: MarketIcon },
   { id: "game", label: "Ride", Icon: GameIcon },
   { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
@@ -111,10 +115,12 @@ export default function BottomNav({ active, onChange }) {
             type="button"
             className="bottom-nav__item"
             data-active={isActive}
+            data-image-only={tab.hideLabel || undefined}
+            aria-label={tab.hideLabel ? tab.label : undefined}
             onClick={() => handleChange(tab.id)}
           >
             <tab.Icon active={isActive} />
-            <span>{tab.label}</span>
+            {!tab.hideLabel && <span>{tab.label}</span>}
           </button>
         );
       })}
