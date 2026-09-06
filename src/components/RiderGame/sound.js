@@ -106,11 +106,11 @@ export function updateEngine(active, speedFraction) {
   if (!engineOsc) return;
 
   if (active) {
-    // Louder still - bumped again (and again) so the engine is loud and
-    // unmistakable the moment gas is held, not just once speed builds up.
+    // Louder still - bumped again so the engine is unmistakable the
+    // moment gas is held, not just once speed builds up.
     const freq = 90 + speedFraction * 170;
-    const filterFreq = 550 + speedFraction * 800;
-    const volume = 0.3 + speedFraction * 0.26;
+    const filterFreq = 500 + speedFraction * 700;
+    const volume = 0.16 + speedFraction * 0.14;
     engineOsc.frequency.setTargetAtTime(freq, ctx.currentTime, 0.08);
     engineFilter.frequency.setTargetAtTime(filterFreq, ctx.currentTime, 0.08);
     engineGain.gain.setTargetAtTime(volume, ctx.currentTime, 0.08);

@@ -25,9 +25,9 @@ function TeamSlots({ team, onEdit }) {
     <div className="arena-team-slots" onClick={onEdit} role="button">
       {slots.map((card, i) =>
         card ? (
-          <ArenaFighterCard key={card.user_character_id} card={card} index={i} />
+          <ArenaFighterCard key={card.user_character_id} card={card} />
         ) : (
-          <div key={`empty-${i}`} className="arena-team-slot--empty card-build" style={{ "--i": i }}>
+          <div key={`empty-${i}`} className="arena-team-slot--empty">
             <span>+</span>
           </div>
         )
@@ -236,7 +236,7 @@ export default function ArenaTab({ notify, onNavigate }) {
         </div>
       )}
 
-      <section className="arena-team-section build-fade-only">
+      <section className="arena-team-section">
         <div className="arena-team-section__head">
           <h3>⚔ Attack Team</h3>
           <button type="button" className="arena-edit-btn" onClick={() => openPicker("attack")}>
@@ -246,7 +246,7 @@ export default function ArenaTab({ notify, onNavigate }) {
         <TeamSlots team={teams.attack} onEdit={() => openPicker("attack")} />
       </section>
 
-      <section className="arena-team-section build-fade-only">
+      <section className="arena-team-section">
         <div className="arena-team-section__head">
           <h3>🛡 Defense Team</h3>
           <button type="button" className="arena-edit-btn" onClick={() => openPicker("defense")}>

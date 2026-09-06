@@ -16,13 +16,12 @@ export default function OwnedGrid({ cards, sellPrices, onSell, onBrowseMarket })
 
   return (
     <div className="card-grid">
-      {cards.map((character, index) => (
+      {cards.map((character) => (
         <OwnedCard
           key={character.id}
           character={character}
           sellPrice={sellPrices ? sellPrices[character.rarity] || 0 : 0}
           onSell={onSell}
-          index={index}
         />
       ))}
     </div>
