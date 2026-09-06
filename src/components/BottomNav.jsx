@@ -1,24 +1,8 @@
 import { useTelegram } from "../hooks/useTelegram.js";
+import navHomeSeraphim from "../assets/nav-home-seraphim.png";
 
-function HomeIcon({ active }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M4 11.5 12 4l8 7.5"
-        stroke="currentColor"
-        strokeWidth={active ? 2.4 : 2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M6 10v8.5a1 1 0 0 0 1 1h3.5v-5a1.5 1.5 0 0 1 1.5-1.5v0a1.5 1.5 0 0 1 1.5 1.5v5H17a1 1 0 0 0 1-1V10"
-        stroke="currentColor"
-        strokeWidth={active ? 2.4 : 2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+function HomeIcon() {
+  return <img src={navHomeSeraphim} alt="" className="bottom-nav__home-icon" />;
 }
 
 function MarketIcon({ active }) {
