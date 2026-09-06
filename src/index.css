@@ -850,11 +850,11 @@ button {
 
 .bottom-nav__item[data-image-only="true"] {
   justify-content: center;
-  padding: 3px 6px;
+  padding: 0 4px;
 }
 
 .bottom-nav__home-icon {
-  height: 44px;
+  height: 68px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
