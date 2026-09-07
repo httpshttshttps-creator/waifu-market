@@ -2,8 +2,37 @@ import { useTelegram } from "../hooks/useTelegram.js";
 import navHomeSeraphim from "../assets/nav-home-seraphim.png";
 import navRideSeraphim from "../assets/nav-ride-seraphim.png";
 
-function HomeIcon() {
+// Classic theme's original vector icon for the home tab.
+function HomeIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 11.5 12 4l8 7.5"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6 10v8.5a1 1 0 0 0 1 1h3.5v-5a1.5 1.5 0 0 1 1.5-1.5v0a1.5 1.5 0 0 1 1.5 1.5v5H17a1 1 0 0 0 1-1V10"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// Seraphim-only replacement icons - full artwork, own label baked in, no
+// separate text underneath. Only ever used when theme === "seraphim" (see
+// TABS/render logic below), so the classic theme never sees these.
+function SeraphimHomeIcon() {
   return <img src={navHomeSeraphim} alt="" className="bottom-nav__home-icon" />;
+}
+
+function SeraphimRideIcon() {
+  return <img src={navRideSeraphim} alt="" className="bottom-nav__ride-icon" />;
 }
 
 function MarketIcon({ active }) {
@@ -52,8 +81,20 @@ function TrophyIcon({ active }) {
   );
 }
 
-function GameIcon() {
-  return <img src={navRideSeraphim} alt="" className="bottom-nav__ride-icon" />;
+function GameIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="7" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
+      <circle cx="17" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
+      <path
+        d="M9.2 15.5h5.6M9.5 15 12 8h3.5l2 3"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function ArenaIcon({ active }) {
@@ -71,13 +112,13 @@ function ArenaIcon({ active }) {
 }
 
 const TABS = [
-  // hideLabel: this tab's icon graphic already contains its own label
-  // text baked into the artwork (see nav-home-seraphim.png), so the
-  // separate <span> text underneath would be redundant - the button
-  // keeps an aria-label instead so it's still announced for screen readers.
-  { id: "home", label: "Home", Icon: HomeIcon, hideLabel: true },
+  // seraphimIcon: only used when the active theme is "seraphim" (see
+  // render below) - full artwork with its own label baked in, so the
+  // separate <span> text underneath is skipped for that theme only.
+  // Classic theme always uses `Icon` + the text label, untouched.
+  { id: "home", label: "Home", Icon: HomeIcon, seraphimIcon: SeraphimHomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon },
-  { id: "game", label: "Ride", Icon: GameIcon, hideLabel: true },
+  { id: "game", label: "Ride", Icon: GameIcon, seraphimIcon: SeraphimRideIcon },
   { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
   { id: "arena", label: "Arena", Icon: ArenaIcon },
 ];
@@ -86,7 +127,7 @@ const TABS = [
 // directional tab-build slide animation) without duplicating this list.
 export const TAB_ORDER = TABS.map((tab) => tab.id);
 
-export default function BottomNav({ active, onChange }) {
+export default function BottomNav({ active, onChange, theme = "default" }) {
   const { haptic } = useTelegram();
 
   function handleChange(tabId) {
@@ -98,18 +139,20 @@ export default function BottomNav({ active, onChange }) {
     <nav className="bottom-nav">
       {TABS.map((tab) => {
         const isActive = active === tab.id;
+        const useSeraphimIcon = theme === "seraphim" && Boolean(tab.seraphimIcon);
+        const IconComponent = useSeraphimIcon ? tab.seraphimIcon : tab.Icon;
         return (
           <button
             key={tab.id}
             type="button"
             className="bottom-nav__item"
             data-active={isActive}
-            data-image-only={tab.hideLabel || undefined}
-            aria-label={tab.hideLabel ? tab.label : undefined}
+            data-image-only={useSeraphimIcon || undefined}
+            aria-label={useSeraphimIcon ? tab.label : undefined}
             onClick={() => handleChange(tab.id)}
           >
-            <tab.Icon active={isActive} />
-            {!tab.hideLabel && <span>{tab.label}</span>}
+            <IconComponent active={isActive} />
+            {!useSeraphimIcon && <span>{tab.label}</span>}
           </button>
         );
       })}

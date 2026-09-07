@@ -272,7 +272,7 @@ export default function App() {
       </div>
       </div>
 
-      <BottomNav active={activeTab} onChange={changeTab} />
+      <BottomNav active={activeTab} onChange={changeTab} theme={theme} />
 
       <BuyConfirmSheet
         character={selectedCharacter}
