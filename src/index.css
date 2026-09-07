@@ -856,7 +856,8 @@ button {
   padding: 3px 6px;
 }
 
-.bottom-nav__home-icon {
+.bottom-nav__home-icon,
+.bottom-nav__ride-icon {
   height: 100%;
   width: auto;
   max-width: 100%;
@@ -865,7 +866,8 @@ button {
   transition: transform 0.15s ease;
 }
 
-.bottom-nav__item[data-active="true"] .bottom-nav__home-icon {
+.bottom-nav__item[data-active="true"] .bottom-nav__home-icon,
+.bottom-nav__item[data-active="true"] .bottom-nav__ride-icon {
   transform: translateY(-1px) scale(1.08);
 }
 

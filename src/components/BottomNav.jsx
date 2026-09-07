@@ -1,5 +1,6 @@
 import { useTelegram } from "../hooks/useTelegram.js";
 import navHomeSeraphim from "../assets/nav-home-seraphim.png";
+import navRideSeraphim from "../assets/nav-ride-seraphim.png";
 
 function HomeIcon() {
   return <img src={navHomeSeraphim} alt="" className="bottom-nav__home-icon" />;
@@ -51,20 +52,8 @@ function TrophyIcon({ active }) {
   );
 }
 
-function GameIcon({ active }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-      <circle cx="7" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
-      <circle cx="17" cy="15.5" r="2.6" stroke="currentColor" strokeWidth={active ? 2.4 : 2} />
-      <path
-        d="M9.2 15.5h5.6M9.5 15 12 8h3.5l2 3"
-        stroke="currentColor"
-        strokeWidth={active ? 2.4 : 2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+function GameIcon() {
+  return <img src={navRideSeraphim} alt="" className="bottom-nav__ride-icon" />;
 }
 
 function ArenaIcon({ active }) {
@@ -88,7 +77,7 @@ const TABS = [
   // keeps an aria-label instead so it's still announced for screen readers.
   { id: "home", label: "Home", Icon: HomeIcon, hideLabel: true },
   { id: "market", label: "Market", Icon: MarketIcon },
-  { id: "game", label: "Ride", Icon: GameIcon },
+  { id: "game", label: "Ride", Icon: GameIcon, hideLabel: true },
   { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
   { id: "arena", label: "Arena", Icon: ArenaIcon },
 ];
