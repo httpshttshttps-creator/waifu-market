@@ -869,25 +869,31 @@ button {
 :root[data-theme="seraphim"] .bottom-nav {
   /* The bar art itself is the nav's whole visual (gold pill frame, marble
      fill, ornate end caps) - it replaces the flat color+blur look.
-     background-size: 100% 100% stretches it to exactly fill the bar's
-     own box (whatever height/width that ends up being on the device). */
+     aspect-ratio (matching the source art's true 1400x461 proportions)
+     instead of a fixed height means the bar is never squished thinner
+     than the art was actually drawn at - height is derived from the
+     device's own width, whatever that is. */
   background: transparent;
   background-image: url("./assets/nav-bar-seraphim.webp");
   background-size: 100% 100%;
   background-repeat: no-repeat;
+  background-position: center;
   border-top: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   align-items: center;
-  height: calc(64px + env(safe-area-inset-bottom));
+  aspect-ratio: 1400 / 461;
+  height: auto;
+  padding-bottom: env(safe-area-inset-bottom);
   gap: 0;
-  /* The art's two decorative end caps (the ring medallions) take up
-     ~7.9% of its width on the left and ~8.3% on the right - measured
-     directly from the source art - so the 5 tabs (flex:1, no gap) divide
-     evenly into the marble lanes between the caps, each one centered
-     under one of the 4 star dividers' lanes instead of drifting into
-     the caps. */
-  padding: 0 8.29% env(safe-area-inset-bottom) 7.92%;
+  /* The art's two decorative end caps (the ring medallions) measure
+     ~9.2% of its width on the left and ~8.4% on the right (traced from
+     where the top/bottom border stops curving and goes straight) - so
+     the 5 tabs (flex:1, no gap) divide evenly into the marble lanes
+     between the caps, each centered under one of the 4 star dividers'
+     lanes instead of drifting into the caps. */
+  padding-left: 9.21%;
+  padding-right: 8.38%;
 }
 
 /* data-image-only kept for any future seraphim tab whose artwork bakes
@@ -903,7 +909,7 @@ button {
 /* Every seraphim tab icon shares this sizing - a fixed height that
    leaves room for the text label sitting below it. */
 :root[data-theme="seraphim"] .bottom-nav__tab-icon--seraphim {
-  height: 30px;
+  height: 48px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
@@ -1906,6 +1912,14 @@ button {
 }
 
 /* ---------------- Seraphim: ambient light layer ---------------- */
+/* The seraphim nav bar's height comes from its own aspect-ratio (~33% of
+   viewport width) instead of a fixed px, so the classic theme's fixed
+   84px bottom padding above isn't enough to keep content clear of it -
+   this scales the same way the nav bar itself does, plus a fixed buffer. */
+:root[data-theme="seraphim"] .app-shell {
+  padding-bottom: calc(33vw + 24px + env(safe-area-inset-bottom));
+}
+
 /* Replaces the base theme's dark corner-glow with light falling from
    above, plus a slow field of drifting gold motes behind every screen
    in the app (both are fixed, so they read as coming from the room,
