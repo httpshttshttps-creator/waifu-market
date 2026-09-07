@@ -2,6 +2,8 @@ import { useTelegram } from "../hooks/useTelegram.js";
 import navHomeSeraphim from "../assets/nav-home-seraphim.png";
 import navRideSeraphim from "../assets/nav-ride-seraphim.png";
 import navMarketSeraphim from "../assets/nav-market-seraphim.png";
+import navLeaderboardSeraphim from "../assets/nav-leaderboard-seraphim.png";
+import navArenaSeraphim from "../assets/nav-arena-seraphim.png";
 
 // Classic theme's original vector icon for the home tab.
 function HomeIcon({ active }) {
@@ -25,14 +27,13 @@ function HomeIcon({ active }) {
   );
 }
 
-// Seraphim-only replacement icons.
-// SeraphimHomeIcon: full artwork with its own "Home" label baked in, so
-// no separate text underneath (only this one uses seraphimHideLabel).
-// SeraphimRideIcon / SeraphimMarketIcon: artwork only, no baked-in text -
-// they keep the normal text label below, same as the classic theme, just
-// set in the seraphim display font (see index.css `[data-seraphim-icon]`).
+// Seraphim-only replacement icons - artwork only, no baked-in text, so
+// they all keep the normal text label below (same as classic theme),
+// just set in the seraphim display font (see `[data-seraphim-icon]` in
+// index.css). Only ever used when theme === "seraphim" (see TABS/render
+// logic below), so the classic theme never sees these.
 function SeraphimHomeIcon() {
-  return <img src={navHomeSeraphim} alt="" className="bottom-nav__home-icon" />;
+  return <img src={navHomeSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
 }
 
 function SeraphimRideIcon() {
@@ -41,6 +42,14 @@ function SeraphimRideIcon() {
 
 function SeraphimMarketIcon() {
   return <img src={navMarketSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
+}
+
+function SeraphimLeaderboardIcon() {
+  return <img src={navLeaderboardSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
+}
+
+function SeraphimArenaIcon() {
+  return <img src={navArenaSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
 }
 
 function MarketIcon({ active }) {
@@ -121,17 +130,16 @@ function ArenaIcon({ active }) {
 
 const TABS = [
   // seraphimIcon: only used when the active theme is "seraphim" (see
-  // render below). seraphimHideLabel: that tab's seraphim artwork already
-  // has its own name baked in (only Home, so far), so the separate <span>
-  // underneath is skipped just for it. Ride/Market keep a text label under
-  // their seraphim artwork too, same as classic - just in the seraphim
-  // display font (see `[data-seraphim-icon] span` in index.css).
+  // render below). Every seraphim tab now shows its normal text label
+  // underneath (in the seraphim display font, see `[data-seraphim-icon]
+  // span` in index.css) - same layout as the classic theme, just with
+  // different artwork and font for the icon+label pair.
   // Classic theme always uses `Icon` + the text label, completely untouched.
-  { id: "home", label: "Home", Icon: HomeIcon, seraphimIcon: SeraphimHomeIcon, seraphimHideLabel: true },
+  { id: "home", label: "Home", Icon: HomeIcon, seraphimIcon: SeraphimHomeIcon },
   { id: "market", label: "Market", Icon: MarketIcon, seraphimIcon: SeraphimMarketIcon },
   { id: "game", label: "Ride", Icon: GameIcon, seraphimIcon: SeraphimRideIcon },
-  { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
-  { id: "arena", label: "Arena", Icon: ArenaIcon },
+  { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon, seraphimIcon: SeraphimLeaderboardIcon },
+  { id: "arena", label: "Arena", Icon: ArenaIcon, seraphimIcon: SeraphimArenaIcon },
 ];
 
 // Exported so App.jsx can tell which way a tab switch "moved" (for the

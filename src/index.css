@@ -867,33 +867,41 @@ button {
 }
 
 :root[data-theme="seraphim"] .bottom-nav {
-  background: rgba(255, 250, 233, 0.86);
+  /* The bar art itself is the nav's whole visual (gold pill frame, marble
+     fill, ornate end caps) - it replaces the flat color+blur look.
+     background-size: 100% 100% stretches it to exactly fill the bar's
+     own box (whatever height/width that ends up being on the device). */
+  background: transparent;
+  background-image: url("./assets/nav-bar-seraphim.webp");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  border-top: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   align-items: center;
   height: calc(64px + env(safe-area-inset-bottom));
-  padding: 0 16px env(safe-area-inset-bottom);
+  gap: 0;
+  /* The art's two decorative end caps (the ring medallions) take up
+     ~7.9% of its width on the left and ~8.3% on the right - measured
+     directly from the source art - so the 5 tabs (flex:1, no gap) divide
+     evenly into the marble lanes between the caps, each one centered
+     under one of the 4 star dividers' lanes instead of drifting into
+     the caps. */
+  padding: 0 8.29% env(safe-area-inset-bottom) 7.92%;
 }
 
-/* data-image-only only ever gets rendered while theme === "seraphim"
-   (see BottomNav.jsx), but scoped here too so a leftover attribute can
-   never silently reshape the classic theme's nav bar again. */
+/* data-image-only kept for any future seraphim tab whose artwork bakes
+   its own label in (none currently do - every tab now shows a normal
+   text label). Scoped here too so it can never reshape the classic
+   theme's nav bar if it's ever used again. */
 :root[data-theme="seraphim"] .bottom-nav__item[data-image-only="true"] {
   align-self: stretch;
   justify-content: center;
   padding: 3px 6px;
 }
 
-:root[data-theme="seraphim"] .bottom-nav__home-icon {
-  height: 100%;
-  width: auto;
-  max-width: 100%;
-  object-fit: contain;
-  display: block;
-  transition: transform 0.15s ease;
-}
-
-/* Ride/Market: artwork keeps its own text label below (unlike Home),
-   so it gets a fixed height instead of stretching the full bar - leaves
-   room for the label under it. */
+/* Every seraphim tab icon shares this sizing - a fixed height that
+   leaves room for the text label sitting below it. */
 :root[data-theme="seraphim"] .bottom-nav__tab-icon--seraphim {
   height: 30px;
   width: auto;
@@ -903,17 +911,14 @@ button {
   transition: transform 0.15s ease;
 }
 
-:root[data-theme="seraphim"] .bottom-nav__item[data-active="true"] .bottom-nav__home-icon {
-  transform: translateY(-1px) scale(1.08);
-}
-
 :root[data-theme="seraphim"] .bottom-nav__item[data-active="true"] .bottom-nav__tab-icon--seraphim {
   transform: translateY(-1px) scale(1.08);
 }
 
-/* Ride/Market's own name, set in the theme's display serif instead of the
-   classic mono label font - the color still comes from the button's own
-   (already theme-correct) text color, gold when active, muted otherwise. */
+/* Every seraphim tab's own name, set in the theme's display serif
+   instead of the classic mono label font - the color still comes from
+   the button's own (already theme-correct) text color, gold when
+   active, muted otherwise. */
 :root[data-theme="seraphim"] .bottom-nav__item[data-seraphim-icon="true"] span {
   font-family: var(--font-display);
   font-size: 13px;
