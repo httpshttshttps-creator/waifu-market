@@ -1,6 +1,7 @@
 import { useTelegram } from "../hooks/useTelegram.js";
 import navHomeSeraphim from "../assets/nav-home-seraphim.png";
 import navRideSeraphim from "../assets/nav-ride-seraphim.png";
+import navMarketSeraphim from "../assets/nav-market-seraphim.png";
 
 // Classic theme's original vector icon for the home tab.
 function HomeIcon({ active }) {
@@ -24,15 +25,22 @@ function HomeIcon({ active }) {
   );
 }
 
-// Seraphim-only replacement icons - full artwork, own label baked in, no
-// separate text underneath. Only ever used when theme === "seraphim" (see
-// TABS/render logic below), so the classic theme never sees these.
+// Seraphim-only replacement icons.
+// SeraphimHomeIcon: full artwork with its own "Home" label baked in, so
+// no separate text underneath (only this one uses seraphimHideLabel).
+// SeraphimRideIcon / SeraphimMarketIcon: artwork only, no baked-in text -
+// they keep the normal text label below, same as the classic theme, just
+// set in the seraphim display font (see index.css `[data-seraphim-icon]`).
 function SeraphimHomeIcon() {
   return <img src={navHomeSeraphim} alt="" className="bottom-nav__home-icon" />;
 }
 
 function SeraphimRideIcon() {
-  return <img src={navRideSeraphim} alt="" className="bottom-nav__ride-icon" />;
+  return <img src={navRideSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
+}
+
+function SeraphimMarketIcon() {
+  return <img src={navMarketSeraphim} alt="" className="bottom-nav__tab-icon--seraphim" />;
 }
 
 function MarketIcon({ active }) {
@@ -113,11 +121,14 @@ function ArenaIcon({ active }) {
 
 const TABS = [
   // seraphimIcon: only used when the active theme is "seraphim" (see
-  // render below) - full artwork with its own label baked in, so the
-  // separate <span> text underneath is skipped for that theme only.
-  // Classic theme always uses `Icon` + the text label, untouched.
-  { id: "home", label: "Home", Icon: HomeIcon, seraphimIcon: SeraphimHomeIcon },
-  { id: "market", label: "Market", Icon: MarketIcon },
+  // render below). seraphimHideLabel: that tab's seraphim artwork already
+  // has its own name baked in (only Home, so far), so the separate <span>
+  // underneath is skipped just for it. Ride/Market keep a text label under
+  // their seraphim artwork too, same as classic - just in the seraphim
+  // display font (see `[data-seraphim-icon] span` in index.css).
+  // Classic theme always uses `Icon` + the text label, completely untouched.
+  { id: "home", label: "Home", Icon: HomeIcon, seraphimIcon: SeraphimHomeIcon, seraphimHideLabel: true },
+  { id: "market", label: "Market", Icon: MarketIcon, seraphimIcon: SeraphimMarketIcon },
   { id: "game", label: "Ride", Icon: GameIcon, seraphimIcon: SeraphimRideIcon },
   { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
   { id: "arena", label: "Arena", Icon: ArenaIcon },
@@ -140,6 +151,7 @@ export default function BottomNav({ active, onChange, theme = "default" }) {
       {TABS.map((tab) => {
         const isActive = active === tab.id;
         const useSeraphimIcon = theme === "seraphim" && Boolean(tab.seraphimIcon);
+        const hideLabel = useSeraphimIcon && tab.seraphimHideLabel;
         const IconComponent = useSeraphimIcon ? tab.seraphimIcon : tab.Icon;
         return (
           <button
@@ -147,12 +159,13 @@ export default function BottomNav({ active, onChange, theme = "default" }) {
             type="button"
             className="bottom-nav__item"
             data-active={isActive}
-            data-image-only={useSeraphimIcon || undefined}
-            aria-label={useSeraphimIcon ? tab.label : undefined}
+            data-seraphim-icon={useSeraphimIcon || undefined}
+            data-image-only={hideLabel || undefined}
+            aria-label={hideLabel ? tab.label : undefined}
             onClick={() => handleChange(tab.id)}
           >
             <IconComponent active={isActive} />
-            {!useSeraphimIcon && <span>{tab.label}</span>}
+            {!hideLabel && <span>{tab.label}</span>}
           </button>
         );
       })}
