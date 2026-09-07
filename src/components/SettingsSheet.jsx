@@ -8,9 +8,9 @@ const THEMES = [
   {
     id: "seraphim",
     name: "Seraphim",
-    tagline: "Gilded & radiant - premium",
+    tagline: "Coming soon",
     swatch: ["#fff8e7", "#e8b923"],
-    premium: true,
+    comingSoon: true,
   },
   {
     id: "tenebris",
@@ -21,7 +21,7 @@ const THEMES = [
   },
 ];
 
-export default function SettingsSheet({ open, onClose, theme = "default", onThemeChange }) {
+export default function SettingsSheet({ open, onClose }) {
   if (!open) return null;
 
   return (
@@ -36,7 +36,7 @@ export default function SettingsSheet({ open, onClose, theme = "default", onThem
 
           <div className="theme-grid">
             {THEMES.map((t) => {
-              const active = t.id === theme;
+              const active = t.id === "default";
               return (
                 <button
                   key={t.id}
@@ -44,20 +44,13 @@ export default function SettingsSheet({ open, onClose, theme = "default", onThem
                   className="theme-option"
                   data-active={active || undefined}
                   data-locked={t.comingSoon || undefined}
-                  data-premium={t.premium || undefined}
                   disabled={t.comingSoon}
-                  onClick={() => {
-                    if (!t.comingSoon) onThemeChange?.(t.id);
-                  }}
                 >
                   <span
                     className="theme-option__swatch"
                     style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
                   >
                     {t.comingSoon && <span className="theme-option__lock">⏳</span>}
-                    {!t.comingSoon && t.premium && !active && (
-                      <span className="theme-option__lock theme-option__lock--premium">✦</span>
-                    )}
                     {active && <span className="theme-option__check">✓</span>}
                   </span>
                   <span className="theme-option__name">{t.name}</span>

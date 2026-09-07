@@ -10,38 +10,27 @@ import { useEffect, useMemo } from "react";
  * directly, while main.jsx still does the official SDK init(). When we
  * revisit this together we can migrate individual calls to `useSignal` /
  * `hapticFeedback` / `mainButton` from @tma.js/sdk-react one at a time.
- *
- * @param {{ header: string, background: string }} [chrome] - hex colors
- *   for Telegram's own header/background bar. Only pass this from ONE
- *   call site (App.jsx) - it's keyed to the active app theme so the
- *   native chrome always matches --ink. Other components (BottomNav,
- *   etc.) should call useTelegram() with no argument and just get
- *   haptics/user/etc.; they skip the chrome effect entirely, so two
- *   components never race to set the header color to different values.
  */
-export function useTelegram(chrome) {
+export function useTelegram() {
   const webApp = useMemo(() => (typeof window !== "undefined" ? window.Telegram?.WebApp : undefined), []);
 
   useEffect(() => {
     if (!webApp) return;
     webApp.ready();
     webApp.expand();
-  }, [webApp]);
 
-  // Match Telegram's own header/background chrome to the active theme
-  // instead of the default gray bar, so the close (✕) button and bot
-  // name sit on the same color as the app underneath it. Re-runs
-  // whenever the theme (and therefore `chrome`) changes. Older clients
-  // that don't support setHeaderColor/setBackgroundColor just no-op.
-  useEffect(() => {
-    if (!webApp || !chrome) return;
+    // Match Telegram's own header/background chrome to our theme instead
+    // of the default gray bar, so the close (✕) button and bot name sit
+    // on the same color as the app underneath it. Keep this in sync with
+    // --ink in index.css if that palette ever changes. Older clients that
+    // don't support setHeaderColor/setBackgroundColor just no-op here.
     try {
-      webApp.setHeaderColor(chrome.header);
-      webApp.setBackgroundColor(chrome.background);
+      webApp.setHeaderColor("#170707");
+      webApp.setBackgroundColor("#170707");
     } catch {
       /* unsupported client version - ignore */
     }
-  }, [webApp, chrome?.header, chrome?.background]);
+  }, [webApp]);
 
   const user = webApp?.initDataUnsafe?.user ?? null;
 

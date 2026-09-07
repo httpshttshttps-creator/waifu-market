@@ -13,12 +13,6 @@
   --text-faint: #93615c;
   --line: rgba(253, 236, 235, 0.1);
   --danger: #ff8c42;
-  /* text color used on solid var(--gold)/var(--gold-bright) fills
-     (buy button, active filter chip, active leaderboard toggle, task
-     claim button, fighter check badge...) - kept as its own variable
-     so a theme with a much lighter gold (Seraphim) can swap it for a
-     dark ink instead of white without touching every call site. */
-  --on-gold: #fff2f0;
 
   /* -- type -- */
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
@@ -30,37 +24,6 @@
   --radius-sm: 9px;
 
   color-scheme: dark;
-}
-
-/* ================================================================
-   THEME: Seraphim - the premium alt skin.
-   Everything above is styled off these variables, so redefining them
-   here re-skins the whole app for free (cards, buttons, chips, sheets,
-   nav, boot screen...). Past the variable block is the part Seraphim
-   has that the base theme doesn't: an ambient light layer behind every
-   screen, a halo on the boot icon, a burst of light rays behind every
-   card pull, and a glow under the active tab - so no single screen in
-   the app reads as "just a recolor".
-   ================================================================ */
-:root[data-theme="seraphim"] {
-  --ink: #fdf7e8;
-  --ink-glow: #fff0c2;
-  --surface: #fffdf6;
-  --surface-raised: #fff6df;
-  --paper: #ffe9ad;
-  --paper-shadow: #d9b563;
-  --gold: #c99a2e;
-  --gold-bright: #f4c752;
-  --text: #4a3814;
-  --text-dim: #8a713c;
-  --text-faint: #b7a373;
-  --line: rgba(154, 116, 30, 0.22);
-  --danger: #c1443a;
-  --on-gold: #33230a;
-
-  --font-display: "Cormorant Garamond", "Bricolage Grotesque", system-ui, serif;
-
-  color-scheme: light;
 }
 
 * {
@@ -229,7 +192,7 @@ button {
 .filter-chip[data-active="true"] {
   background: var(--gold);
   border-color: var(--gold);
-  color: var(--on-gold);
+  color: #fff2f0;
 }
 
 .search-input {
@@ -282,10 +245,6 @@ button {
 .character-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.55);
-}
-
-:root[data-theme="seraphim"] .character-card:hover {
-  box-shadow: 0 10px 26px -8px rgba(154, 116, 30, 0.4);
 }
 
 .character-card__art {
@@ -463,7 +422,7 @@ button {
   font-size: 12.5px;
   cursor: pointer;
   background: var(--gold);
-  color: var(--on-gold);
+  color: #fff2f0;
   transition: background 0.15s ease, transform 0.1s ease;
 }
 
@@ -500,10 +459,6 @@ button {
   justify-content: center;
   z-index: 100;
   animation: fade-in 0.15s ease;
-}
-
-:root[data-theme="seraphim"] .sheet-overlay {
-  background: rgba(46, 32, 6, 0.45);
 }
 
 @keyframes fade-in {
@@ -645,7 +600,7 @@ button {
 
 .sheet-button--confirm {
   background: var(--gold);
-  color: var(--on-gold);
+  color: #fff2f0;
 }
 
 .sheet-button--confirm:disabled {
@@ -705,18 +660,6 @@ button {
   opacity: 0.55;
 }
 
-/* Seraphim's card in the picker gets a quiet gold edge + glow even
-   when not selected yet, so it visibly reads as the premium option
-   among plain swatches - the pitch starts here, before it's active. */
-.theme-option[data-premium="true"] {
-  border-color: rgba(232, 185, 35, 0.5);
-  box-shadow: 0 0 0 1px rgba(232, 185, 35, 0.12), 0 4px 14px -6px rgba(232, 185, 35, 0.35);
-}
-
-.theme-option[data-premium="true"][data-active="true"] {
-  border-color: var(--gold-bright);
-}
-
 .theme-option__swatch {
   position: relative;
   width: 100%;
@@ -735,10 +678,6 @@ button {
 
 .theme-option__check {
   color: #fff;
-}
-
-.theme-option__lock--premium {
-  color: #ffd75e;
 }
 
 .theme-option__name {
@@ -857,88 +796,12 @@ button {
 }
 
 .bottom-nav__item[data-active="true"] {
-  position: relative;
   color: var(--gold-bright);
   background: var(--surface-raised);
 }
 
 .bottom-nav__item[data-active="true"] svg {
   transform: translateY(-1px);
-}
-
-:root[data-theme="seraphim"] .bottom-nav {
-  /* The bar art itself is the nav's whole visual (gold pill frame, marble
-     fill, ornate end caps) - it replaces the flat color+blur look.
-     aspect-ratio (matching the source art's true 1400x461 proportions)
-     instead of a fixed height means the bar is never squished thinner
-     than the art was actually drawn at - height is derived from the
-     device's own width, whatever that is. */
-  background: transparent;
-  background-image: url("./assets/nav-bar-seraphim.webp");
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  background-position: center;
-  border-top: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  align-items: center;
-  aspect-ratio: 1400 / 461;
-  height: auto;
-  padding-bottom: env(safe-area-inset-bottom);
-  gap: 0;
-  /* The art's two decorative end caps (the ring medallions) measure
-     ~9.2% of its width on the left and ~8.4% on the right (traced from
-     where the top/bottom border stops curving and goes straight) - so
-     the 5 tabs (flex:1, no gap) divide evenly into the marble lanes
-     between the caps, each centered under one of the 4 star dividers'
-     lanes instead of drifting into the caps. */
-  padding-left: 9.21%;
-  padding-right: 8.38%;
-}
-
-/* data-image-only kept for any future seraphim tab whose artwork bakes
-   its own label in (none currently do - every tab now shows a normal
-   text label). Scoped here too so it can never reshape the classic
-   theme's nav bar if it's ever used again. */
-:root[data-theme="seraphim"] .bottom-nav__item[data-image-only="true"] {
-  align-self: stretch;
-  justify-content: center;
-  padding: 3px 6px;
-}
-
-/* Every seraphim tab icon shares this sizing - a fixed height that
-   leaves room for the text label sitting below it. */
-:root[data-theme="seraphim"] .bottom-nav__tab-icon--seraphim {
-  height: 48px;
-  width: auto;
-  max-width: 100%;
-  object-fit: contain;
-  display: block;
-  transition: transform 0.15s ease;
-}
-
-:root[data-theme="seraphim"] .bottom-nav__item[data-active="true"] .bottom-nav__tab-icon--seraphim {
-  transform: translateY(-1px) scale(1.08);
-}
-
-/* Every seraphim tab's own name, set in the theme's display serif
-   instead of the classic mono label font - the color still comes from
-   the button's own (already theme-correct) text color, gold when
-   active, muted otherwise. */
-:root[data-theme="seraphim"] .bottom-nav__item[data-seraphim-icon="true"] span {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-
-:root[data-theme="seraphim"] .bottom-nav__item[data-active="true"]::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: var(--radius-md);
-  background: radial-gradient(60% 70% at 50% 30%, rgba(244, 199, 82, 0.4), transparent 75%);
 }
 
 /* ---------------- profile header (Home tab) ---------------- */
@@ -1067,7 +930,7 @@ button {
 
 .leaderboard-toggle button[data-active="true"] {
   background: var(--gold);
-  color: var(--on-gold);
+  color: #fff2f0;
   border-color: var(--gold);
 }
 
@@ -1209,7 +1072,7 @@ button {
   border-radius: var(--radius-md);
   border: 1px solid var(--gold);
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: var(--on-gold);
+  color: #fff2f0;
   font-weight: 800;
   font-size: 14px;
   cursor: pointer;
@@ -1550,7 +1413,7 @@ button {
   border-radius: 999px;
   border: 1px solid var(--gold);
   background: linear-gradient(180deg, var(--gold-bright), var(--gold));
-  color: var(--on-gold);
+  color: #fff2f0;
   font-weight: 700;
   font-size: 13.5px;
   cursor: pointer;
@@ -1772,7 +1635,7 @@ button {
   right: 6px;
   z-index: 2;
   background: var(--gold);
-  color: var(--on-gold);
+  color: #fff2f0;
   border-radius: 999px;
   width: 20px;
   height: 20px;
@@ -1911,61 +1774,6 @@ button {
   z-index: 1;
 }
 
-/* ---------------- Seraphim: ambient light layer ---------------- */
-/* The seraphim nav bar's height comes from its own aspect-ratio (~33% of
-   viewport width) instead of a fixed px, so the classic theme's fixed
-   84px bottom padding above isn't enough to keep content clear of it -
-   this scales the same way the nav bar itself does, plus a fixed buffer. */
-:root[data-theme="seraphim"] .app-shell {
-  padding-bottom: calc(33vw + 24px + env(safe-area-inset-bottom));
-}
-
-/* Replaces the base theme's dark corner-glow with light falling from
-   above, plus a slow field of drifting gold motes behind every screen
-   in the app (both are fixed, so they read as coming from the room,
-   not from any one tab). Grain stays on, just dialed back since it
-   reads heavier on a light surface. */
-
-:root[data-theme="seraphim"] .app-shell {
-  background:
-    radial-gradient(65% 38% at 50% 0%, rgba(255, 240, 194, 0.95) 0%, transparent 72%),
-    radial-gradient(140% 45% at 50% 30%, var(--ink-glow) 0%, transparent 65%),
-    var(--ink);
-}
-
-:root[data-theme="seraphim"] .app-shell::before {
-  opacity: 0.03;
-}
-
-:root[data-theme="seraphim"] .app-shell::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.6;
-  background-repeat: no-repeat;
-  background-image: radial-gradient(2px 2px at 8% 18%, rgba(201, 154, 46, 0.85), transparent 60%),
-    radial-gradient(1.5px 1.5px at 82% 12%, rgba(201, 154, 46, 0.7), transparent 60%),
-    radial-gradient(2px 2px at 62% 68%, rgba(201, 154, 46, 0.55), transparent 60%),
-    radial-gradient(1.5px 1.5px at 22% 82%, rgba(201, 154, 46, 0.8), transparent 60%),
-    radial-gradient(1.5px 1.5px at 92% 58%, rgba(201, 154, 46, 0.6), transparent 60%),
-    radial-gradient(2px 2px at 42% 32%, rgba(201, 154, 46, 0.5), transparent 60%),
-    radial-gradient(1.5px 1.5px at 12% 52%, rgba(201, 154, 46, 0.7), transparent 60%),
-    radial-gradient(2px 2px at 72% 92%, rgba(201, 154, 46, 0.5), transparent 60%);
-  animation: seraphim-motes-drift 22s ease-in-out infinite alternate;
-  will-change: transform;
-}
-
-@keyframes seraphim-motes-drift {
-  from {
-    transform: translate3d(0, 0, 0);
-  }
-  to {
-    transform: translate3d(-16px, -24px, 0);
-  }
-}
-
 /* ---------------- Card reveal overlay (graphics upgrade) ---------------- */
 
 .reveal-overlay {
@@ -1984,10 +1792,6 @@ button {
   background: rgba(8, 4, 18, 0.82);
 }
 
-:root[data-theme="seraphim"] .reveal-overlay[data-visible="true"] {
-  background: rgba(38, 26, 4, 0.8);
-}
-
 .reveal-card {
   position: relative;
   width: min(280px, 100%);
@@ -2003,50 +1807,6 @@ button {
   opacity: 0;
   transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.35s ease;
   box-shadow: 0 0 30px -6px var(--card-accent, transparent);
-}
-
-/* Seraphim: every pull gets a spinning burst of light behind the card,
-   not just rarity tiers with glowLevel 2 - this is the theme's whole
-   "worth paying for" moment. Sits at z-index -1 inside the card's own
-   stacking context, so it burns outward around the edges and behind
-   the art/name/rarity chip rather than covering them. */
-:root[data-theme="seraphim"] .reveal-card::before {
-  content: "";
-  position: absolute;
-  inset: -70px;
-  z-index: -1;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgba(244, 199, 82, 0.4) 10deg,
-    transparent 20deg,
-    transparent 70deg,
-    rgba(244, 199, 82, 0.32) 80deg,
-    transparent 90deg,
-    transparent 140deg,
-    rgba(244, 199, 82, 0.4) 150deg,
-    transparent 160deg,
-    transparent 210deg,
-    rgba(244, 199, 82, 0.32) 220deg,
-    transparent 230deg,
-    transparent 280deg,
-    rgba(244, 199, 82, 0.4) 290deg,
-    transparent 300deg,
-    transparent 350deg,
-    rgba(244, 199, 82, 0.32) 360deg
-  );
-  filter: blur(3px);
-  animation: seraphim-rays-spin 14s linear infinite;
-}
-
-@keyframes seraphim-rays-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .reveal-overlay[data-visible="true"] .reveal-card {
@@ -2277,36 +2037,11 @@ button {
 }
 
 .boot-screen__icon {
-  position: relative;
   font-size: 42px;
   line-height: 1;
   color: var(--gold-bright);
   text-shadow: 0 0 24px var(--gold-bright);
   animation: boot-pulse 1.4s ease-in-out infinite;
-}
-
-/* Seraphim: a breathing halo ring behind the boot mark, like the icon
-   itself is the light source. */
-:root[data-theme="seraphim"] .boot-screen__icon::before {
-  content: "";
-  position: absolute;
-  inset: -22px;
-  z-index: -1;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(244, 199, 82, 0.55), transparent 70%);
-  animation: seraphim-halo-pulse 2.4s ease-in-out infinite;
-}
-
-@keyframes seraphim-halo-pulse {
-  0%,
-  100% {
-    transform: scale(0.85);
-    opacity: 0.55;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
 }
 
 @keyframes boot-pulse {

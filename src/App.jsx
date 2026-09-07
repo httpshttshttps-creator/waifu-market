@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTelegram } from "./hooks/useTelegram.js";
-import { useTheme, THEME_CHROME } from "./hooks/useTheme.js";
 import {
   fetchCharacters,
   fetchBalance,
@@ -27,8 +26,7 @@ import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 import BootScreen from "./components/BootScreen.jsx";
 
 export default function App() {
-  const [theme, setTheme] = useTheme();
-  const { haptic, notify } = useTelegram(THEME_CHROME[theme]);
+  const { haptic, notify } = useTelegram();
 
   const [activeTab, setActiveTab] = useState("home");
   // Which side the tab-build animation should slide in from, for the
@@ -272,7 +270,7 @@ export default function App() {
       </div>
       </div>
 
-      <BottomNav active={activeTab} onChange={changeTab} theme={theme} />
+      <BottomNav active={activeTab} onChange={changeTab} />
 
       <BuyConfirmSheet
         character={selectedCharacter}
@@ -291,12 +289,7 @@ export default function App() {
         onCancel={closeSellConfirm}
       />
 
-      <SettingsSheet
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        theme={theme}
-        onThemeChange={setTheme}
-      />
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
 
