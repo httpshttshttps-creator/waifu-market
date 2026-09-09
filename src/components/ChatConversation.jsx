@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { ChatAvatar } from "./ChatCharacterList.jsx";
 import { fetchChatMessages, sendChatMessage } from "../api/chatApi.js";
 
 function bubbleTime(iso) {
@@ -8,7 +7,7 @@ function bubbleTime(iso) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatConversation({ character, onBack, notify }) {
+export default function ChatConversation({ character, notify, onTypingChange }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -32,6 +31,12 @@ export default function ChatConversation({ character, onBack, notify }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading, sending]);
+
+  // Mirrors `sending` up to ChatTab, which shows "typing…" in the topbar
+  // in place of the character's series while it's true.
+  useEffect(() => {
+    onTypingChange?.(sending);
+  }, [sending, onTypingChange]);
 
   async function handleSend() {
     const text = draft.trim();
@@ -71,19 +76,6 @@ export default function ChatConversation({ character, onBack, notify }) {
 
   return (
     <div className="chat-conversation">
-      <div className="chat-conversation__header">
-        <button type="button" className="chat-conversation__back" onClick={onBack} aria-label="Back">
-          ‹
-        </button>
-        <ChatAvatar character={character} />
-        <div className="chat-conversation__identity">
-          <span className="chat-conversation__name">{character.name}</span>
-          <span className="chat-conversation__series">
-            {sending ? <span className="chat-conversation__typing">typing…</span> : character.series}
-          </span>
-        </div>
-      </div>
-
       <div className="chat-conversation__messages" ref={scrollRef}>
         {loading ? (
           <div className="chat-conversation__loading">Loading conversation…</div>

@@ -124,7 +124,7 @@ const TABS = [
 // directional tab-build slide animation) without duplicating this list.
 export const TAB_ORDER = TABS.map((tab) => tab.id);
 
-export default function BottomNav({ active, onChange }) {
+export default function BottomNav({ active, onChange, hidden }) {
   const { haptic } = useTelegram();
 
   function handleChange(tabId) {
@@ -133,7 +133,7 @@ export default function BottomNav({ active, onChange }) {
   }
 
   return (
-    <nav className="bottom-nav">
+    <nav className="bottom-nav" data-hidden={hidden || undefined}>
       {TABS.map((tab) => {
         const isActive = active === tab.id;
         return (

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const THEMES = [
   {
     id: "default",
@@ -21,7 +23,21 @@ const THEMES = [
   },
 ];
 
-export default function SettingsSheet({ open, onClose }) {
+// Accent recolors for the Classic theme - same layout/background, just a
+// different accent hue for buttons, the active nav icon, user chat
+// bubbles, etc. (see [data-accent] in index.css). Not full alternate
+// themes like Seraphim/Tenebris above.
+const ACCENTS = [
+  { id: "red", name: "Red", preview: "linear-gradient(135deg, #241010, #d62839)" },
+  { id: "blue", name: "Blue", preview: "linear-gradient(135deg, #101a24, #2f6fed)" },
+  { id: "yellow", name: "Yellow", preview: "linear-gradient(135deg, #241f10, #eab308)" },
+  { id: "green", name: "Green", preview: "linear-gradient(135deg, #0f2417, #16a34a)" },
+  { id: "blackgold", name: "Black & Gold", preview: "linear-gradient(135deg, #07070a, #ffd94d)", shiny: true },
+];
+
+export default function SettingsSheet({ open, onClose, accent, onAccentChange }) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   if (!open) return null;
 
   return (
@@ -37,6 +53,7 @@ export default function SettingsSheet({ open, onClose }) {
           <div className="theme-grid">
             {THEMES.map((t) => {
               const active = t.id === "default";
+              const isClassic = t.id === "default";
               return (
                 <button
                   key={t.id}
@@ -45,6 +62,7 @@ export default function SettingsSheet({ open, onClose }) {
                   data-active={active || undefined}
                   data-locked={t.comingSoon || undefined}
                   disabled={t.comingSoon}
+                  onClick={isClassic ? () => setDrawerOpen((o) => !o) : undefined}
                 >
                   <span
                     className="theme-option__swatch"
@@ -53,12 +71,38 @@ export default function SettingsSheet({ open, onClose }) {
                     {t.comingSoon && <span className="theme-option__lock">⏳</span>}
                     {active && <span className="theme-option__check">✓</span>}
                   </span>
-                  <span className="theme-option__name">{t.name}</span>
+                  <span className="theme-option__name">
+                    {t.name}
+                    {isClassic && (
+                      <span className="theme-option__chevron" data-open={drawerOpen || undefined}>
+                        ⌄
+                      </span>
+                    )}
+                  </span>
                   <span className="theme-option__tagline">{t.tagline}</span>
                 </button>
               );
             })}
           </div>
+
+          {drawerOpen && (
+            <div className="theme-color-drawer">
+              {ACCENTS.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className="theme-color-swatch"
+                  data-active={a.id === accent || undefined}
+                  data-shiny={a.shiny || undefined}
+                  style={{ background: a.preview }}
+                  onClick={() => onAccentChange(a.id)}
+                  aria-label={a.name}
+                >
+                  {a.id === accent && <span className="theme-color-swatch__check">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="confirm-sheet__actions">

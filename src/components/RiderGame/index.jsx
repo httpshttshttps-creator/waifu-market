@@ -29,7 +29,7 @@ function writeBestScore(money) {
   }
 }
 
-export default function RiderGame({ notify, onBalanceChange }) {
+export default function RiderGame({ notify, onBalanceChange, onExit }) {
   const [stage, setStage] = useState(STAGE_INTRO);
   const [result, setResult] = useState(null);
   const [runKey, setRunKey] = useState(0);
@@ -66,6 +66,17 @@ export default function RiderGame({ notify, onBalanceChange }) {
 
   return (
     <div className="rider-game">
+      {/* Only shown on the intro/result screens - during an actual run
+          the in-canvas quit button (GameCanvas's onQuit) already backs
+          out to the intro screen, where this ✕ can then leave the tab
+          entirely. Two overlapping exits during gameplay would just be
+          clutter on an already-busy screen. */}
+      {stage !== STAGE_PLAYING && (
+        <button type="button" className="rider-game__exit" onClick={onExit} aria-label="Close">
+          ✕
+        </button>
+      )}
+
       {stage === STAGE_INTRO && (
         <div className="rider-game__intro">
           <h1 className="brand-title">🏍 NEON RIDER</h1>

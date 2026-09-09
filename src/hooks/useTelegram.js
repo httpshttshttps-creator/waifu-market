@@ -32,6 +32,38 @@ export function useTelegram() {
     }
   }, [webApp]);
 
+  // CSS `100dvh` tracks the OS browser's own address-bar collapse, but
+  // Telegram Mini Apps run inside Telegram's own webview, which resizes
+  // the visible area on ITS terms (keyboard, Telegram's UI chrome,
+  // fullscreen toggles) - that doesn't always line up with a real
+  // browser resize/dvh recompute, especially on Android. That mismatch
+  // is what made full-screen bits (the Ride game's canvas) look
+  // shifted/not fixed in place. Telegram exposes the real number via
+  // webApp.viewportStableHeight, kept live through the 'viewportChanged'
+  // event - mirror it into a --tg-vh CSS var so anything that needs the
+  // TRUE visible height can use var(--tg-vh, 100dvh) instead of relying
+  // on dvh alone. Also nudge a plain window resize so anything (like the
+  // game canvas) that only listens for that event still picks it up.
+  useEffect(() => {
+    function applyViewportHeight() {
+      const height = webApp?.viewportStableHeight || webApp?.viewportHeight || window.innerHeight;
+      document.documentElement.style.setProperty("--tg-vh", `${height}px`);
+      window.dispatchEvent(new Event("resize"));
+    }
+
+    applyViewportHeight();
+
+    if (webApp?.onEvent) {
+      webApp.onEvent("viewportChanged", applyViewportHeight);
+      return () => webApp.offEvent?.("viewportChanged", applyViewportHeight);
+    }
+
+    // Not running inside Telegram (e.g. local dev in a regular browser) -
+    // window resize is the closest equivalent.
+    window.addEventListener("resize", applyViewportHeight);
+    return () => window.removeEventListener("resize", applyViewportHeight);
+  }, [webApp]);
+
   const user = webApp?.initDataUnsafe?.user ?? null;
 
   function haptic(style = "light") {

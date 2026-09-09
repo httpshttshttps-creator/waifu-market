@@ -56,6 +56,27 @@ export default function App() {
   const [revealCharacter, setRevealCharacter] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Accent color for the Classic theme (see SettingsSheet's color drawer) -
+  // just an accent recolor, not a full alternate theme (those - Seraphim,
+  // Tenebris - stay separate/"coming soon"). Persisted locally so it
+  // survives a reload; applied via [data-accent] on .app-shell below.
+  const [accentColor, setAccentColor] = useState(() => {
+    try {
+      return window.localStorage.getItem("theme.accent") || "red";
+    } catch {
+      return "red";
+    }
+  });
+
+  function changeAccentColor(id) {
+    setAccentColor(id);
+    try {
+      window.localStorage.setItem("theme.accent", id);
+    } catch {
+      /* storage unavailable - the choice just won't persist across reloads */
+    }
+  }
+
   // Listings, balance, and the owned-cards collection all live in the
   // bot's database and can change from OUTSIDE this app at any moment -
   // someone /sell's a card, buys one from another chat's market view,
@@ -216,8 +237,17 @@ export default function App() {
     setActiveTab(tabId);
   }
 
+  // Ride and Chat are full-screen/immersive: the bottom nav fades out
+  // while they're open (see .bottom-nav[data-hidden] / .app-shell[data-immersive]
+  // in index.css) and each screen gets its own ✕ that calls exitImmersive
+  // to jump straight back to Home and bring the nav back.
+  const immersive = activeTab === "game" || activeTab === "chat";
+  function exitImmersive() {
+    changeTab("home");
+  }
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-accent={accentColor} data-immersive={immersive || undefined}>
       <div className="app-shell__inner">
         <div className="tab-build" data-direction={tabDirection || undefined} key={activeTab}>
           {activeTab === "home" && (
@@ -265,22 +295,15 @@ export default function App() {
 
         {activeTab === "leaderboard" && <LeaderboardTab notify={notify} />}
 
-        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
+        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} onExit={exitImmersive} />}
 
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
 
-        {activeTab === "chat" && (
-          <ChatTab
-            profile={profile}
-            balance={balance}
-            onOpenSettings={() => setSettingsOpen(true)}
-            notify={notify}
-          />
-        )}
+        {activeTab === "chat" && <ChatTab notify={notify} onExit={exitImmersive} />}
       </div>
       </div>
 
-      <BottomNav active={activeTab} onChange={changeTab} />
+      <BottomNav active={activeTab} onChange={changeTab} hidden={immersive} />
 
       <BuyConfirmSheet
         character={selectedCharacter}
@@ -299,7 +322,12 @@ export default function App() {
         onCancel={closeSellConfirm}
       />
 
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        accent={accentColor}
+        onAccentChange={changeAccentColor}
+      />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
 
