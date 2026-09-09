@@ -83,6 +83,20 @@ function GameIcon({ active }) {
   );
 }
 
+function ChatIcon({ active }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7A2.5 2.5 0 0 1 17.5 16H10l-4.5 4v-4H6.5A2.5 2.5 0 0 1 4 13.5v-7Z"
+        stroke="currentColor"
+        strokeWidth={active ? 2.4 : 2}
+        strokeLinejoin="round"
+      />
+      <path d="M8 9h8M8 12h5" stroke="currentColor" strokeWidth={active ? 2.4 : 2} strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function ArenaIcon({ active }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -103,6 +117,7 @@ const TABS = [
   { id: "game", label: "Ride", Icon: GameIcon },
   { id: "leaderboard", label: "Leaderboard & Tasks", Icon: TrophyIcon },
   { id: "arena", label: "Arena", Icon: ArenaIcon },
+  { id: "chat", label: "Chat", Icon: ChatIcon },
 ];
 
 // Exported so App.jsx can tell which way a tab switch "moved" (for the

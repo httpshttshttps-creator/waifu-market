@@ -20,6 +20,7 @@ import ProfileHeader from "./components/ProfileHeader.jsx";
 import OwnedGrid from "./components/OwnedGrid.jsx";
 import LeaderboardTab from "./components/LeaderboardTab.jsx";
 import ArenaTab from "./components/ArenaTab.jsx";
+import ChatTab from "./components/ChatTab.jsx";
 import RiderGame from "./components/RiderGame/index.jsx";
 import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
 import { SkeletonGrid } from "./components/SkeletonCard.jsx";
@@ -267,6 +268,15 @@ export default function App() {
         {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} />}
 
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
+
+        {activeTab === "chat" && (
+          <ChatTab
+            profile={profile}
+            balance={balance}
+            onOpenSettings={() => setSettingsOpen(true)}
+            notify={notify}
+          />
+        )}
       </div>
       </div>
 
