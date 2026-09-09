@@ -31,7 +31,7 @@ export default function ChatConversation({ character, onBack, notify }) {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, sending]);
 
   async function handleSend() {
     const text = draft.trim();
@@ -78,7 +78,9 @@ export default function ChatConversation({ character, onBack, notify }) {
         <ChatAvatar character={character} />
         <div className="chat-conversation__identity">
           <span className="chat-conversation__name">{character.name}</span>
-          <span className="chat-conversation__series">{character.series}</span>
+          <span className="chat-conversation__series">
+            {sending ? <span className="chat-conversation__typing">typing…</span> : character.series}
+          </span>
         </div>
       </div>
 
@@ -100,6 +102,15 @@ export default function ChatConversation({ character, onBack, notify }) {
               </div>
             </div>
           ))
+        )}
+        {sending && (
+          <div className="chat-bubble-row" data-sender="character">
+            <div className="chat-bubble chat-bubble--typing">
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+              <span className="chat-typing-dot" />
+            </div>
+          </div>
         )}
       </div>
 
