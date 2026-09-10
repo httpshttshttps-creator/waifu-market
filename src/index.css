@@ -118,8 +118,10 @@
 }
 
 /* Headline text gets an actual metallic gradient instead of a flat
-   gold fill. */
-.app-shell[data-accent="blackgold"] .brand-title,
+   gold fill. Deliberately excludes .brand-title - that's the shared
+   heading class for Home/Ride/Leaderboard/Arena, and a nonstop shine
+   loop reads as gimmicky repeated on every tab; those just keep the
+   normal one-time build-in like every other theme. */
 .app-shell[data-accent="blackgold"] .settings-sheet__title,
 .app-shell[data-accent="blackgold"] .chat-topbar__title {
   background: linear-gradient(115deg, #b8860b 0%, #ffe98a 35%, #ffd700 50%, #b8860b 70%, #ffe98a 100%);
@@ -251,8 +253,8 @@ button {
   background:
     radial-gradient(130% 40% at 50% 32%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
-  padding: max(20px, env(safe-area-inset-top)) 16px
-    calc(84px + env(safe-area-inset-bottom));
+  padding: calc(max(20px, env(safe-area-inset-top)) + var(--tg-content-safe-top, 0px)) 16px
+    calc(84px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
 }
 
 /* Ride and Chat are immersive full-screen tabs (see App.jsx's `immersive`
@@ -260,7 +262,7 @@ button {
    reserve space for, and no reason to leave ~84px of dead padding under
    their content. */
 .app-shell[data-immersive="true"] {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
 }
 
 .app-shell__inner {
@@ -1627,7 +1629,7 @@ button {
   inset: 0;
   z-index: 1000;
   overflow: hidden;
-  background: #0a0316;
+  background: var(--ink);
   touch-action: none;
 }
 
@@ -2788,7 +2790,7 @@ button {
   width: 150px;
   height: 3px;
   border-radius: 999px;
-  background: rgba(253, 236, 235, 0.12);
+  background: var(--line);
   overflow: hidden;
 }
 

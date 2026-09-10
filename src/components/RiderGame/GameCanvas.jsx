@@ -279,8 +279,8 @@ function buildTrapBody(trap) {
 
 function drawBackground(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#3a0f1f");
-  gradient.addColorStop(1, "#1c0812");
+  gradient.addColorStop(0, SCENE_COLORS.skyTop);
+  gradient.addColorStop(1, SCENE_COLORS.skyBottom);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
@@ -350,7 +350,7 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     const first = span[0];
     if (last.x < cameraX - 50 || first.x > cameraX + viewWidth + 50) continue;
 
-    ctx.fillStyle = "#2b0e10";
+    ctx.fillStyle = SCENE_COLORS.groundFill;
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -359,9 +359,9 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.closePath();
     ctx.fill();
 
-    ctx.shadowColor = "#f2c14e";
+    ctx.shadowColor = SCENE_COLORS.groundGlowShadow;
     ctx.shadowBlur = 18;
-    ctx.strokeStyle = "#ffedb0";
+    ctx.strokeStyle = SCENE_COLORS.groundGlow;
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -372,7 +372,7 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     // instead of a single flat ribbon.
     ctx.save();
     ctx.shadowBlur = 6;
-    ctx.strokeStyle = "rgba(255, 138, 61, 0.55)";
+    ctx.strokeStyle = SCENE_COLORS.groundGlowDim;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(first.x, first.y + 10);
@@ -721,7 +721,39 @@ const CYBERBIKE_REF = {
   innerRadius: 138,
 };
 
-const CYBERBIKE_PALETTE = {
+// ---------------- theme-aware palette ----------------
+// The bike + background/ground used to always be a fixed purple-on-
+// maroon look, regardless of the player's chosen accent color. These
+// helpers derive a matching palette from the live --gold/--gold-bright/
+// --ink CSS variables instead (see applyThemeColors, called once per
+// mount below) so Ride actually recolors with the rest of the app.
+
+function hexToRgb(hex) {
+  const clean = hex.replace("#", "").trim();
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const n = parseInt(full, 16) || 0;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex({ r, g, b }) {
+  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return "#" + [r, g, b].map((v) => clamp(v).toString(16).padStart(2, "0")).join("");
+}
+function mixHex(hexA, hexB, t) {
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  return rgbToHex({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t });
+}
+function hexToRgba(hex, alpha) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+const darkenHex = (hex, t) => mixHex(hex, "#000000", t);
+const lightenHex = (hex, t) => mixHex(hex, "#ffffff", t);
+
+// Defaults match the original always-purple bike / always-maroon scene,
+// used until applyThemeColors() runs (or as a fallback if it can't read
+// the CSS vars for some reason).
+let CYBERBIKE_PALETTE = {
   darkestPurple: "#10032D",
   darkBody: "#200852",
   bodyPurple: "#320D7C",
@@ -732,6 +764,64 @@ const CYBERBIKE_PALETTE = {
   cyan: "#97E7FB",
   brightCyan: "#EAFEFF",
 };
+
+let SCENE_COLORS = {
+  skyTop: "#3a0f1f",
+  skyBottom: "#1c0812",
+  groundFill: "#2b0e10",
+  groundGlow: "#ffedb0",
+  groundGlowShadow: "#f2c14e",
+  groundGlowDim: "rgba(255, 138, 61, 0.55)",
+};
+
+// How far down (px) the HUD gets shifted so it never sits under the
+// device's own notch/status bar or Telegram's floating fullscreen
+// controls - see applySafeAreaOffset, called once per mount below.
+let HUD_TOP_OFFSET = 0;
+
+function applySafeAreaOffset() {
+  const styles = getComputedStyle(document.documentElement);
+  const safeTop = parseFloat(styles.getPropertyValue("--tg-safe-top")) || 0;
+  const contentTop = parseFloat(styles.getPropertyValue("--tg-content-safe-top")) || 0;
+  // Different Telegram clients split "device notch" vs "Telegram's own
+  // fullscreen controls" between these two differently - taking the
+  // larger of the two is the safe bet either way.
+  HUD_TOP_OFFSET = Math.max(safeTop, contentTop);
+}
+
+// Reads the current accent straight off `el` (any node inside .app-shell
+// works - custom properties inherit down the DOM tree) and rebuilds both
+// palettes above from it.
+function applyThemeColors(el) {
+  const styles = getComputedStyle(el);
+  const gold = styles.getPropertyValue("--gold").trim() || "#d62839";
+  const bright = styles.getPropertyValue("--gold-bright").trim() || "#ff4d5e";
+  const ink = styles.getPropertyValue("--ink").trim() || "#170707";
+
+  CYBERBIKE_PALETTE = {
+    darkestPurple: darkenHex(gold, 0.82),
+    darkBody: darkenHex(gold, 0.55),
+    bodyPurple: darkenHex(gold, 0.22),
+    brightBodyPurple: mixHex(gold, bright, 0.55),
+    neonPurple: gold,
+    violet: mixHex(gold, bright, 0.3),
+    whiteGlow: lightenHex(bright, 0.82),
+    // Kept static: a small cool-toned trim/visor detail that reads well
+    // against any body color, rather than every accent losing its one
+    // contrast highlight.
+    cyan: "#97E7FB",
+    brightCyan: "#EAFEFF",
+  };
+
+  SCENE_COLORS = {
+    skyTop: mixHex(ink, gold, 0.16),
+    skyBottom: darkenHex(ink, 0.3),
+    groundFill: darkenHex(ink, 0.05),
+    groundGlow: lightenHex(bright, 0.75),
+    groundGlowShadow: bright,
+    groundGlowDim: hexToRgba(bright, 0.55),
+  };
+}
 
 // Traced vertex lists, exactly as given in the reference (1536x700 master canvas).
 const CYBERBIKE_REAR_TOP_SILHOUETTE = [[78, 111], [680, 197], [835, 228], [620, 274], [365, 271]];
@@ -1156,6 +1246,13 @@ export default function GameCanvas({ onGameOver }) {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     const ctx = canvas.getContext("2d");
+
+    // Recolor the bike + background/ground to match whichever accent the
+    // player picked in Settings (see applyThemeColors above) - reads the
+    // live --gold/--gold-bright/--ink CSS custom properties straight off
+    // this DOM node, which inherit down from .app-shell[data-accent].
+    applyThemeColors(container);
+    applySafeAreaOffset();
 
     const engine = Engine.create();
     engine.gravity.y = GRAVITY_Y;
@@ -1907,6 +2004,11 @@ export default function GameCanvas({ onGameOver }) {
         ctx.restore();
       }
       drawSpeedLines(ctx, speedLines, viewWidth, boostActive);
+      // Shifted down by HUD_TOP_OFFSET (device notch/status bar +
+      // Telegram's own floating fullscreen controls - see
+      // applySafeAreaOffset) so the HUD never sits under either.
+      ctx.save();
+      ctx.translate(0, HUD_TOP_OFFSET);
       drawHud(
         ctx,
         {
@@ -1918,6 +2020,7 @@ export default function GameCanvas({ onGameOver }) {
         scorePulseRemaining / 400
       );
       drawBoostBar(ctx, viewWidth, 1 - boostCooldownRemaining / BOOST_COOLDOWN_MS, boostActive);
+      ctx.restore();
       ctx.restore();
 
       ctx.restore();

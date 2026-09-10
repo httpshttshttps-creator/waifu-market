@@ -27,7 +27,21 @@ import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 import BootScreen from "./components/BootScreen.jsx";
 
 export default function App() {
-  const { haptic, notify } = useTelegram();
+  // Accent color for the Classic theme (see SettingsSheet's color drawer) -
+  // just an accent recolor, not a full alternate theme (those - Seraphim,
+  // Tenebris - stay separate/"coming soon"). Persisted locally so it
+  // survives a reload; applied via [data-accent] on .app-shell below, and
+  // handed to useTelegram so Telegram's own header/backdrop color matches
+  // it too.
+  const [accentColor, setAccentColor] = useState(() => {
+    try {
+      return window.localStorage.getItem("theme.accent") || "red";
+    } catch {
+      return "red";
+    }
+  });
+
+  const { haptic, notify } = useTelegram(accentColor);
 
   const [activeTab, setActiveTab] = useState("home");
   // Which side the tab-build animation should slide in from, for the
@@ -55,18 +69,6 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState("");
   const [revealCharacter, setRevealCharacter] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Accent color for the Classic theme (see SettingsSheet's color drawer) -
-  // just an accent recolor, not a full alternate theme (those - Seraphim,
-  // Tenebris - stay separate/"coming soon"). Persisted locally so it
-  // survives a reload; applied via [data-accent] on .app-shell below.
-  const [accentColor, setAccentColor] = useState(() => {
-    try {
-      return window.localStorage.getItem("theme.accent") || "red";
-    } catch {
-      return "red";
-    }
-  });
 
   function changeAccentColor(id) {
     setAccentColor(id);
@@ -222,7 +224,16 @@ export default function App() {
   }
 
   if (!appReady) {
-    return <BootScreen />;
+    // Wrapped in .app-shell[data-accent] too - BootScreen's colors are
+    // var(--gold)/var(--gold-bright), which only resolve to the picked
+    // accent when read from inside that scoped element. Without this
+    // wrapper the boot screen always showed the default red regardless
+    // of the saved theme.
+    return (
+      <div className="app-shell" data-accent={accentColor}>
+        <BootScreen />
+      </div>
+    );
   }
 
   // Switches tabs and records which direction the new one sits in

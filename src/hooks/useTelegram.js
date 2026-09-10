@@ -10,8 +10,22 @@ import { useEffect, useMemo } from "react";
  * directly, while main.jsx still does the official SDK init(). When we
  * revisit this together we can migrate individual calls to `useSignal` /
  * `hapticFeedback` / `mainButton` from @tma.js/sdk-react one at a time.
+ *
+ * `accentColor` is the id from SettingsSheet's color drawer ("red" default,
+ * "blue", "yellow", "green", "blackgold") - kept in sync here so Telegram's
+ * OWN chrome (header bar, and the blank backdrop shown for an instant
+ * before our CSS paints) matches whichever one the player picked, instead
+ * of always being the old hardcoded red.
  */
-export function useTelegram() {
+const ACCENT_INK = {
+  red: "#170707",
+  blue: "#060f1c",
+  yellow: "#1c1608",
+  green: "#071a0f",
+  blackgold: "#050505",
+};
+
+export function useTelegram(accentColor = "red") {
   const webApp = useMemo(() => (typeof window !== "undefined" ? window.Telegram?.WebApp : undefined), []);
 
   useEffect(() => {
@@ -19,31 +33,42 @@ export function useTelegram() {
     webApp.ready();
     webApp.expand();
 
-    // Match Telegram's own header/background chrome to our theme instead
-    // of the default gray bar, so the close (✕) button and bot name sit
-    // on the same color as the app underneath it. Keep this in sync with
-    // --ink in index.css if that palette ever changes. Older clients that
-    // don't support setHeaderColor/setBackgroundColor just no-op here.
+    // expand() only maximizes the WebView to Telegram's normal "tall but
+    // still inset" size - there's still a visible margin/rounded window
+    // above and below it (Telegram's own chrome peeking through), which
+    // is what made the Ride game's fullscreen canvas look cut off no
+    // matter what our own CSS did. requestFullscreen() (Bot API 8.0+)
+    // asks for the real edge-to-edge size instead. Older clients just
+    // don't have the method - no-op, falls back to expand()'s sizing.
     try {
-      webApp.setHeaderColor("#170707");
-      webApp.setBackgroundColor("#170707");
+      webApp.requestFullscreen?.();
     } catch {
       /* unsupported client version - ignore */
     }
   }, [webApp]);
 
+  useEffect(() => {
+    if (!webApp) return;
+    const hex = ACCENT_INK[accentColor] || ACCENT_INK.red;
+    try {
+      webApp.setHeaderColor(hex);
+      webApp.setBackgroundColor(hex);
+    } catch {
+      /* unsupported client version - ignore */
+    }
+  }, [webApp, accentColor]);
+
   // CSS `100dvh` tracks the OS browser's own address-bar collapse, but
   // Telegram Mini Apps run inside Telegram's own webview, which resizes
   // the visible area on ITS terms (keyboard, Telegram's UI chrome,
   // fullscreen toggles) - that doesn't always line up with a real
-  // browser resize/dvh recompute, especially on Android. That mismatch
-  // is what made full-screen bits (the Ride game's canvas) look
-  // shifted/not fixed in place. Telegram exposes the real number via
-  // webApp.viewportStableHeight, kept live through the 'viewportChanged'
-  // event - mirror it into a --tg-vh CSS var so anything that needs the
-  // TRUE visible height can use var(--tg-vh, 100dvh) instead of relying
-  // on dvh alone. Also nudge a plain window resize so anything (like the
-  // game canvas) that only listens for that event still picks it up.
+  // browser resize/dvh recompute, especially on Android. Telegram exposes
+  // the real number via webApp.viewportStableHeight, kept live through
+  // the 'viewportChanged' event - mirror it into a --tg-vh CSS var so
+  // anything that needs the TRUE visible height can use
+  // var(--tg-vh, 100dvh) instead of relying on dvh alone. Also nudge a
+  // plain window resize so anything (like the game canvas) that only
+  // listens for that event still picks it up.
   useEffect(() => {
     function applyViewportHeight() {
       const height = webApp?.viewportStableHeight || webApp?.viewportHeight || window.innerHeight;
@@ -62,6 +87,44 @@ export function useTelegram() {
     // window resize is the closest equivalent.
     window.addEventListener("resize", applyViewportHeight);
     return () => window.removeEventListener("resize", applyViewportHeight);
+  }, [webApp]);
+
+  // In fullscreen mode there's no more native Telegram header bar - the
+  // close (✕) / menu controls float directly on top of our own content
+  // instead, and the device's own notch/status bar is now inside our
+  // canvas too. safeAreaInset = the device's hardware safe area (notch,
+  // home indicator - env(safe-area-inset-*) already covers most of this,
+  // but not every client fills that in reliably inside a WebView).
+  // contentSafeAreaInset = the EXTRA space Telegram itself wants reserved
+  // so its floating controls don't sit on top of our UI. Mirror both into
+  // CSS vars; index.css adds them on top of env(safe-area-inset-*).
+  useEffect(() => {
+    function applyInsets() {
+      const safe = webApp?.safeAreaInset || {};
+      const content = webApp?.contentSafeAreaInset || {};
+      const root = document.documentElement.style;
+      root.setProperty("--tg-safe-top", `${safe.top || 0}px`);
+      root.setProperty("--tg-safe-bottom", `${safe.bottom || 0}px`);
+      root.setProperty("--tg-safe-left", `${safe.left || 0}px`);
+      root.setProperty("--tg-safe-right", `${safe.right || 0}px`);
+      root.setProperty("--tg-content-safe-top", `${content.top || 0}px`);
+      root.setProperty("--tg-content-safe-bottom", `${content.bottom || 0}px`);
+      root.setProperty("--tg-content-safe-left", `${content.left || 0}px`);
+      root.setProperty("--tg-content-safe-right", `${content.right || 0}px`);
+    }
+
+    applyInsets();
+
+    if (webApp?.onEvent) {
+      webApp.onEvent("safeAreaChanged", applyInsets);
+      webApp.onEvent("contentSafeAreaChanged", applyInsets);
+      webApp.onEvent("fullscreenChanged", applyInsets);
+      return () => {
+        webApp.offEvent?.("safeAreaChanged", applyInsets);
+        webApp.offEvent?.("contentSafeAreaChanged", applyInsets);
+        webApp.offEvent?.("fullscreenChanged", applyInsets);
+      };
+    }
   }, [webApp]);
 
   const user = webApp?.initDataUnsafe?.user ?? null;
