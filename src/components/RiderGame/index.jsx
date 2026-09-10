@@ -66,11 +66,9 @@ export default function RiderGame({ notify, onBalanceChange, onExit }) {
 
   return (
     <div className="rider-game">
-      {/* Only shown on the intro/result screens - during an actual run
-          the in-canvas quit button (GameCanvas's onQuit) already backs
-          out to the intro screen, where this ✕ can then leave the tab
-          entirely. Two overlapping exits during gameplay would just be
-          clutter on an already-busy screen. */}
+      {/* Only shown on the intro/result screens - there's no way to back
+          out mid-run anymore (the old in-canvas ✕ overlapped the HUD and
+          got removed), so the only exit is here, before/after a run. */}
       {stage !== STAGE_PLAYING && (
         <button type="button" className="rider-game__exit" onClick={onExit} aria-label="Close">
           ✕
@@ -117,7 +115,7 @@ export default function RiderGame({ notify, onBalanceChange, onExit }) {
       )}
 
       {stage === STAGE_PLAYING && (
-        <GameCanvas key={runKey} onGameOver={handleGameOver} onQuit={() => setStage(STAGE_INTRO)} />
+        <GameCanvas key={runKey} onGameOver={handleGameOver} />
       )}
 
       {stage === STAGE_RESULT && result && (

@@ -1145,7 +1145,7 @@ function createLandingDust(x, y, intensity) {
 
 // ---------------- component ----------------
 
-export default function GameCanvas({ onGameOver, onQuit }) {
+export default function GameCanvas({ onGameOver }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const gasRef = useRef(false);
@@ -1947,9 +1947,6 @@ export default function GameCanvas({ onGameOver, onQuit }) {
   return (
     <div className="rider-game__stage" ref={containerRef}>
       <canvas ref={canvasRef} className="rider-game__canvas" />
-      <button type="button" className="rider-game__quit" onClick={onQuit}>
-        ✕
-      </button>
     </div>
   );
 }

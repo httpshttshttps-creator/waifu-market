@@ -28,47 +28,142 @@
 
 /* ---------------- theme accent colors ---------------- */
 /* Classic theme accent recolors, set via .app-shell[data-accent] (see
-   SettingsSheet's color drawer + App.jsx). "red" is the default palette
-   above, so it needs no override here. */
+   SettingsSheet's color drawer + App.jsx). Recolors the WHOLE palette
+   (background/surfaces/text/borders too, not just buttons) so the app
+   genuinely feels blue/yellow/green, not just red with different
+   button colors. "red" is the default palette in :root above, so it
+   needs no override here. */
 
 .app-shell[data-accent="blue"] {
+  --ink: #060f1c;
+  --ink-glow: #0f2a4d;
+  --surface: #0f1f30;
+  --surface-raised: #16324a;
   --gold: #2f6fed;
   --gold-bright: #6ea8ff;
+  --text: #eaf2ff;
+  --text-dim: #a9c4e8;
+  --text-faint: #5f7fa8;
+  --line: rgba(234, 242, 255, 0.1);
 }
 
 .app-shell[data-accent="yellow"] {
+  --ink: #1c1608;
+  --ink-glow: #3d2f0a;
+  --surface: #241f10;
+  --surface-raised: #332b16;
   --gold: #c99400;
-  --gold-bright: #fde047;
+  --gold-bright: #ffd93d;
+  --text: #fdf6e3;
+  --text-dim: #d9c9a3;
+  --text-faint: #93855c;
+  --line: rgba(255, 246, 227, 0.1);
 }
 
 .app-shell[data-accent="green"] {
+  --ink: #071a0f;
+  --ink-glow: #0f3d22;
+  --surface: #0f2417;
+  --surface-raised: #16331f;
   --gold: #16a34a;
   --gold-bright: #4ade80;
+  --text: #eafff3;
+  --text-dim: #a9e8c4;
+  --text-faint: #5fa87f;
+  --line: rgba(234, 255, 243, 0.1);
 }
 
+/* ---- Black & Gold: the premium one, gets more than a recolor ---- */
+
 .app-shell[data-accent="blackgold"] {
-  --ink: #07070a;
-  --ink-glow: #221a06;
-  --surface: #121014;
-  --surface-raised: #1b171a;
-  --gold: #a9791a;
-  --gold-bright: #ffd94d;
-  --line: rgba(255, 217, 77, 0.14);
+  --ink: #050505;
+  --ink-glow: #1a1206;
+  --surface: #100d08;
+  --surface-raised: #1c1710;
+  /* A genuine gold pairing (dark goldenrod -> pure gold), not a yellow
+     one - #c99400/#ffd93d above are deliberately warmer/duller than
+     these to keep "Yellow" reading as its own distinct color. */
+  --gold: #b8860b;
+  --gold-bright: #ffd700;
+  --text: #f5ecd7;
+  --text-dim: #cbb888;
+  --text-faint: #8a7a52;
+  --line: rgba(255, 215, 0, 0.18);
+  --paper: #f7ecd0;
+  --paper-shadow: #d9c48f;
+}
+
+/* A slow-drifting gold vignette behind everything, instead of the flat
+   near-black the other accents keep - this alone reads as "premium
+   background" rather than "dark theme with gold buttons". */
+.app-shell[data-accent="blackgold"]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 45% at 18% -8%, rgba(255, 215, 0, 0.16), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 108%, rgba(184, 134, 11, 0.14), transparent 60%);
+  animation: blackgold-drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes blackgold-drift {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Headline text gets an actual metallic gradient instead of a flat
+   gold fill. */
+.app-shell[data-accent="blackgold"] .brand-title,
+.app-shell[data-accent="blackgold"] .settings-sheet__title,
+.app-shell[data-accent="blackgold"] .chat-topbar__title {
+  background: linear-gradient(115deg, #b8860b 0%, #ffe98a 35%, #ffd700 50%, #b8860b 70%, #ffe98a 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: blackgold-text-shine 5s linear infinite;
+}
+
+@keyframes blackgold-text-shine {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+/* Raised surfaces (character cards, chat bubbles, sheets) get a thin
+   gold hairline instead of the neutral --line tint every other accent
+   uses. */
+.app-shell[data-accent="blackgold"] .character-card,
+.app-shell[data-accent="blackgold"] .confirm-sheet,
+.app-shell[data-accent="blackgold"] .chat-bubble-row[data-sender="character"] .chat-bubble {
+  border-color: rgba(255, 215, 0, 0.28) !important;
+  box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.06), 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 /* The "shiny" part of Black & Gold - a soft light sweep across the main
    action buttons, reused by the color swatch preview itself above. */
 .app-shell[data-accent="blackgold"] .sheet-button--confirm,
-.app-shell[data-accent="blackgold"] .chat-composer__send {
+.app-shell[data-accent="blackgold"] .chat-composer__send,
+.app-shell[data-accent="blackgold"] .chat-fab,
+.app-shell[data-accent="blackgold"] .chat-empty-state__fab {
   position: relative;
   overflow: hidden;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.35);
 }
 .app-shell[data-accent="blackgold"] .sheet-button--confirm::after,
-.app-shell[data-accent="blackgold"] .chat-composer__send::after {
+.app-shell[data-accent="blackgold"] .chat-composer__send::after,
+.app-shell[data-accent="blackgold"] .chat-fab::after,
+.app-shell[data-accent="blackgold"] .chat-empty-state__fab::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.55) 48%, transparent 66%);
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.6) 48%, transparent 66%);
   transform: translateX(-120%);
   animation: blackgold-shine 3.2s ease-in-out infinite;
 }
@@ -83,6 +178,7 @@
     transform: translateX(120%);
   }
 }
+
 
 * {
   box-sizing: border-box;
@@ -886,9 +982,9 @@ button {
   justify-content: center;
   gap: 4px;
   padding: 8px 16px calc(10px + env(safe-area-inset-bottom));
-  background: rgba(25, 19, 7, 0.86);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  /* Fully opaque now (no more see-through blur) - a solid bar, not a
+     glass panel, per feedback. */
+  background: var(--ink);
   border-top: 1px solid var(--line);
   opacity: 1;
   transform: translateY(0);
@@ -920,11 +1016,7 @@ button {
   text-align: center;
   line-height: 1.2;
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-
-.bottom-nav__item svg {
-  transition: transform 0.15s ease;
+  transition: color 0.15s ease;
 }
 
 .bottom-nav__item:active {
@@ -937,11 +1029,14 @@ button {
 
 .bottom-nav__item[data-active="true"] {
   color: var(--gold-bright);
-  background: var(--surface-raised);
 }
 
 .bottom-nav__item[data-active="true"] svg {
-  transform: translateY(-1px);
+  filter: drop-shadow(0 0 6px var(--gold-bright));
+}
+
+.bottom-nav__item[data-active="true"] span {
+  text-shadow: 0 0 8px var(--gold-bright);
 }
 
 /* ---------------- profile header (Home tab) ---------------- */
@@ -1515,9 +1610,21 @@ button {
 
 .rider-game__stage {
   position: fixed;
+  /* `inset: 0` alone (top/right/bottom/left all 0) is what actually
+     guarantees this fills the TRUE visible viewport, with zero
+     dependency on dvh/vh/--tg-vh accuracy: the browser/webview computes
+     the box's size directly from those four edges. The previous version
+     also set explicit `width: 100vw` and `height: var(--tg-vh, 100dvh)`
+     alongside `inset: 0` - that's an over-constrained box (top+bottom+
+     height all specified), and per the CSS spec the explicit height
+     wins over the bottom inset in that case. So whenever --tg-vh (or
+     100dvh) reported anything shorter than the real viewport - which
+     Telegram's viewportStableHeight does on some Android builds,
+     especially right after expand() - this stage stopped short and
+     left dead space below it instead of truly reaching the bottom.
+     Dropping the explicit width/height and keeping only `inset: 0`
+     removes that ambiguity entirely. */
   inset: 0;
-  width: 100vw;
-  height: var(--tg-vh, 100dvh);
   z-index: 1000;
   overflow: hidden;
   background: #0a0316;
@@ -1528,21 +1635,6 @@ button {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.rider-game__quit {
-  position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(10, 4, 24, 0.65);
-  color: #fdeceb;
-  font-size: 15px;
-  cursor: pointer;
-  z-index: 2;
 }
 
 .rider-game__result {
