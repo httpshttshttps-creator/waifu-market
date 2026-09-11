@@ -53,22 +53,24 @@ export default function LeaderboardTab({ notify }) {
 
   return (
     <div className="leaderboard-tab">
-      <h1 className="brand-title">🏆 LEADERBOARD & TASKS</h1>
+      <div className="tab-header">
+        <h1 className="brand-title">🏆 LEADERBOARD & TASKS</h1>
 
-      <button type="button" className="leaderboard-tasks-button" onClick={openTasks}>
-        📋 Tasks
-      </button>
+        <button type="button" className="leaderboard-tasks-button" onClick={openTasks}>
+          📋 Tasks
+        </button>
 
-      <div className="leaderboard-toggle">
-        <button type="button" data-active={mode === "collectors"} onClick={() => changeMode("collectors")}>
-          ✦ Collection
-        </button>
-        <button type="button" data-active={mode === "richest"} onClick={() => changeMode("richest")}>
-          💰 VɎ
-        </button>
+        <div className="leaderboard-toggle">
+          <button type="button" data-active={mode === "collectors"} onClick={() => changeMode("collectors")}>
+            ✦ Collection
+          </button>
+          <button type="button" data-active={mode === "richest"} onClick={() => changeMode("richest")}>
+            💰 VɎ
+          </button>
+        </div>
       </div>
 
-      <div className="leaderboard-list build-fade-only">
+      <div className="leaderboard-list tab-scroll-body build-fade-only">
         {mode === "collectors" ? (
           collectors === null ? (
             <SkeletonRowList count={6} />

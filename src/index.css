@@ -192,6 +192,21 @@ body {
   margin: 0;
   padding: 0;
   background: var(--ink);
+  /* Locks the page itself in place (no native scroll/bounce at all -
+     .app-shell is the only thing that ever scrolls internally now, via
+     .tab-scroll-body). Without this, some mobile WebViews do their own
+     brief scroll-into-view/viewport nudge on things like a focused
+     input or a keyboard opening, which is what made the fixed bottom
+     nav look like it "dips down and snaps back" - it wasn't the nav
+     moving, it was the whole page nudging under it for an instant. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+#root {
+  height: 100%;
 }
 
 /* Kill the default mobile-browser "link tap" flash (blue/gray highlight
@@ -232,15 +247,21 @@ button {
 /* ---------------- shell ---------------- */
 
 .app-shell {
-  /* Fallback for browsers without dvh support, THEN the real dvh
-     override for everyone else, THEN Telegram's own live-tracked
-     viewport height (--tg-vh, set by useTelegram.js) as the final,
-     most-accurate word - see that file's comment for why dvh alone
-     isn't reliable inside Telegram's webview. Each line only takes
-     over if the browser/environment actually supports it. */
-  min-height: 100vh;
-  min-height: 100dvh;
-  min-height: var(--tg-vh, 100dvh);
+  /* Was min-height (page grows/scrolls naturally) - now a fixed, real
+     height with overflow hidden: the shell itself never scrolls.
+     Each tab manages its own header/scroll-body split inside it
+     instead (see .tab-header/.tab-scroll-body below), which is what
+     actually keeps a header "in place" while its list scrolls -
+     something a plain scrolling page can't do without JS scroll
+     tricks. var(--tg-vh) is Telegram's own live-tracked viewport
+     height (see useTelegram.js); 100dvh/100vh are the fallback chain
+     for browsers/contexts where that isn't set. */
+  height: 100vh;
+  height: 100dvh;
+  height: var(--tg-vh, 100dvh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   /* The glow's center used to sit just above the viewport (50% -10%),
      which meant it was already ~70% intensity right at the very top
      edge - exactly where this content butts up against Telegram's
@@ -268,6 +289,11 @@ button {
 .app-shell__inner {
   max-width: 720px;
   margin: 0 auto;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------------- header ---------------- */
@@ -364,6 +390,113 @@ button {
   background: var(--gold);
   border-color: var(--gold);
   color: #fff2f0;
+}
+
+/* ---------------- Home tab sort/filter bar ---------------- */
+
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.sort-bar__trigger {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sort-bar__trigger strong {
+  color: var(--text);
+}
+
+.sort-bar__chevron {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.sort-bar__clear {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.sort-sheet__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.sort-sheet__modes {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sort-sheet__mode {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sort-sheet__mode[data-active="true"] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #fff2f0;
+}
+
+.sort-sheet__list {
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sort-sheet__option {
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.sort-sheet__option[data-active="true"] {
+  background: var(--surface-raised);
+  color: var(--gold-bright);
+}
+
+.sort-sheet__hint {
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
 }
 
 .search-input {
@@ -1138,6 +1271,17 @@ button {
 
 /* ---------------- leaderboard tab ---------------- */
 
+.home-tab,
+.market-tab,
+.leaderboard-tab,
+.chat-tab {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .leaderboard-tab {
   padding-bottom: 8px;
 }
@@ -1660,15 +1804,8 @@ button {
 }
 
 /* ---------------- Chat tab ---------------- */
-
-.chat-tab {
-  display: flex;
-  flex-direction: column;
-  /* Chat is always immersive (nav hidden, app-shell padding reduced -
-     see .app-shell[data-immersive]) so this only has to account for
-     the topbar below and app-shell's own remaining top/bottom padding. */
-  min-height: calc(var(--tg-vh, 100dvh) - 60px);
-}
+/* Base flex/overflow rules for .chat-tab now live with .home-tab/
+   .market-tab/.leaderboard-tab above - this only has its topbar. */
 
 .chat-topbar {
   display: flex;
@@ -1824,6 +1961,45 @@ button {
   color: var(--text);
 }
 
+.chat-list-row__pin {
+  font-size: 11px;
+  margin-right: 3px;
+}
+
+.chat-context-sheet__title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  margin: 0 0 14px;
+  text-align: center;
+}
+
+.chat-context-sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.chat-context-sheet__action {
+  text-align: left;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.chat-context-sheet__action--danger {
+  color: var(--danger);
+}
+
+.chat-context-sheet__action:disabled {
+  opacity: 0.5;
+}
+
 .chat-list-row__time {
   flex: 0 0 auto;
   font-family: var(--font-mono);
@@ -1895,7 +2071,7 @@ button {
 
 .chat-fab {
   position: fixed;
-  right: max(20px, env(safe-area-inset-right));
+  left: max(20px, env(safe-area-inset-left));
   bottom: max(20px, env(safe-area-inset-bottom));
   z-index: 55;
   width: 52px;
@@ -2811,6 +2987,29 @@ button {
   }
 }
 
+.tab-build {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Generic "header stays put, only the list scrolls" split, reused by
+   every tab that needs it (Home, Market, Leaderboard, Chat) instead of
+   each tab hand-rolling its own copy. Apply .tab-header to the part
+   that should stay fixed and .tab-scroll-body to the part that
+   scrolls - both as direct children of a flex column tab root
+   (.home-tab, .market-tab, .leaderboard-tab, .chat-tab, ...). */
+.tab-header {
+  flex: 0 0 auto;
+}
+.tab-scroll-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ================================================================
    Tab "build" transition - plays every time a tab becomes active
    (App.jsx remounts this wrapper via key={activeTab}), so opening
@@ -2876,6 +3075,8 @@ button {
    reads as its pieces assembling rather than one flat block sliding
    in as a whole. */
 .tab-build > .leaderboard-tab,
+.tab-build > .home-tab,
+.tab-build > .market-tab,
 .tab-build > .arena-tab,
 .tab-build > .chat-tab,
 .tab-build > .chat-conversation {
@@ -2883,6 +3084,8 @@ button {
 }
 
 .leaderboard-tab > *,
+.home-tab > *,
+.market-tab > *,
 .arena-tab > *,
 .chat-tab > *,
 .chat-conversation > * {
@@ -2890,42 +3093,56 @@ button {
   will-change: transform, opacity, filter;
 }
 .leaderboard-tab > *:nth-child(1),
+.home-tab > *:nth-child(1),
+.market-tab > *:nth-child(1),
 .arena-tab > *:nth-child(1),
 .chat-tab > *:nth-child(1),
 .chat-conversation > *:nth-child(1) {
   animation-delay: 0ms;
 }
 .leaderboard-tab > *:nth-child(2),
+.home-tab > *:nth-child(2),
+.market-tab > *:nth-child(2),
 .arena-tab > *:nth-child(2),
 .chat-tab > *:nth-child(2),
 .chat-conversation > *:nth-child(2) {
   animation-delay: 70ms;
 }
 .leaderboard-tab > *:nth-child(3),
+.home-tab > *:nth-child(3),
+.market-tab > *:nth-child(3),
 .arena-tab > *:nth-child(3),
 .chat-tab > *:nth-child(3),
 .chat-conversation > *:nth-child(3) {
   animation-delay: 130ms;
 }
 .leaderboard-tab > *:nth-child(4),
+.home-tab > *:nth-child(4),
+.market-tab > *:nth-child(4),
 .arena-tab > *:nth-child(4),
 .chat-tab > *:nth-child(4),
 .chat-conversation > *:nth-child(4) {
   animation-delay: 190ms;
 }
 .leaderboard-tab > *:nth-child(5),
+.home-tab > *:nth-child(5),
+.market-tab > *:nth-child(5),
 .arena-tab > *:nth-child(5),
 .chat-tab > *:nth-child(5),
 .chat-conversation > *:nth-child(5) {
   animation-delay: 240ms;
 }
 .leaderboard-tab > *:nth-child(6),
+.home-tab > *:nth-child(6),
+.market-tab > *:nth-child(6),
 .arena-tab > *:nth-child(6),
 .chat-tab > *:nth-child(6),
 .chat-conversation > *:nth-child(6) {
   animation-delay: 280ms;
 }
 .leaderboard-tab > *:nth-child(n + 7),
+.home-tab > *:nth-child(n + 7),
+.market-tab > *:nth-child(n + 7),
 .arena-tab > *:nth-child(n + 7),
 .chat-tab > *:nth-child(n + 7),
 .chat-conversation > *:nth-child(n + 7) {
@@ -2953,6 +3170,8 @@ button {
    above). Keep them on that original plain fade instead of picking up
    the tab-build rise/slide meant for the tab's own first-paint content. */
 .leaderboard-tab > .sheet-overlay,
+.home-tab > .sheet-overlay,
+.market-tab > .sheet-overlay,
 .arena-tab > .sheet-overlay,
 .chat-tab > .sheet-overlay,
 .chat-conversation > .sheet-overlay {
@@ -2990,6 +3209,8 @@ button {
 
 .tab-build[data-direction="right"] > *,
 .tab-build[data-direction="right"] > .leaderboard-tab > *,
+.tab-build[data-direction="right"] > .home-tab > *,
+.tab-build[data-direction="right"] > .market-tab > *,
 .tab-build[data-direction="right"] > .arena-tab > *,
 .tab-build[data-direction="right"] > .chat-tab > *,
 .tab-build[data-direction="right"] > .chat-conversation > * {
@@ -2997,6 +3218,8 @@ button {
 }
 .tab-build[data-direction="left"] > *,
 .tab-build[data-direction="left"] > .leaderboard-tab > *,
+.tab-build[data-direction="left"] > .home-tab > *,
+.tab-build[data-direction="left"] > .market-tab > *,
 .tab-build[data-direction="left"] > .arena-tab > *,
 .tab-build[data-direction="left"] > .chat-tab > *,
 .tab-build[data-direction="left"] > .chat-conversation > * {
@@ -3005,10 +3228,14 @@ button {
 /* The container fade (see above) stays a plain fade even when a
    direction is set - only its inner pieces should slide. */
 .tab-build[data-direction="right"] > .leaderboard-tab,
+.tab-build[data-direction="right"] > .home-tab,
+.tab-build[data-direction="right"] > .market-tab,
 .tab-build[data-direction="right"] > .arena-tab,
 .tab-build[data-direction="right"] > .chat-tab,
 .tab-build[data-direction="right"] > .chat-conversation,
 .tab-build[data-direction="left"] > .leaderboard-tab,
+.tab-build[data-direction="left"] > .home-tab,
+.tab-build[data-direction="left"] > .market-tab,
 .tab-build[data-direction="left"] > .arena-tab,
 .tab-build[data-direction="left"] > .chat-tab,
 .tab-build[data-direction="left"] > .chat-conversation {
@@ -3082,10 +3309,14 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .tab-build > *,
   .tab-build > .leaderboard-tab,
+  .tab-build > .home-tab,
+  .tab-build > .market-tab,
   .tab-build > .arena-tab,
   .tab-build > .chat-tab,
   .tab-build > .chat-conversation,
   .leaderboard-tab > *,
+  .home-tab > *,
+  .market-tab > *,
   .arena-tab > *,
   .chat-tab > *,
   .chat-conversation > *,

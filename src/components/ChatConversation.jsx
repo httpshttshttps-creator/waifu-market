@@ -7,7 +7,7 @@ function bubbleTime(iso) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatConversation({ character, notify, onTypingChange }) {
+export default function ChatConversation({ character, notify }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -31,12 +31,6 @@ export default function ChatConversation({ character, notify, onTypingChange }) 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading, sending]);
-
-  // Mirrors `sending` up to ChatTab, which shows "typing…" in the topbar
-  // in place of the character's series while it's true.
-  useEffect(() => {
-    onTypingChange?.(sending);
-  }, [sending, onTypingChange]);
 
   async function handleSend() {
     const text = draft.trim();
@@ -67,16 +61,9 @@ export default function ChatConversation({ character, notify, onTypingChange }) 
     setSending(false);
   }
 
-  function handleKeyDown(e) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  }
-
   return (
     <div className="chat-conversation">
-      <div className="chat-conversation__messages" ref={scrollRef}>
+      <div className="chat-conversation__messages tab-scroll-body" ref={scrollRef}>
         {loading ? (
           <div className="chat-conversation__loading">Loading conversation…</div>
         ) : messages.length === 0 ? (
@@ -112,7 +99,6 @@ export default function ChatConversation({ character, notify, onTypingChange }) 
           placeholder={`Message ${character.name}...`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={handleKeyDown}
           rows={1}
         />
         <button

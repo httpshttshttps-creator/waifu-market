@@ -792,34 +792,63 @@ function applySafeAreaOffset() {
 // Reads the current accent straight off `el` (any node inside .app-shell
 // works - custom properties inherit down the DOM tree) and rebuilds both
 // palettes above from it.
+//
+// Ground and bike-body colors are a deliberate CROSS-mapping per accent
+// (picked by the player, not derived from --gold) rather than "ground/
+// bike = the accent's own color" - e.g. the red theme's ride scene is
+// yellow ground + blue bike, not red+red. Rims/tires (WHEEL_PALETTE,
+// just below) and the headlight/visor trim (whiteGlow/cyan/brightCyan)
+// intentionally never change - only the body panels do.
+const RIDE_THEME_COLORS = {
+  red: { ground: "#eab308", body: "#2563eb" }, // yellow ground, blue bike
+  blue: { ground: "#dc2626", body: "#eab308" }, // red ground, yellow bike
+  yellow: { ground: "#2563eb", body: "#dc2626" }, // blue ground, red bike
+  green: { ground: "#22c55e", body: "#ec4899" }, // green ground, pink bike
+  blackgold: { ground: "#eab308", body: "#3f3f46", trim: "#ffd700" }, // yellow ground, dark grey bike w/ fine gold trim
+};
+
+// Rims + tires - fixed regardless of theme, never reassigned.
+const WHEEL_PALETTE = {
+  whiteGlow: "#F7EEFF",
+  neonPurple: "#6C1CDD",
+  darkestPurple: "#10032D",
+};
+
 function applyThemeColors(el) {
-  const styles = getComputedStyle(el);
-  const gold = styles.getPropertyValue("--gold").trim() || "#d62839";
-  const bright = styles.getPropertyValue("--gold-bright").trim() || "#ff4d5e";
-  const ink = styles.getPropertyValue("--ink").trim() || "#170707";
+  const accentId = el.closest(".app-shell")?.getAttribute("data-accent") || "red";
+  const theme = RIDE_THEME_COLORS[accentId] || RIDE_THEME_COLORS.red;
+  const body = theme.body;
+  // blackgold's bike is a dark neutral grey with a gold trim accent
+  // instead of a lighten/darken ramp of the body color itself (a grey
+  // ramp alone reads as flat/dull - the trim color is what makes the
+  // "fine patterns" on it actually read as gold).
+  const trim = theme.trim || lightenHex(body, 0.35);
 
   CYBERBIKE_PALETTE = {
-    darkestPurple: darkenHex(gold, 0.82),
-    darkBody: darkenHex(gold, 0.55),
-    bodyPurple: darkenHex(gold, 0.22),
-    brightBodyPurple: mixHex(gold, bright, 0.55),
-    neonPurple: gold,
-    violet: mixHex(gold, bright, 0.3),
-    whiteGlow: lightenHex(bright, 0.82),
-    // Kept static: a small cool-toned trim/visor detail that reads well
-    // against any body color, rather than every accent losing its one
-    // contrast highlight.
+    darkestPurple: darkenHex(body, 0.78),
+    darkBody: darkenHex(body, 0.5),
+    bodyPurple: darkenHex(body, 0.18),
+    brightBodyPurple: mixHex(body, trim, 0.5),
+    neonPurple: body,
+    violet: mixHex(body, trim, 0.35),
+    // Kept static: headlight glow + a small cool-toned visor trim that
+    // reads well against any body color, rather than every accent
+    // losing its one contrast highlight.
+    whiteGlow: "#F7EEFF",
     cyan: "#97E7FB",
     brightCyan: "#EAFEFF",
   };
 
+  const ground = theme.ground;
   SCENE_COLORS = {
-    skyTop: mixHex(ink, gold, 0.16),
-    skyBottom: darkenHex(ink, 0.3),
-    groundFill: darkenHex(ink, 0.05),
-    groundGlow: lightenHex(bright, 0.75),
-    groundGlowShadow: bright,
-    groundGlowDim: hexToRgba(bright, 0.55),
+    skyTop: darkenHex(ground, 0.75),
+    skyBottom: darkenHex(ground, 0.88),
+    groundFill: darkenHex(ground, 0.55),
+    groundGlow: lightenHex(ground, 0.55),
+    groundGlowShadow: ground,
+    // "The line under the ground is a few shades darker than the ground
+    // itself" - a shade of groundFill's own color, not the glow color.
+    groundGlowDim: hexToRgba(darkenHex(ground, 0.25), 0.6),
   };
 }
 
@@ -884,25 +913,25 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
     ctx.translate(wx, wy);
     ctx.rotate(spinAngle);
 
-    ctx.shadowColor = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.shadowColor = WHEEL_PALETTE.whiteGlow;
     ctx.shadowBlur = 28;
     ctx.beginPath();
     ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = CYBERBIKE_PALETTE.whiteGlow;
+    ctx.strokeStyle = WHEEL_PALETTE.whiteGlow;
     ctx.lineWidth = wheelRadius * (12 / CYBERBIKE_REF.outerRadius);
     ctx.stroke();
 
     const innerR = wheelRadius * (CYBERBIKE_REF.innerRadius / CYBERBIKE_REF.outerRadius);
-    ctx.shadowColor = CYBERBIKE_PALETTE.neonPurple;
+    ctx.shadowColor = WHEEL_PALETTE.neonPurple;
     ctx.shadowBlur = 14;
     ctx.beginPath();
     ctx.arc(0, 0, innerR, 0, Math.PI * 2);
-    ctx.strokeStyle = CYBERBIKE_PALETTE.neonPurple;
+    ctx.strokeStyle = WHEEL_PALETTE.neonPurple;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = CYBERBIKE_PALETTE.darkestPurple;
+    ctx.strokeStyle = WHEEL_PALETTE.darkestPurple;
     ctx.lineWidth = 2;
     const spokeR = innerR - 4;
     for (let i = 0; i < 8; i++) {
@@ -915,7 +944,7 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
 
     ctx.beginPath();
     ctx.arc(0, 0, wheelRadius * 0.08, 0, Math.PI * 2);
-    ctx.fillStyle = CYBERBIKE_PALETTE.darkestPurple;
+    ctx.fillStyle = WHEEL_PALETTE.darkestPurple;
     ctx.fill();
 
     ctx.restore();
@@ -1571,6 +1600,17 @@ export default function GameCanvas({ onGameOver }) {
       canvas.style.height = `${container.clientHeight}px`;
     }
     resize();
+    // A plain 'resize' listener depends on the BROWSER firing that event,
+    // which Telegram's WebView doesn't reliably do the moment it actually
+    // grows into fullscreen (requestFullscreen() resolves on its own
+    // timeline, sometimes after this canvas already measured its old,
+    // smaller size once) - that mismatch is exactly what left the canvas
+    // stuck small with just the app's background color filling the rest
+    // of the now-larger screen around it. A ResizeObserver watches the
+    // CONTAINER's actual rendered box directly instead, so it re-measures
+    // correctly no matter what caused the resize or when.
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
     window.addEventListener("resize", resize);
 
     // ---------------- fixed-timestep physics step ----------------
@@ -2038,6 +2078,7 @@ export default function GameCanvas({ onGameOver }) {
       window.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      resizeObserver.disconnect();
       window.removeEventListener("resize", resize);
       Events.off(engine, "collisionStart", onCollisionStart);
       Events.off(engine, "collisionEnd", onCollisionEnd);

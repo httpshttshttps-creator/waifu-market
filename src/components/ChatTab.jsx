@@ -22,7 +22,15 @@ export default function ChatTab({ notify, onExit }) {
   const [loading, setLoading] = useState(true);
   const [activeCharacter, setActiveCharacter] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [typing, setTyping] = useState(false);
+
+  function reload() {
+    return fetchChatCharacters().then((rows) => {
+      setCharacters(rows);
+      setLoading(false);
+      setActiveCharacter((current) => (current ? rows.find((c) => c.id === current.id) || current : current));
+      return rows;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -30,9 +38,6 @@ export default function ChatTab({ notify, onExit }) {
       if (!cancelled) {
         setCharacters(rows);
         setLoading(false);
-        setActiveCharacter((current) =>
-          current ? rows.find((c) => c.id === current.id) || current : current
-        );
       }
     });
     return () => {
@@ -41,9 +46,10 @@ export default function ChatTab({ notify, onExit }) {
   }, []);
 
   // The main screen only ever shows conversations the player actually
-  // started - the full roster (for starting a NEW one) lives in the
-  // pencil's picker sheet instead (see ChatCharacterList below).
+  // started - characters with no messages yet only show up in the
+  // pencil's "start a new chat" picker below, never in both places.
   const conversations = characters.filter((c) => c.lastMessage);
+  const startable = characters.filter((c) => !c.lastMessage);
 
   function openConversation(character) {
     setPickerOpen(false);
@@ -52,12 +58,11 @@ export default function ChatTab({ notify, onExit }) {
 
   function backToList() {
     setActiveCharacter(null);
-    setTyping(false);
   }
 
   return (
     <div className="chat-tab">
-      <div className="chat-topbar">
+      <div className="chat-topbar tab-header">
         {activeCharacter ? (
           <>
             <button type="button" className="chat-topbar__back" onClick={backToList} aria-label="Back">
@@ -66,9 +71,7 @@ export default function ChatTab({ notify, onExit }) {
             <ChatAvatar character={activeCharacter} />
             <div className="chat-topbar__identity">
               <span className="chat-topbar__name">{activeCharacter.name}</span>
-              <span className="chat-topbar__status">
-                {typing ? <span className="chat-conversation__typing">typing…</span> : activeCharacter.series}
-              </span>
+              <span className="chat-topbar__status">{activeCharacter.series}</span>
             </div>
           </>
         ) : (
@@ -80,9 +83,9 @@ export default function ChatTab({ notify, onExit }) {
       </div>
 
       {activeCharacter ? (
-        <ChatConversation character={activeCharacter} notify={notify} onTypingChange={setTyping} />
+        <ChatConversation character={activeCharacter} notify={notify} />
       ) : (
-        <>
+        <div className="tab-scroll-body chat-tab__body">
           {loading ? (
             <ChatCharacterList characters={[]} loading onSelect={() => {}} />
           ) : conversations.length === 0 ? (
@@ -95,19 +98,20 @@ export default function ChatTab({ notify, onExit }) {
               </p>
             </div>
           ) : (
-            <>
-              <ChatCharacterList characters={conversations} loading={false} onSelect={openConversation} />
-              <button
-                type="button"
-                className="chat-fab"
-                onClick={() => setPickerOpen(true)}
-                aria-label="Start a new chat"
-              >
-                <PencilIcon />
-              </button>
-            </>
+            <ChatCharacterList
+              characters={conversations}
+              loading={false}
+              onSelect={openConversation}
+              onChanged={reload}
+            />
           )}
-        </>
+        </div>
+      )}
+
+      {!activeCharacter && conversations.length > 0 && (
+        <button type="button" className="chat-fab" onClick={() => setPickerOpen(true)} aria-label="Start a new chat">
+          <PencilIcon />
+        </button>
       )}
 
       {pickerOpen && (
@@ -116,7 +120,7 @@ export default function ChatTab({ notify, onExit }) {
             <div className="confirm-sheet__handle" />
             <p className="chat-picker-sheet__title">Start a chat</p>
             <div className="chat-picker-sheet__list">
-              <ChatCharacterList characters={characters} loading={loading} onSelect={openConversation} />
+              <ChatCharacterList characters={startable} loading={loading} onSelect={openConversation} />
             </div>
           </div>
         </div>

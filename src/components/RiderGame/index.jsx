@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import GameCanvas from "./GameCanvas.jsx";
 import { submitRiderRun } from "../../api/gameApi.js";
 
@@ -29,11 +29,19 @@ function writeBestScore(money) {
   }
 }
 
-export default function RiderGame({ notify, onBalanceChange, onExit }) {
+export default function RiderGame({ notify, onBalanceChange, onExit, onImmersiveChange }) {
   const [stage, setStage] = useState(STAGE_INTRO);
   const [result, setResult] = useState(null);
   const [runKey, setRunKey] = useState(0);
   const [bestScore, setBestScore] = useState(readBestScore);
+
+  // Only the actual run is fullscreen/nav-hidden - the intro and result
+  // screens behave like a normal tab (nav visible, ✕ still there as a
+  // shortcut). Tell App.jsx whenever that should flip.
+  useEffect(() => {
+    onImmersiveChange?.(stage === STAGE_PLAYING);
+    return () => onImmersiveChange?.(false);
+  }, [stage, onImmersiveChange]);
 
   function startRun() {
     setResult(null);

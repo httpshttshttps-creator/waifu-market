@@ -43,6 +43,8 @@ function normalizeChatCharacter(row) {
     lastMessage: row.last_message,
     lastMessageSender: row.last_message_sender,
     lastMessageAt: row.last_message_at,
+    pinned: Boolean(row.pinned),
+    blocked: Boolean(row.blocked),
   };
 }
 
@@ -105,3 +107,23 @@ export async function sendChatMessage(characterId, text) {
     return { ok: false, reason: err.message };
   }
 }
+
+// ---- pin / block / delete (long-press menu on a conversation row) ----
+
+async function chatConversationAction(path, characterId) {
+  if (!API_BASE) return { ok: true };
+  try {
+    await apiFetch(path, { method: "POST", body: JSON.stringify({ character_id: characterId }) });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err.message };
+  }
+}
+
+export const pinConversation = (characterId) => chatConversationAction("/api/chat/conversation/pin", characterId);
+export const unpinConversation = (characterId) => chatConversationAction("/api/chat/conversation/unpin", characterId);
+export const blockConversation = (characterId) => chatConversationAction("/api/chat/conversation/block", characterId);
+export const unblockConversation = (characterId) =>
+  chatConversationAction("/api/chat/conversation/unblock", characterId);
+export const deleteConversation = (characterId) =>
+  chatConversationAction("/api/chat/conversation/delete", characterId);

@@ -25,6 +25,7 @@ import RiderGame from "./components/RiderGame/index.jsx";
 import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
 import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 import BootScreen from "./components/BootScreen.jsx";
+import SortFilterBar from "./components/SortFilterBar.jsx";
 
 export default function App() {
   // Accent color for the Classic theme (see SettingsSheet's color drawer) -
@@ -252,7 +253,11 @@ export default function App() {
   // while they're open (see .bottom-nav[data-hidden] / .app-shell[data-immersive]
   // in index.css) and each screen gets its own ✕ that calls exitImmersive
   // to jump straight back to Home and bring the nav back.
-  const immersive = activeTab === "game" || activeTab === "chat";
+  // Ride is only immersive (nav hidden) while a run is actually playing -
+  // its own intro/result screens report that via onImmersiveChange below.
+  // Chat is immersive any time it's open.
+  const [ridePlaying, setRidePlaying] = useState(false);
+  const immersive = (activeTab === "game" && ridePlaying) || activeTab === "chat";
   function exitImmersive() {
     changeTab("home");
   }
@@ -262,38 +267,46 @@ export default function App() {
       <div className="app-shell__inner">
         <div className="tab-build" data-direction={tabDirection || undefined} key={activeTab}>
           {activeTab === "home" && (
-          <>
-            <ProfileHeader
-              name={profile.name}
-              balance={balance}
-              cardCount={profile.cardCount}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-            {profileLoading ? (
-              <SkeletonGrid count={4} />
-            ) : (
-              <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => changeTab("market")} />
-            )}
-          </>
+          <div className="home-tab">
+            <div className="tab-header">
+              <ProfileHeader
+                name={profile.name}
+                balance={balance}
+                cardCount={profile.cardCount}
+                onOpenSettings={() => setSettingsOpen(true)}
+              />
+              <SortFilterBar onFilterChange={refreshAll} />
+            </div>
+            <div className="tab-scroll-body">
+              {profileLoading ? (
+                <SkeletonGrid count={4} />
+              ) : (
+                <OwnedGrid cards={profile.cards} sellPrices={sellPrices} onSell={openSellConfirm} onBrowseMarket={() => changeTab("market")} />
+              )}
+            </div>
+          </div>
         )}
 
         {activeTab === "market" && (
-          <>
-            <Header balance={balance} />
-            <FilterBar
-              activeRarity={activeRarity}
-              onRarityChange={setActiveRarity}
-              query={query}
-              onQueryChange={setQuery}
-            />
+          <div className="market-tab">
+            <div className="tab-header">
+              <Header balance={balance} />
+              <FilterBar
+                activeRarity={activeRarity}
+                onRarityChange={setActiveRarity}
+                query={query}
+                onQueryChange={setQuery}
+              />
+            </div>
 
-            {loading ? (
-              <SkeletonGrid count={6} />
-            ) : (
-              <CardGrid
-                characters={visibleCharacters}
-                ownedIds={ownedIds}
-                balance={balance}
+            <div className="tab-scroll-body">
+              {loading ? (
+                <SkeletonGrid count={6} />
+              ) : (
+                <CardGrid
+                  characters={visibleCharacters}
+                  ownedIds={ownedIds}
+                  balance={balance}
                 onBuy={openConfirm}
                 onClearFilters={() => {
                   setActiveRarity("All");
@@ -301,12 +314,20 @@ export default function App() {
                 }}
               />
             )}
-          </>
+            </div>
+          </div>
         )}
 
         {activeTab === "leaderboard" && <LeaderboardTab notify={notify} />}
 
-        {activeTab === "game" && <RiderGame notify={notify} onBalanceChange={setBalance} onExit={exitImmersive} />}
+        {activeTab === "game" && (
+          <RiderGame
+            notify={notify}
+            onBalanceChange={setBalance}
+            onExit={exitImmersive}
+            onImmersiveChange={setRidePlaying}
+          />
+        )}
 
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
 
