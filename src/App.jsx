@@ -71,6 +71,19 @@ export default function App() {
   const [revealCharacter, setRevealCharacter] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Ride and Chat are full-screen/immersive: the bottom nav fades out
+  // while they're open (see .bottom-nav[data-hidden] / .app-shell[data-immersive]
+  // in index.css) and each screen gets its own ✕ that calls exitImmersive
+  // to jump straight back to Home and bring the nav back.
+  // Ride is only immersive (nav hidden) while a run is actually playing -
+  // its own intro/result screens report that via onImmersiveChange below.
+  // Chat is immersive any time it's open.
+  // NOTE: must stay above the `if (!appReady) return ...` below - every
+  // hook has to run on every render regardless of appReady, or React
+  // throws "Rendered more hooks than during the previous render" the
+  // instant appReady flips true (error #310).
+  const [ridePlaying, setRidePlaying] = useState(false);
+
   function changeAccentColor(id) {
     setAccentColor(id);
     try {
@@ -249,14 +262,6 @@ export default function App() {
     setActiveTab(tabId);
   }
 
-  // Ride and Chat are full-screen/immersive: the bottom nav fades out
-  // while they're open (see .bottom-nav[data-hidden] / .app-shell[data-immersive]
-  // in index.css) and each screen gets its own ✕ that calls exitImmersive
-  // to jump straight back to Home and bring the nav back.
-  // Ride is only immersive (nav hidden) while a run is actually playing -
-  // its own intro/result screens report that via onImmersiveChange below.
-  // Chat is immersive any time it's open.
-  const [ridePlaying, setRidePlaying] = useState(false);
   const immersive = (activeTab === "game" && ridePlaying) || activeTab === "chat";
   function exitImmersive() {
     changeTab("home");
