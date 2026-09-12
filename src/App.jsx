@@ -42,8 +42,6 @@ export default function App() {
     }
   });
 
-  const { haptic, notify } = useTelegram(accentColor);
-
   const [activeTab, setActiveTab] = useState("home");
   // Which side the tab-build animation should slide in from, for the
   // tab you're about to land on - see changeTab below and the
@@ -71,18 +69,60 @@ export default function App() {
   const [revealCharacter, setRevealCharacter] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Ride and Chat are full-screen/immersive: the bottom nav fades out
-  // while they're open (see .bottom-nav[data-hidden] / .app-shell[data-immersive]
-  // in index.css) and each screen gets its own ✕ that calls exitImmersive
-  // to jump straight back to Home and bring the nav back.
-  // Ride is only immersive (nav hidden) while a run is actually playing -
-  // its own intro/result screens report that via onImmersiveChange below.
-  // Chat is immersive any time it's open.
+  // Ride is full-screen/immersive while an actual run is playing: the
+  // bottom nav fades out (see .bottom-nav[data-hidden] /
+  // .app-shell[data-immersive] in index.css) and the ✕ calls
+  // exitImmersive to jump straight back to Home and bring the nav back.
+  // Chat used to be immersive (nav hidden) any time it was open - no
+  // longer: it now behaves like every other tab, nav stays visible and
+  // you leave it the same way you leave Market/Arena/etc, by tapping
+  // another tab.
   // NOTE: must stay above the `if (!appReady) return ...` below - every
   // hook has to run on every render regardless of appReady, or React
   // throws "Rendered more hooks than during the previous render" the
   // instant appReady flips true (error #310).
   const [ridePlaying, setRidePlaying] = useState(false);
+
+  // The chat conversation view is its own "sub-screen" inside the Chat
+  // tab (list -> conversation) that App.jsx otherwise has no visibility
+  // into - ChatTab reports whether one's open here, and exposes stepping
+  // back out of it via this ref, so the Telegram BackButton below can
+  // unwind one level at a time instead of always jumping straight Home.
+  const [chatSubViewOpen, setChatSubViewOpen] = useState(false);
+  const chatRef = useRef(null);
+
+  // Telegram's hardware/gesture back button closes the whole Mini App
+  // unless we're showing Telegram's own BackButton widget - wire it to
+  // step back through whatever's "on top" instead: an open sheet first,
+  // then an open chat conversation, then back to Home from any other
+  // tab. Hidden entirely once there's truly nothing left to step back
+  // out of (on Home with nothing open), so a further back press there
+  // falls through to Telegram's normal "close the Mini App" behavior.
+  const anySheetOpen = settingsOpen || Boolean(selectedCharacter) || Boolean(sellCandidate);
+  const showBackButton = anySheetOpen || activeTab !== "home" || (activeTab === "chat" && chatSubViewOpen);
+  function handleBack() {
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      return;
+    }
+    if (selectedCharacter) {
+      closeConfirm();
+      return;
+    }
+    if (sellCandidate) {
+      closeSellConfirm();
+      return;
+    }
+    if (activeTab === "chat" && chatSubViewOpen) {
+      chatRef.current?.goBack();
+      return;
+    }
+    if (activeTab !== "home") {
+      changeTab("home");
+    }
+  }
+
+  const { haptic, notify } = useTelegram(accentColor, { visible: showBackButton, onBack: handleBack });
 
   function changeAccentColor(id) {
     setAccentColor(id);
@@ -262,7 +302,7 @@ export default function App() {
     setActiveTab(tabId);
   }
 
-  const immersive = (activeTab === "game" && ridePlaying) || activeTab === "chat";
+  const immersive = activeTab === "game" && ridePlaying;
   function exitImmersive() {
     changeTab("home");
   }
@@ -336,7 +376,9 @@ export default function App() {
 
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
 
-        {activeTab === "chat" && <ChatTab notify={notify} onExit={exitImmersive} />}
+        {activeTab === "chat" && (
+          <ChatTab ref={chatRef} notify={notify} onSubViewChange={setChatSubViewOpen} />
+        )}
       </div>
       </div>
 

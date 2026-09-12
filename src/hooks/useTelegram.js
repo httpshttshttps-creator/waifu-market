@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 /**
  * Thin wrapper around window.Telegram.WebApp.
@@ -25,7 +25,7 @@ const ACCENT_INK = {
   blackgold: "#050505",
 };
 
-export function useTelegram(accentColor = "red") {
+export function useTelegram(accentColor = "red", backButton) {
   const webApp = useMemo(() => (typeof window !== "undefined" ? window.Telegram?.WebApp : undefined), []);
 
   useEffect(() => {
@@ -126,6 +126,34 @@ export function useTelegram(accentColor = "red") {
       };
     }
   }, [webApp]);
+
+  // Telegram's hardware/gesture back button closes the whole Mini App
+  // UNLESS the app is showing Telegram's own BackButton widget (with a
+  // click handler attached) - then that back press fires here instead.
+  // `backButton` is `{ visible, onBack }` from App.jsx, recomputed every
+  // render from whatever's "on top" right now (an open sheet, a chat
+  // conversation, a non-Home tab) so this always reflects the current
+  // screen instead of the one that was active when the effect first ran.
+  const onBackRef = useRef(backButton?.onBack);
+  onBackRef.current = backButton?.onBack;
+
+  useEffect(() => {
+    const backButtonApi = webApp?.BackButton;
+    if (!backButtonApi) return;
+
+    function handleClick() {
+      onBackRef.current?.();
+    }
+    backButtonApi.onClick(handleClick);
+    return () => backButtonApi.offClick?.(handleClick);
+  }, [webApp]);
+
+  useEffect(() => {
+    const backButtonApi = webApp?.BackButton;
+    if (!backButtonApi) return;
+    if (backButton?.visible) backButtonApi.show();
+    else backButtonApi.hide();
+  }, [webApp, backButton?.visible]);
 
   const user = webApp?.initDataUnsafe?.user ?? null;
 

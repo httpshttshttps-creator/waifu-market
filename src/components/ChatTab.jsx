@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import ChatCharacterList, { ChatAvatar } from "./ChatCharacterList.jsx";
 import ChatConversation from "./ChatConversation.jsx";
 import { fetchChatCharacters } from "../api/chatApi.js";
@@ -17,7 +17,7 @@ function PencilIcon() {
   );
 }
 
-export default function ChatTab({ notify, onExit }) {
+export default forwardRef(function ChatTab({ notify, onSubViewChange }, ref) {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCharacter, setActiveCharacter] = useState(null);
@@ -60,6 +60,16 @@ export default function ChatTab({ notify, onExit }) {
     setActiveCharacter(null);
   }
 
+  // Reports whether a conversation is open so App.jsx knows the Telegram
+  // BackButton should step back to the chat list first (instead of
+  // straight to Home), and exposes that same step as an imperative
+  // `goBack()` for App.jsx's BackButton handler to call directly.
+  useEffect(() => {
+    onSubViewChange?.(Boolean(activeCharacter));
+  }, [activeCharacter, onSubViewChange]);
+
+  useImperativeHandle(ref, () => ({ goBack: backToList }));
+
   return (
     <div className="chat-tab">
       <div className="chat-topbar tab-header">
@@ -77,9 +87,6 @@ export default function ChatTab({ notify, onExit }) {
         ) : (
           <span className="chat-topbar__title">Chats</span>
         )}
-        <button type="button" className="chat-topbar__close" onClick={onExit} aria-label="Close">
-          ✕
-        </button>
       </div>
 
       {activeCharacter ? (
@@ -127,4 +134,4 @@ export default function ChatTab({ notify, onExit }) {
       )}
     </div>
   );
-}
+});

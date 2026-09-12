@@ -814,6 +814,21 @@ const WHEEL_PALETTE = {
   darkestPurple: "#10032D",
 };
 
+// The player's actual picked accent color (SettingsSheet's color drawer /
+// --gold in index.css) - used for the sky + the plain (non-neon) ground
+// fill beneath the glowing track, so the Ride scene reads as "your theme,
+// at night" instead of always the same red/purple regardless of accent.
+// Kept as a separate map from RIDE_THEME_COLORS above on purpose: that one
+// deliberately CROSS-maps (red theme -> yellow neon road/blue bike) and
+// stays untouched - this is the literal theme hue, for background only.
+const ACCENT_GOLD = {
+  red: "#d62839",
+  blue: "#2f6fed",
+  yellow: "#c99400",
+  green: "#16a34a",
+  blackgold: "#b8860b",
+};
+
 function applyThemeColors(el) {
   const accentId = el.closest(".app-shell")?.getAttribute("data-accent") || "red";
   const theme = RIDE_THEME_COLORS[accentId] || RIDE_THEME_COLORS.red;
@@ -840,10 +855,21 @@ function applyThemeColors(el) {
   };
 
   const ground = theme.ground;
+  const themeColor = ACCENT_GOLD[accentId] || ACCENT_GOLD.red;
   SCENE_COLORS = {
-    skyTop: darkenHex(ground, 0.75),
-    skyBottom: darkenHex(ground, 0.88),
-    groundFill: darkenHex(ground, 0.55),
+    // Background sky = the player's actual theme color, exactly - the
+    // parallax skyline/midground layers on top (drawSkyline/drawMidground)
+    // already paint in translucent black, which is what gives the
+    // "darker mountains" silhouette over it.
+    skyTop: themeColor,
+    skyBottom: darkenHex(themeColor, 0.45),
+    // Plain dirt under the glowing track line - a touch lighter/clearer
+    // than the theme color so it still reads as its own surface rather
+    // than blending into the sky behind it.
+    groundFill: lightenHex(themeColor, 0.14),
+    // The glowing road surface itself + the bike stay on the cross-mapped
+    // RIDE_THEME_COLORS palette (unchanged) - only the background/plain
+    // ground above switch to the literal theme color.
     groundGlow: lightenHex(ground, 0.55),
     groundGlowShadow: ground,
     // "The line under the ground is a few shades darker than the ground
@@ -1591,15 +1617,44 @@ export default function GameCanvas({ onGameOver }) {
     window.addEventListener("keyup", onKeyUp);
 
     // ---------------- sizing ----------------
+    // Telegram's WebView resize into fullscreen (requestFullscreen(), see
+    // useTelegram.js) doesn't reliably fire a browser 'resize' event, and
+    // on some Android builds the fixed .rider-game__stage container's own
+    // clientWidth/clientHeight can stay stuck at its pre-fullscreen size
+    // for a while too - either way this canvas would measure itself once,
+    // too small, and never correct: the buffer + its CSS box both stay
+    // pinned small while the rest of the (now larger) screen just shows
+    // .rider-game__stage's plain background color around it.
+    // window.innerWidth/innerHeight (backed, when available, by
+    // Telegram's own live-tracked viewportStableHeight) is a more
+    // reliable "what's actually visible right now" source than the
+    // container's own layout box, so measure from there first and only
+    // fall back to the container if that's unavailable.
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function measureViewport() {
+      const tgWebApp = window.Telegram?.WebApp;
+      const w = window.innerWidth || container.clientWidth;
+      const h =
+        tgWebApp?.viewportStableHeight ||
+        tgWebApp?.viewportHeight ||
+        window.innerHeight ||
+        container.clientHeight;
+      return { w, h };
+    }
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = container.clientWidth * dpr;
-      canvas.height = container.clientHeight * dpr;
-      canvas.style.width = `${container.clientWidth}px`;
-      canvas.style.height = `${container.clientHeight}px`;
+      const { w, h } = measureViewport();
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
     }
     resize();
+    // Belt-and-suspenders: re-measure a few more times over the next
+    // second in case the fullscreen transition (or Telegram's own
+    // viewportChanged event) lands after this first measurement, even
+    // if none of the listeners below happen to catch it.
+    const settleTimers = [60, 150, 300, 600, 1000].map((ms) => window.setTimeout(resize, ms));
     // A plain 'resize' listener depends on the BROWSER firing that event,
     // which Telegram's WebView doesn't reliably do the moment it actually
     // grows into fullscreen (requestFullscreen() resolves on its own
@@ -1958,8 +2013,8 @@ export default function GameCanvas({ onGameOver }) {
         if (speedLines[i].age > speedLines[i].life) speedLines.splice(i, 1);
       }
 
-      const viewWidth = container.clientWidth;
-      const viewHeight = container.clientHeight;
+      const viewWidth = canvas.width / dpr;
+      const viewHeight = canvas.height / dpr;
 
       const targetZoom = 1 - speedFraction * CAMERA_MAX_ZOOM_OUT - (boostActive ? BOOST_EXTRA_ZOOM_OUT : 0);
       zoom += (targetZoom - zoom) * CAMERA_ZOOM_SMOOTHING;
@@ -2079,6 +2134,7 @@ export default function GameCanvas({ onGameOver }) {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       resizeObserver.disconnect();
+      settleTimers.forEach((id) => window.clearTimeout(id));
       window.removeEventListener("resize", resize);
       Events.off(engine, "collisionStart", onCollisionStart);
       Events.off(engine, "collisionEnd", onCollisionEnd);

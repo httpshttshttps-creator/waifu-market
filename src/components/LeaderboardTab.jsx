@@ -77,32 +77,38 @@ export default function LeaderboardTab({ notify }) {
           ) : collectors.length === 0 ? (
             <p className="empty-state">No collections to rank yet.</p>
           ) : (
-            collectors.map((row, index) => (
-              <PlayerRow
-                key={row.user_id}
-                rank={index + 1}
-                row={row}
-                metric={`${row.card_count} 🧑`}
-                index={index}
-                onSelectPlayer={setSelectedPlayerId}
-              />
-            ))
+            <>
+              {collectors.map((row, index) => (
+                <PlayerRow
+                  key={row.user_id}
+                  rank={index + 1}
+                  row={row}
+                  metric={`${row.card_count} 🧑`}
+                  index={index}
+                  onSelectPlayer={setSelectedPlayerId}
+                />
+              ))}
+              <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
+            </>
           )
         ) : richest === null ? (
           <SkeletonRowList count={6} />
         ) : richest.length === 0 ? (
           <p className="empty-state">Nobody has any VɎ yet.</p>
         ) : (
-          richest.map((row, index) => (
-            <PlayerRow
-              key={row.user_id}
-              rank={index + 1}
-              row={row}
-              metric={`${row.balance} VɎ`}
-              index={index}
-              onSelectPlayer={setSelectedPlayerId}
-            />
-          ))
+          <>
+            {richest.map((row, index) => (
+              <PlayerRow
+                key={row.user_id}
+                rank={index + 1}
+                row={row}
+                metric={`${row.balance} VɎ`}
+                index={index}
+                onSelectPlayer={setSelectedPlayerId}
+              />
+            ))}
+            <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
+          </>
         )}
       </div>
 
