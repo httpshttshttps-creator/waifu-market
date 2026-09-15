@@ -2655,6 +2655,7 @@ button {
 .arena-sheet {
   max-height: 85vh;
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 /* ---------------- Rarity glow tiers (graphics upgrade) ---------------- */
@@ -3054,6 +3055,10 @@ button {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Explicit so a vertical drag that starts on this list is never
+     ambiguous/passed up to an ancestor - belt-and-suspenders alongside
+     webApp.disableVerticalSwipes() in useTelegram.js. */
+  touch-action: pan-y;
   /* So the very last row/card never sits flush against (or under) the
      bottom nav / device safe area - lets every scrollable tab scroll a
      little past its last item instead of stopping exactly at it. */
@@ -3091,7 +3096,13 @@ button {
 
 .tab-build > * {
   animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
-  will-change: transform, opacity, filter;
+  /* No will-change here on purpose: a lingering `will-change: transform`
+     (even after the animation that needed it finishes) makes this
+     element a permanent CSS "containing block" for any
+     position:fixed descendant - which silently breaks full-screen
+     overlays/sheets nested anywhere inside a tab (they end up pinned to
+     THIS element's box instead of the real viewport). Not worth the
+     minor animation perf hint. */
 }
 
 .tab-build > *:nth-child(1) {
@@ -3151,7 +3162,11 @@ button {
 .chat-tab > *,
 .chat-conversation > * {
   animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) both;
-  will-change: transform, opacity, filter;
+  /* Same reasoning as .tab-build > * above - this one matters even more
+     since .tab-header (SortFilterBar's/ProfileHeader's parent) is a
+     direct child matched here, and a sheet opened from inside it needs
+     to size itself against the real screen, not .tab-header's own
+     (much smaller) box. */
 }
 .leaderboard-tab > *:nth-child(1),
 .home-tab > *:nth-child(1),

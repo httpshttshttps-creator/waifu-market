@@ -45,6 +45,18 @@ export function useTelegram(accentColor = "red", backButton) {
     } catch {
       /* unsupported client version - ignore */
     }
+
+    // Without this, Telegram intercepts vertical swipes inside the Mini
+    // App for its own gestures (minimize/close) instead of letting them
+    // scroll our content - on a long list (Leaderboard, a big
+    // constellation, ...) that shows up as "scrolling doesn't work" even
+    // though the CSS/overflow setup underneath is completely fine.
+    // Bot API 7.7+; older clients just don't have the method.
+    try {
+      webApp.disableVerticalSwipes?.();
+    } catch {
+      /* unsupported client version - ignore */
+    }
   }, [webApp]);
 
   useEffect(() => {

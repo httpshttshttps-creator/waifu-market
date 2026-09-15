@@ -287,15 +287,21 @@ function drawBackground(ctx, width, height) {
 
 function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+  // Bumped from 0.18 - against the now-darker sky below, the old value
+  // barely registered as a silhouette at all.
+  ctx.fillStyle = "rgba(0, 0, 0, 0.32)";
   const parallax = 0.25;
-  const baseY = viewHeight * 0.74;
+  // Raised from 0.74 - hugging the very bottom of the frame left the
+  // entire upper ~70% of the screen as one flat, featureless gradient.
+  // Sitting further up means these peaks actually break up that empty
+  // space instead of only ever grazing the road line below.
+  const baseY = viewHeight * 0.58;
   const spacing = 260;
   const scrollX = cameraX * parallax;
   const offset = -(scrollX % spacing);
   for (let x = offset - spacing; x < viewWidth + spacing; x += spacing) {
     const seedIndex = Math.round((x + scrollX) / spacing);
-    const peakHeight = 90 + Math.abs(Math.sin(seedIndex * 12.9898)) * 140;
+    const peakHeight = 130 + Math.abs(Math.sin(seedIndex * 12.9898)) * 190;
     ctx.beginPath();
     ctx.moveTo(x, viewHeight + 10);
     ctx.lineTo(x, baseY);
@@ -313,15 +319,15 @@ function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
 // darker, giving the background real depth instead of one flat layer.
 function drawMidground(ctx, cameraX, viewWidth, viewHeight) {
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+  ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
   const parallax = 0.55;
-  const baseY = viewHeight * 0.86;
+  const baseY = viewHeight * 0.76;
   const spacing = 150;
   const scrollX = cameraX * parallax;
   const offset = -(scrollX % spacing);
   for (let x = offset - spacing; x < viewWidth + spacing; x += spacing) {
     const seedIndex = Math.round((x + scrollX) / spacing);
-    const peakHeight = 35 + Math.abs(Math.sin(seedIndex * 7.233)) * 65;
+    const peakHeight = 55 + Math.abs(Math.sin(seedIndex * 7.233)) * 95;
     ctx.beginPath();
     ctx.moveTo(x, viewHeight + 10);
     ctx.lineTo(x, baseY);
@@ -854,14 +860,17 @@ function applyThemeColors(el) {
   const ground = theme.ground;
   const shellStyles = getComputedStyle(el.closest(".app-shell") || el);
   const readVar = (name, fallback) => (shellStyles.getPropertyValue(name) || "").trim() || fallback;
+  const inkGlow = readVar("--ink-glow", "#3d0f10");
+  const ink = readVar("--ink", "#170707");
   SCENE_COLORS = {
-    // A soft glow of the theme color at the horizon, fading into the
-    // theme's own near-black ink toward the bottom - the same pairing
-    // the app shell itself uses for its background glow, so the scene
-    // matches the rest of the UI instead of standing out as its own flat
-    // color block.
-    skyTop: readVar("--ink-glow", "#3d0f10"),
-    skyBottom: readVar("--ink", "#170707"),
+    // A soft glow of the theme color at the horizon, fading to a near-
+    // black shade BELOW the theme's own ink (not just to it) - the flat,
+    // barely-different top/bottom pairing this used to be read as one
+    // dull solid block filling most of the screen. A wider, darker
+    // spread gives the empty sky real depth even before the mountain
+    // silhouettes on top of it.
+    skyTop: inkGlow,
+    skyBottom: darkenHex(ink, 0.55),
     // Plain dirt under the glowing track line - the theme's own raised
     // surface color, a clear step lighter than the sky so it still reads
     // as its own surface rather than blending into the background.
