@@ -55,7 +55,7 @@ export default function SortFilterBar({ onFilterChange }) {
       </div>
 
       {sheetOpen && (
-        <div className="sheet-overlay" onClick={() => setSheetOpen(false)}>
+        <div className="sheet-overlay sort-sheet-overlay" onClick={() => setSheetOpen(false)}>
           <div className="confirm-sheet sort-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="confirm-sheet__handle" />
             <p className="sort-sheet__title">Sort your constellation</p>

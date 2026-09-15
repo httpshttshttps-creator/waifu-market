@@ -444,6 +444,21 @@ button {
   margin: 0 0 12px;
 }
 
+/* Centered dialog instead of a bottom sheet - it's a short pick-a-value
+   list, not a scrolling sheet, so it reads better anchored in the middle
+   of the screen than pinned to the bottom edge. */
+.sort-sheet-overlay {
+  align-items: center;
+  padding: 0 20px;
+}
+
+.sort-sheet {
+  max-width: 340px;
+  border-radius: var(--radius-lg);
+  border-bottom: 1px solid var(--line);
+  animation: scale-in 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
 .sort-sheet__modes {
   display: flex;
   gap: 8px;
@@ -1670,8 +1685,8 @@ button {
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 10px;
-  padding: 20px 12px;
+  gap: 6px;
+  padding: 10px 12px;
   border-radius: var(--radius-lg);
   background: radial-gradient(120% 100% at 50% 0%, rgba(58, 15, 31, 0.5), transparent 60%), rgba(20, 6, 14, 0.6);
   border: 1px solid rgba(242, 193, 78, 0.25);
@@ -1683,24 +1698,29 @@ button {
 }
 
 .rider-game__intro-text {
-  max-width: 320px;
+  max-width: 300px;
   color: var(--text-dim);
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.35;
   margin: 0;
 }
 
 .rider-game__intro-text--dim {
   color: var(--text-faint);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.rider-game__intro .brand-title {
+  font-size: clamp(20px, 5.5vw, 24px);
 }
 
 .rider-game__best {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 4px 14px;
   border-radius: 999px;
   background: rgba(242, 193, 78, 0.12);
   border: 1px solid rgba(242, 193, 78, 0.3);
@@ -1724,10 +1744,10 @@ button {
 .rider-game__controls {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   width: 100%;
   max-width: 320px;
-  padding: 10px 14px;
+  padding: 7px 12px;
   border-radius: var(--radius-md);
   background: rgba(10, 4, 24, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1738,8 +1758,8 @@ button {
   align-items: baseline;
   gap: 10px;
   text-align: left;
-  font-size: 12.5px;
-  line-height: 1.4;
+  font-size: 11.5px;
+  line-height: 1.3;
   color: var(--text-dim);
 }
 
@@ -1753,9 +1773,9 @@ button {
 }
 
 .rider-game__start {
-  margin-top: 4px;
-  padding: 10px 32px;
-  font-size: 15px;
+  margin-top: 2px;
+  padding: 8px 30px;
+  font-size: 14px;
   background: linear-gradient(180deg, var(--neon-gold), #b8863a);
   box-shadow: 0 0 22px rgba(242, 193, 78, 0.45);
 }
@@ -1791,13 +1811,30 @@ button {
 
 .rider-game__result {
   --card-accent: var(--neon-gold);
-  /* The bottom nav sits fixed at the very bottom of the screen too - pad
-     the sheet's bottom well past it so the "Play again" button never
-     spatially overlaps the nav's tap targets, regardless of stacking. */
-  padding-bottom: calc(32px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  /* Centered dialog (see .rider-game__result-overlay below), not a
+     bottom sheet - rounded on all corners and no more bottom-nav
+     clearance padding needed since it's no longer pinned to the
+     bottom edge. */
+  max-width: 340px;
+  border-radius: var(--radius-lg);
+  border-bottom: 1px solid var(--line);
+  animation: scale-in 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes scale-in {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
 }
 
 .rider-game__result-overlay {
+  /* Overrides .sheet-overlay's default bottom-anchored layout - the
+     win/lose recap reads better as a centered dialog than a sheet
+     sliding up from the edge, and it sidesteps the bottom-nav/gesture
+     area entirely since it's nowhere near the bottom of the screen. */
+  align-items: center;
+  padding: 0 20px;
   z-index: 1100;
 }
 
@@ -2078,10 +2115,10 @@ button {
 .chat-fab {
   position: fixed;
   left: max(20px, env(safe-area-inset-left));
-  /* Chat no longer hides the bottom nav (see App.jsx's `immersive`) - sit
-     above its ~84px reserved height instead of the raw device safe area,
-     or this floats half-behind the nav bar. */
-  bottom: calc(84px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  /* Chat is immersive again (bottom nav hidden while it's open, see
+     App.jsx's `immersive`) - back to sitting just above the raw device
+     safe area since there's no fixed nav bar to clear. */
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px)));
   z-index: 55;
   width: 52px;
   height: 52px;

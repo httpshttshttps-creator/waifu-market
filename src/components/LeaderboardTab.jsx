@@ -24,6 +24,8 @@ function PlayerRow({ rank, row, metric, index, onSelectPlayer }) {
 // Tasks lives here as its own sheet (opened by the full-width button
 // above the Collection/VɎ toggle) rather than a standalone bottom-nav
 // tab - that slot is Arena's now.
+const PAGE_SIZE = 10;
+
 export default function LeaderboardTab({ notify }) {
   const { haptic } = useTelegram();
   const [mode, setMode] = useState("collectors");
@@ -31,6 +33,11 @@ export default function LeaderboardTab({ notify }) {
   const [richest, setRichest] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [showTasks, setShowTasks] = useState(false);
+  // Reveals PAGE_SIZE (10) more rows every time the list is scrolled
+  // near its bottom, instead of rendering the whole ranking at once -
+  // each "page" is a full screenful of 10, and reaching the end of one
+  // is what loads the next.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     if (mode === "collectors" && collectors === null) {
@@ -41,6 +48,10 @@ export default function LeaderboardTab({ notify }) {
     }
   }, [mode, collectors, richest]);
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [mode]);
+
   function changeMode(nextMode) {
     haptic?.("light");
     setMode(nextMode);
@@ -49,6 +60,18 @@ export default function LeaderboardTab({ notify }) {
   function openTasks() {
     haptic?.("light");
     setShowTasks(true);
+  }
+
+  const fullList = mode === "collectors" ? collectors : richest;
+  const visibleList = fullList ? fullList.slice(0, visibleCount) : null;
+  const hasMore = Boolean(fullList) && visibleCount < fullList.length;
+
+  function handleScroll(event) {
+    if (!hasMore) return;
+    const el = event.currentTarget;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
+      setVisibleCount((count) => count + PAGE_SIZE);
+    }
   }
 
   return (
@@ -70,44 +93,26 @@ export default function LeaderboardTab({ notify }) {
         </div>
       </div>
 
-      <div className="leaderboard-list tab-scroll-body build-fade-only">
-        {mode === "collectors" ? (
-          collectors === null ? (
-            <SkeletonRowList count={6} />
-          ) : collectors.length === 0 ? (
-            <p className="empty-state">No collections to rank yet.</p>
-          ) : (
-            <>
-              {collectors.map((row, index) => (
-                <PlayerRow
-                  key={row.user_id}
-                  rank={index + 1}
-                  row={row}
-                  metric={`${row.card_count} 🧑`}
-                  index={index}
-                  onSelectPlayer={setSelectedPlayerId}
-                />
-              ))}
-              <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
-            </>
-          )
-        ) : richest === null ? (
+      <div className="leaderboard-list tab-scroll-body build-fade-only" onScroll={handleScroll}>
+        {visibleList === null ? (
           <SkeletonRowList count={6} />
-        ) : richest.length === 0 ? (
-          <p className="empty-state">Nobody has any VɎ yet.</p>
+        ) : visibleList.length === 0 ? (
+          <p className="empty-state">
+            {mode === "collectors" ? "No collections to rank yet." : "Nobody has any VɎ yet."}
+          </p>
         ) : (
           <>
-            {richest.map((row, index) => (
+            {visibleList.map((row, index) => (
               <PlayerRow
                 key={row.user_id}
                 rank={index + 1}
                 row={row}
-                metric={`${row.balance} VɎ`}
+                metric={mode === "collectors" ? `${row.card_count} 🧑` : `${row.balance} VɎ`}
                 index={index}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}
-            <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
+            {!hasMore && <p className="end-of-list">That's everyone — you've reached the end 🙂</p>}
           </>
         )}
       </div>

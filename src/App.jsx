@@ -69,14 +69,14 @@ export default function App() {
   const [revealCharacter, setRevealCharacter] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Ride is full-screen/immersive while an actual run is playing: the
-  // bottom nav fades out (see .bottom-nav[data-hidden] /
-  // .app-shell[data-immersive] in index.css) and the ✕ calls
-  // exitImmersive to jump straight back to Home and bring the nav back.
-  // Chat used to be immersive (nav hidden) any time it was open - no
-  // longer: it now behaves like every other tab, nav stays visible and
-  // you leave it the same way you leave Market/Arena/etc, by tapping
-  // another tab.
+  // Ride and Chat are both full-screen/immersive: the bottom nav fades
+  // out while either is open (see .bottom-nav[data-hidden] /
+  // .app-shell[data-immersive] in index.css) and each screen gets its
+  // own ✕ that calls exitImmersive to jump straight back to Home and
+  // bring the nav back.
+  // Ride is only immersive while a run is actually playing - its own
+  // intro/result screens report that via onImmersiveChange below.
+  // Chat is immersive any time it's open.
   // NOTE: must stay above the `if (!appReady) return ...` below - every
   // hook has to run on every render regardless of appReady, or React
   // throws "Rendered more hooks than during the previous render" the
@@ -302,7 +302,7 @@ export default function App() {
     setActiveTab(tabId);
   }
 
-  const immersive = activeTab === "game" && ridePlaying;
+  const immersive = (activeTab === "game" && ridePlaying) || activeTab === "chat";
   function exitImmersive() {
     changeTab("home");
   }
@@ -377,7 +377,7 @@ export default function App() {
         {activeTab === "arena" && <ArenaTab notify={notify} onNavigate={changeTab} />}
 
         {activeTab === "chat" && (
-          <ChatTab ref={chatRef} notify={notify} onSubViewChange={setChatSubViewOpen} />
+          <ChatTab ref={chatRef} notify={notify} onSubViewChange={setChatSubViewOpen} onExit={exitImmersive} />
         )}
       </div>
       </div>

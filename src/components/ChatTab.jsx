@@ -17,7 +17,7 @@ function PencilIcon() {
   );
 }
 
-export default forwardRef(function ChatTab({ notify, onSubViewChange }, ref) {
+export default forwardRef(function ChatTab({ notify, onSubViewChange, onExit }, ref) {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCharacter, setActiveCharacter] = useState(null);
@@ -87,6 +87,9 @@ export default forwardRef(function ChatTab({ notify, onSubViewChange }, ref) {
         ) : (
           <span className="chat-topbar__title">Chats</span>
         )}
+        <button type="button" className="chat-topbar__close" onClick={onExit} aria-label="Close">
+          ✕
+        </button>
       </div>
 
       {activeCharacter ? (

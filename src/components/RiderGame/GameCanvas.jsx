@@ -814,21 +814,18 @@ const WHEEL_PALETTE = {
   darkestPurple: "#10032D",
 };
 
-// The player's actual picked accent color (SettingsSheet's color drawer /
-// --gold in index.css) - used for the sky + the plain (non-neon) ground
-// fill beneath the glowing track, so the Ride scene reads as "your theme,
-// at night" instead of always the same red/purple regardless of accent.
-// Kept as a separate map from RIDE_THEME_COLORS above on purpose: that one
+// The player's actual picked accent theme (SettingsSheet's color drawer)
+// drives the sky + the plain (non-neon) ground fill beneath the glowing
+// track, so the Ride scene reads as "your theme, at night" instead of
+// always the same red/purple regardless of accent. Read straight off the
+// same CSS custom properties the rest of the app already uses for that
+// accent (--ink-glow/--ink/--surface-raised) rather than re-deriving new
+// tints by hand - they're already tuned to look good together, and a
+// flat, fully-saturated fill (this used to just be --gold verbatim)
+// turned out too intense/flat for a full-screen background.
+// Kept independent of RIDE_THEME_COLORS above on purpose: that one
 // deliberately CROSS-maps (red theme -> yellow neon road/blue bike) and
-// stays untouched - this is the literal theme hue, for background only.
-const ACCENT_GOLD = {
-  red: "#d62839",
-  blue: "#2f6fed",
-  yellow: "#c99400",
-  green: "#16a34a",
-  blackgold: "#b8860b",
-};
-
+// stays untouched - this is only for the background + plain ground.
 function applyThemeColors(el) {
   const accentId = el.closest(".app-shell")?.getAttribute("data-accent") || "red";
   const theme = RIDE_THEME_COLORS[accentId] || RIDE_THEME_COLORS.red;
@@ -855,18 +852,20 @@ function applyThemeColors(el) {
   };
 
   const ground = theme.ground;
-  const themeColor = ACCENT_GOLD[accentId] || ACCENT_GOLD.red;
+  const shellStyles = getComputedStyle(el.closest(".app-shell") || el);
+  const readVar = (name, fallback) => (shellStyles.getPropertyValue(name) || "").trim() || fallback;
   SCENE_COLORS = {
-    // Background sky = the player's actual theme color, exactly - the
-    // parallax skyline/midground layers on top (drawSkyline/drawMidground)
-    // already paint in translucent black, which is what gives the
-    // "darker mountains" silhouette over it.
-    skyTop: themeColor,
-    skyBottom: darkenHex(themeColor, 0.45),
-    // Plain dirt under the glowing track line - a touch lighter/clearer
-    // than the theme color so it still reads as its own surface rather
-    // than blending into the sky behind it.
-    groundFill: lightenHex(themeColor, 0.14),
+    // A soft glow of the theme color at the horizon, fading into the
+    // theme's own near-black ink toward the bottom - the same pairing
+    // the app shell itself uses for its background glow, so the scene
+    // matches the rest of the UI instead of standing out as its own flat
+    // color block.
+    skyTop: readVar("--ink-glow", "#3d0f10"),
+    skyBottom: readVar("--ink", "#170707"),
+    // Plain dirt under the glowing track line - the theme's own raised
+    // surface color, a clear step lighter than the sky so it still reads
+    // as its own surface rather than blending into the background.
+    groundFill: readVar("--surface-raised", "#331515"),
     // The glowing road surface itself + the bike stay on the cross-mapped
     // RIDE_THEME_COLORS palette (unchanged) - only the background/plain
     // ground above switch to the literal theme color.
