@@ -1,9 +1,14 @@
 :root {
   /* -- palette: an after-hours card stall, not a UI kit default -- */
+  /* Three deliberately distinct lightness steps - ink (page bg) ->
+     surface (cards) -> surface-raised (sheets/elevated panels) - so
+     hierarchy reads at a glance instead of everything sitting within
+     a few percent of the same darkness. Every accent below follows
+     the same spacing, just recolored. */
   --ink: #170707;
   --ink-glow: #3d0f10;
-  --surface: #241010;
-  --surface-raised: #331515;
+  --surface: #300d0d;
+  --surface-raised: #4d1414;
   --paper: #f3ead9;
   --paper-shadow: #d9cdb2;
   --gold: #d62839;
@@ -35,10 +40,10 @@
    needs no override here. */
 
 .app-shell[data-accent="blue"] {
-  --ink: #060f1c;
+  --ink: #06101d;
   --ink-glow: #0f2a4d;
-  --surface: #0f1f30;
-  --surface-raised: #16324a;
+  --surface: #0b1d38;
+  --surface-raised: #0f2c57;
   --gold: #2f6fed;
   --gold-bright: #6ea8ff;
   --text: #eaf2ff;
@@ -48,10 +53,10 @@
 }
 
 .app-shell[data-accent="yellow"] {
-  --ink: #1c1608;
+  --ink: #1e1708;
   --ink-glow: #3d2f0a;
-  --surface: #241f10;
-  --surface-raised: #332b16;
+  --surface: #34290e;
+  --surface-raised: #523f14;
   --gold: #c99400;
   --gold-bright: #ffd93d;
   --text: #fdf6e3;
@@ -61,10 +66,10 @@
 }
 
 .app-shell[data-accent="green"] {
-  --ink: #071a0f;
+  --ink: #081c10;
   --ink-glow: #0f3d22;
-  --surface: #0f2417;
-  --surface-raised: #16331f;
+  --surface: #0d351e;
+  --surface-raised: #13532e;
   --gold: #16a34a;
   --gold-bright: #4ade80;
   --text: #eafff3;
@@ -76,10 +81,10 @@
 /* ---- Black & Gold: the premium one, gets more than a recolor ---- */
 
 .app-shell[data-accent="blackgold"] {
-  --ink: #050505;
+  --ink: #0a0702;
   --ink-glow: #1a1206;
-  --surface: #100d08;
-  --surface-raised: #1c1710;
+  --surface: #1d1407;
+  --surface-raised: #32220b;
   /* A genuine gold pairing (dark goldenrod -> pure gold), not a yellow
      one - #c99400/#ffd93d above are deliberately warmer/duller than
      these to keep "Yellow" reading as its own distinct color. */
@@ -93,9 +98,13 @@
   --paper-shadow: #d9c48f;
 }
 
-/* A slow-drifting gold vignette behind everything, instead of the flat
-   near-black the other accents keep - this alone reads as "premium
-   background" rather than "dark theme with gold buttons". */
+/* A gold vignette behind everything, instead of the flat near-black the
+   other accents keep - this alone reads as "premium background" rather
+   than "dark theme with gold buttons". Static now, not drifting - with
+   the headline shimmer below also removed, the button sweep further
+   down is the one deliberate motion this theme gets, per feedback that
+   five simultaneous effects read as "trying too hard" rather than
+   premium. */
 .app-shell[data-accent="blackgold"]::after {
   content: "";
   position: fixed;
@@ -105,37 +114,20 @@
   background:
     radial-gradient(ellipse 70% 45% at 18% -8%, rgba(255, 215, 0, 0.16), transparent 60%),
     radial-gradient(ellipse 60% 40% at 100% 108%, rgba(184, 134, 11, 0.14), transparent 60%);
-  animation: blackgold-drift 14s ease-in-out infinite alternate;
 }
 
-@keyframes blackgold-drift {
-  from {
-    opacity: 0.7;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Headline text gets an actual metallic gradient instead of a flat
-   gold fill. Deliberately excludes .brand-title - that's the shared
-   heading class for Home/Ride/Leaderboard/Arena, and a nonstop shine
-   loop reads as gimmicky repeated on every tab; those just keep the
-   normal one-time build-in like every other theme. */
+/* Headline text gets a static metallic gold gradient instead of a flat
+   fill - still reads as "warm gold typography" without looping forever
+   (see the vignette comment above for why the shimmer was dropped).
+   Deliberately excludes .brand-title - that's the shared heading class
+   for Home/Ride/Leaderboard/Arena; those just keep the normal one-time
+   build-in like every other theme. */
 .app-shell[data-accent="blackgold"] .settings-sheet__title,
 .app-shell[data-accent="blackgold"] .chat-topbar__title {
-  background: linear-gradient(115deg, #b8860b 0%, #ffe98a 35%, #ffd700 50%, #b8860b 70%, #ffe98a 100%);
-  background-size: 220% 100%;
+  background: linear-gradient(115deg, #b8860b 0%, #ffe98a 40%, #ffd700 55%, #b8860b 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: blackgold-text-shine 5s linear infinite;
-}
-
-@keyframes blackgold-text-shine {
-  to {
-    background-position: -220% 0;
-  }
 }
 
 /* Raised surfaces (character cards, chat bubbles, sheets) get a thin
@@ -351,7 +343,8 @@ button {
 
 .balance-pill__amount {
   color: var(--gold-bright);
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 15px;
 }
 
 /* ---------------- filters ---------------- */
@@ -568,7 +561,13 @@ button {
 
 .character-card__art {
   position: relative;
-  aspect-ratio: 3 / 4;
+  /* 4/5 instead of the old 3/4 - a touch shorter so more of the grid
+     fits on screen without scrolling as far, and it feels more like a
+     dense marketplace than a stack of tall trading cards. Every other
+     card-shaped element (fighter cards, the reveal card, its skeleton
+     placeholder, arena slots) matches this ratio too so nothing jumps
+     between loading and loaded state. */
+  aspect-ratio: 4 / 5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -713,8 +712,8 @@ button {
 
 .price-ticket {
   font-family: var(--font-mono);
-  font-weight: 600;
-  font-size: 12.5px;
+  font-weight: 700;
+  font-size: 13.5px;
   color: #241a10;
   background: var(--paper);
   padding: 5px 10px 5px 8px;
@@ -868,6 +867,8 @@ button {
 
 .confirm-sheet__ledger-row[data-emphasis="true"] {
   color: var(--text);
+  font-weight: 700;
+  font-size: 15px;
   border-top: 1px dashed var(--line);
   margin-top: 4px;
   padding-top: 8px;
@@ -2478,7 +2479,7 @@ button {
 }
 
 .arena-team-slot--empty {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   border: 1.5px dashed var(--line);
   border-radius: var(--radius-md);
   display: flex;
@@ -2524,7 +2525,7 @@ button {
 
 .fighter-card__art {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2757,7 +2758,7 @@ button {
 
 .reveal-card__art {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
@@ -2816,7 +2817,7 @@ button {
 }
 
 .skeleton-card__art {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
 }
 
 .skeleton-line {
@@ -2908,7 +2909,7 @@ button {
 }
 
 .arena-battle-scene__mini {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   border-radius: var(--radius-sm);
   border: 1px solid var(--card-accent, var(--line));
   overflow: hidden;
@@ -2920,7 +2921,7 @@ button {
 }
 
 .arena-battle-scene__mystery {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   border-radius: var(--radius-sm);
   border: 1px dashed var(--line);
   display: flex;
