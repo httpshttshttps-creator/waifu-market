@@ -38,29 +38,7 @@ export default function LeaderboardTab({ notify }) {
   // each "page" is a full screenful of 10, and reaching the end of one
   // is what loads the next.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  // TEMP DEBUG - remove once the scroll bug is found. Shows the actual
-  // measurements live so we can tell "no real overflow" apart from
-  // "overflow exists but touch-drag doesn't move it" apart from
-  // "programmatic scroll doesn't even work".
   const scrollRef = useRef(null);
-  const [debugInfo, setDebugInfo] = useState("measuring…");
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    function update() {
-      setDebugInfo(
-        `scrollTop=${Math.round(el.scrollTop)} clientH=${el.clientHeight} scrollH=${el.scrollHeight} canScroll=${el.scrollHeight > el.clientHeight}`
-      );
-    }
-    update();
-    el.addEventListener("scroll", update);
-    const interval = setInterval(update, 500);
-    return () => {
-      el.removeEventListener("scroll", update);
-      clearInterval(interval);
-    };
-  }, [visibleCount, mode]);
 
   useEffect(() => {
     if (mode === "collectors" && collectors === null) {
@@ -89,6 +67,23 @@ export default function LeaderboardTab({ notify }) {
   const visibleList = fullList ? fullList.slice(0, visibleCount) : null;
   const hasMore = Boolean(fullList) && visibleCount < fullList.length;
 
+  // Scroll-to-load-more (handleScroll below) only ever fires on an
+  // actual scroll event - but if the current batch happens to fill the
+  // container exactly (or comes up short), there's nothing to scroll
+  // yet, so that event never fires and the rest of the list becomes
+  // permanently unreachable even though hasMore is still true. This
+  // keeps loading another page right after render whenever that
+  // happens, until either there's finally enough content to scroll or
+  // the list genuinely runs out (hasMore turns false and the "reached
+  // the end" footer - which adds its own height - shows for real).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !hasMore) return;
+    if (el.scrollHeight <= el.clientHeight) {
+      setVisibleCount((count) => count + PAGE_SIZE);
+    }
+  }, [hasMore, visibleList]);
+
   function handleScroll(event) {
     if (!hasMore) return;
     const el = event.currentTarget;
@@ -96,6 +91,7 @@ export default function LeaderboardTab({ notify }) {
       setVisibleCount((count) => count + PAGE_SIZE);
     }
   }
+
 
   return (
     <div className="leaderboard-tab">
@@ -114,40 +110,9 @@ export default function LeaderboardTab({ notify }) {
             💰 VɎ
           </button>
         </div>
-
-        {/* TEMP DEBUG BAR - remove once the scroll bug is found */}
-        <div
-          style={{
-            fontFamily: "monospace",
-            fontSize: "10px",
-            color: "#0f0",
-            background: "#000",
-            padding: "4px 8px",
-            marginTop: "6px",
-            borderRadius: "4px",
-            display: "flex",
-            justifyContent: "space-between",
-            gap: "6px",
-          }}
-        >
-          <span>{debugInfo}</span>
-          <button
-            type="button"
-            style={{ background: "#333", color: "#0f0", border: "none", borderRadius: "3px", padding: "0 6px" }}
-            onClick={() => {
-              if (scrollRef.current) scrollRef.current.scrollTop += 200;
-            }}
-          >
-            scroll+200
-          </button>
-        </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="leaderboard-list tab-scroll-body build-fade-only"
-        onScroll={handleScroll}
-      >
+      <div ref={scrollRef} className="leaderboard-list tab-scroll-body build-fade-only" onScroll={handleScroll}>
         {visibleList === null ? (
           <SkeletonRowList count={6} />
         ) : visibleList.length === 0 ? (
