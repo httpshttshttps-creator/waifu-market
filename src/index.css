@@ -3077,6 +3077,34 @@ button {
   margin: 14px 0 4px;
 }
 
+/* Leaderboard's explicit "load the next 10" control. Scrolling near the
+   bottom (handleScroll in LeaderboardTab.jsx) loads more too when
+   there's enough content to actually scroll to - this button is the
+   guaranteed fallback for the edge case where a batch of 10 happens to
+   exactly fill (or fall short of) the screen, so there's nothing to
+   scroll yet even though more players exist. Explicit and tappable
+   rather than silent, so the rest of the list is never dumped in all at
+   once unprompted. */
+.leaderboard-load-more {
+  display: block;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.leaderboard-load-more:active {
+  transform: scale(0.98);
+  color: var(--text);
+}
+
 /* ================================================================
    Tab "build" transition - plays every time a tab becomes active
    (App.jsx remounts this wrapper via key={activeTab}), so opening

@@ -67,31 +67,17 @@ export default function LeaderboardTab({ notify }) {
   const visibleList = fullList ? fullList.slice(0, visibleCount) : null;
   const hasMore = Boolean(fullList) && visibleCount < fullList.length;
 
-  // Scroll-to-load-more (handleScroll below) only ever fires on an
-  // actual scroll event - but if the current batch happens to fill the
-  // container exactly (or comes up short), there's nothing to scroll
-  // yet, so that event never fires and the rest of the list becomes
-  // permanently unreachable even though hasMore is still true. This
-  // keeps loading another page right after render whenever that
-  // happens, until either there's finally enough content to scroll or
-  // the list genuinely runs out (hasMore turns false and the "reached
-  // the end" footer - which adds its own height - shows for real).
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !hasMore) return;
-    if (el.scrollHeight <= el.clientHeight) {
-      setVisibleCount((count) => count + PAGE_SIZE);
-    }
-  }, [hasMore, visibleList]);
+  function loadMore() {
+    setVisibleCount((count) => count + PAGE_SIZE);
+  }
 
   function handleScroll(event) {
     if (!hasMore) return;
     const el = event.currentTarget;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
-      setVisibleCount((count) => count + PAGE_SIZE);
+      loadMore();
     }
   }
-
 
   return (
     <div className="leaderboard-tab">
@@ -131,6 +117,11 @@ export default function LeaderboardTab({ notify }) {
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}
+            {hasMore && (
+              <button type="button" className="leaderboard-load-more" onClick={loadMore}>
+                Show 10 more ↓
+              </button>
+            )}
             {!hasMore && <p className="end-of-list">That's everyone — you've reached the end 🙂</p>}
           </>
         )}
