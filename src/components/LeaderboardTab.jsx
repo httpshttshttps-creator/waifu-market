@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTelegram } from "../hooks/useTelegram.js";
 import { fetchTopCollectors, fetchRichest } from "../api/leaderboardApi.js";
 import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
@@ -21,11 +21,6 @@ function PlayerRow({ rank, row, metric, index, onSelectPlayer }) {
   );
 }
 
-// Tasks lives here as its own sheet (opened by the full-width button
-// above the Collection/VɎ toggle) rather than a standalone bottom-nav
-// tab - that slot is Arena's now.
-const PAGE_SIZE = 10;
-
 export default function LeaderboardTab({ notify }) {
   const { haptic } = useTelegram();
   const [mode, setMode] = useState("collectors");
@@ -33,12 +28,6 @@ export default function LeaderboardTab({ notify }) {
   const [richest, setRichest] = useState(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [showTasks, setShowTasks] = useState(false);
-  // Reveals PAGE_SIZE (10) more rows every time the list is scrolled
-  // near its bottom, instead of rendering the whole ranking at once -
-  // each "page" is a full screenful of 10, and reaching the end of one
-  // is what loads the next.
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const scrollRef = useRef(null);
 
   useEffect(() => {
     if (mode === "collectors" && collectors === null) {
@@ -48,10 +37,6 @@ export default function LeaderboardTab({ notify }) {
       fetchRichest().then(setRichest);
     }
   }, [mode, collectors, richest]);
-
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [mode]);
 
   function changeMode(nextMode) {
     haptic?.("light");
@@ -63,21 +48,7 @@ export default function LeaderboardTab({ notify }) {
     setShowTasks(true);
   }
 
-  const fullList = mode === "collectors" ? collectors : richest;
-  const visibleList = fullList ? fullList.slice(0, visibleCount) : null;
-  const hasMore = Boolean(fullList) && visibleCount < fullList.length;
-
-  function loadMore() {
-    setVisibleCount((count) => count + PAGE_SIZE);
-  }
-
-  function handleScroll(event) {
-    if (!hasMore) return;
-    const el = event.currentTarget;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
-      loadMore();
-    }
-  }
+  const list = mode === "collectors" ? collectors : richest;
 
   return (
     <div className="leaderboard-tab">
@@ -98,16 +69,16 @@ export default function LeaderboardTab({ notify }) {
         </div>
       </div>
 
-      <div ref={scrollRef} className="leaderboard-list tab-scroll-body build-fade-only" onScroll={handleScroll}>
-        {visibleList === null ? (
+      <div className="leaderboard-list tab-scroll-body build-fade-only">
+        {list === null ? (
           <SkeletonRowList count={6} />
-        ) : visibleList.length === 0 ? (
+        ) : list.length === 0 ? (
           <p className="empty-state">
             {mode === "collectors" ? "No collections to rank yet." : "Nobody has any VɎ yet."}
           </p>
         ) : (
           <>
-            {visibleList.map((row, index) => (
+            {list.map((row, index) => (
               <PlayerRow
                 key={row.user_id}
                 rank={index + 1}
@@ -117,12 +88,7 @@ export default function LeaderboardTab({ notify }) {
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}
-            {hasMore && (
-              <button type="button" className="leaderboard-load-more" onClick={loadMore}>
-                Show 10 more ↓
-              </button>
-            )}
-            {!hasMore && <p className="end-of-list">That's everyone — you've reached the end 🙂</p>}
+            <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
           </>
         )}
       </div>
