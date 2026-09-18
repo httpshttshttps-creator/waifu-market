@@ -202,6 +202,44 @@ export default function App() {
     return () => clearInterval(interval);
   }, [refreshAll]);
 
+  // Belt-and-suspenders alongside webApp.disableVerticalSwipes() in
+  // useTelegram.js: that call needs a fairly recent Telegram client
+  // (Bot API 7.7+) and silently no-ops on anything older, which left
+  // long lists (Leaderboard especially) feeling stuck - Telegram's own
+  // fullscreen swipe-to-minimize gesture was grabbing the drag before it
+  // ever reached our scroll container. This works regardless of client
+  // version: any touchmove that starts inside a genuinely scrollable
+  // .tab-scroll-body is stopped from bubbling up to Telegram's own
+  // gesture handling, letting the browser's native scroll handle it
+  // instead. Only intercepts when the element can actually scroll
+  // further in that direction, so reaching the real top/bottom still
+  // correctly falls through to Telegram's gesture there.
+  useEffect(() => {
+    let startY = null;
+    let scrollEl = null;
+
+    function handleTouchStart(event) {
+      scrollEl = event.target.closest(".tab-scroll-body");
+      startY = scrollEl ? event.touches[0].clientY : null;
+    }
+
+    function handleTouchMove(event) {
+      if (!scrollEl || startY === null) return;
+      const draggingDown = event.touches[0].clientY > startY;
+      const atTop = scrollEl.scrollTop <= 0;
+      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+      const canScrollFurther = draggingDown ? !atTop : !atBottom;
+      if (canScrollFurther) event.stopPropagation();
+    }
+
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { passive: true, capture: true });
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchmove", handleTouchMove, { capture: true });
+    };
+  }, []);
+
   const visibleCharacters = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return characters.filter((character) => {
