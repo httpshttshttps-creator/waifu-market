@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTelegram } from "../hooks/useTelegram.js";
 import { fetchTopCollectors, fetchRichest } from "../api/leaderboardApi.js";
 import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
@@ -38,6 +38,29 @@ export default function LeaderboardTab({ notify }) {
   // each "page" is a full screenful of 10, and reaching the end of one
   // is what loads the next.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // TEMP DEBUG - remove once the scroll bug is found. Shows the actual
+  // measurements live so we can tell "no real overflow" apart from
+  // "overflow exists but touch-drag doesn't move it" apart from
+  // "programmatic scroll doesn't even work".
+  const scrollRef = useRef(null);
+  const [debugInfo, setDebugInfo] = useState("measuring…");
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function update() {
+      setDebugInfo(
+        `scrollTop=${Math.round(el.scrollTop)} clientH=${el.clientHeight} scrollH=${el.scrollHeight} canScroll=${el.scrollHeight > el.clientHeight}`
+      );
+    }
+    update();
+    el.addEventListener("scroll", update);
+    const interval = setInterval(update, 500);
+    return () => {
+      el.removeEventListener("scroll", update);
+      clearInterval(interval);
+    };
+  }, [visibleCount, mode]);
 
   useEffect(() => {
     if (mode === "collectors" && collectors === null) {
@@ -91,9 +114,40 @@ export default function LeaderboardTab({ notify }) {
             💰 VɎ
           </button>
         </div>
+
+        {/* TEMP DEBUG BAR - remove once the scroll bug is found */}
+        <div
+          style={{
+            fontFamily: "monospace",
+            fontSize: "10px",
+            color: "#0f0",
+            background: "#000",
+            padding: "4px 8px",
+            marginTop: "6px",
+            borderRadius: "4px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: "6px",
+          }}
+        >
+          <span>{debugInfo}</span>
+          <button
+            type="button"
+            style={{ background: "#333", color: "#0f0", border: "none", borderRadius: "3px", padding: "0 6px" }}
+            onClick={() => {
+              if (scrollRef.current) scrollRef.current.scrollTop += 200;
+            }}
+          >
+            scroll+200
+          </button>
+        </div>
       </div>
 
-      <div className="leaderboard-list tab-scroll-body build-fade-only" onScroll={handleScroll}>
+      <div
+        ref={scrollRef}
+        className="leaderboard-list tab-scroll-body build-fade-only"
+        onScroll={handleScroll}
+      >
         {visibleList === null ? (
           <SkeletonRowList count={6} />
         ) : visibleList.length === 0 ? (
