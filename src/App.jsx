@@ -47,7 +47,11 @@ export default function App() {
   // tab you're about to land on - see changeTab below and the
   // data-direction rules in index.css.
   const [tabDirection, setTabDirection] = useState(null);
-  const [appReady, setAppReady] = useState(false);
+  // The app opens once BOTH the first data load and the VYRO boot
+  // animation (BootScreen) have finished - whichever is slower decides.
+  const [dataReady, setDataReady] = useState(false);
+  const [bootIntroDone, setBootIntroDone] = useState(false);
+  const appReady = dataReady && bootIntroDone;
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -156,14 +160,13 @@ export default function App() {
     );
   }, []);
 
-  // Initial load. A short minimum delay keeps the boot screen from just
-  // flashing on a fast connection - it should read as a deliberate
-  // "welcome" beat, not a layout glitch.
+  // Initial load. The minimum on-screen time for the boot screen is now
+  // the VYRO animation itself (see BootScreen's onIntroDone), so there's
+  // no separate fixed delay here anymore.
   useEffect(() => {
     let cancelled = false;
-    const minDelay = new Promise((resolve) => setTimeout(resolve, 500));
-    Promise.allSettled([refreshAll(), minDelay]).then(() => {
-      if (!cancelled) setAppReady(true);
+    Promise.allSettled([refreshAll()]).then(() => {
+      if (!cancelled) setDataReady(true);
     });
     return () => {
       cancelled = true;
@@ -323,7 +326,7 @@ export default function App() {
     // of the saved theme.
     return (
       <div className="app-shell" data-accent={accentColor}>
-        <BootScreen />
+        <BootScreen onIntroDone={() => setBootIntroDone(true)} />
       </div>
     );
   }

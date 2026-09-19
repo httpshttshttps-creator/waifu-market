@@ -3050,9 +3050,172 @@ button {
   gap: 14px;
   padding: 20px;
   text-align: center;
+  /* VYRO's letters start above the screen - never let them show up outside it. */
+  overflow: hidden;
   background:
     radial-gradient(120% 60% at 50% -10%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
+}
+
+/* ---- VYRO 3D intro ----
+   Zero-height anchor above the icon/MARKET group: it takes no room in the
+   centered column (the -14px cancels the flex gap), so the icon, MARKET,
+   hint and bar stay exactly where they were, and the big word simply sits
+   above them.
+
+   Timeline per letter i (d = i * 110ms): falls + tumbles in over 1.5s
+   starting at d, lights up from dark to full brightness while it comes
+   into place, then glows from d + 1.25s for 0.65s. The last letter (i = 3)
+   is done at ~2.25s - BootScreen.jsx's INTRO_MS must stay past that. */
+.boot-vyro {
+  --vy-face: var(--text);
+  --vy-side: var(--text-faint);
+  position: relative;
+  align-self: stretch;
+  height: 0;
+  margin-bottom: -14px;
+}
+
+.boot-vyro__word {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 26px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: min(25vw, 112px);
+  line-height: 1;
+  letter-spacing: -0.01em;
+  /* Hidden until BootScreen starts the animation (it waits briefly for the
+     display font so the letters don't reflow mid-fall). */
+  opacity: 0;
+}
+
+.boot-vyro[data-play] .boot-vyro__word {
+  opacity: 1;
+}
+
+/* Soft halo behind the word that comes up with the glow. */
+.boot-vyro__word::before {
+  content: "";
+  position: absolute;
+  inset: -25% -8%;
+  background: radial-gradient(closest-side, var(--gold), transparent);
+  opacity: 0;
+}
+
+.boot-vyro[data-play] .boot-vyro__word::before {
+  animation: vyro-halo 700ms ease-out 1500ms forwards;
+}
+
+.vyro-slot {
+  position: relative;
+  perspective: 700px;
+}
+
+.vyro-letter {
+  position: relative;
+  display: block;
+  transform-style: preserve-3d;
+  /* Resting pose (also what shows with reduced motion). */
+  transform: translate3d(0, var(--dy), 0) rotateX(var(--rxf)) rotateY(var(--ryf)) rotateZ(var(--rzf));
+  will-change: transform;
+}
+
+.vyro-sizer {
+  display: block;
+  visibility: hidden;
+}
+
+.vyro-layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  color: var(--vy-side);
+  /* Front face at +half depth, back at -half, 0.0135em apart. */
+  transform: translateZ(calc((7.5 - var(--k)) * 0.0135em));
+}
+
+.vyro-layer[data-front] {
+  color: var(--vy-face);
+}
+
+.boot-vyro[data-play] .vyro-slot {
+  filter: brightness(0.28);
+  animation: vyro-light 1500ms ease-out calc(var(--i) * 110ms) forwards;
+}
+
+.boot-vyro[data-play] .vyro-letter {
+  animation: vyro-drop 1500ms linear calc(var(--i) * 110ms) both;
+}
+
+.boot-vyro[data-play] .vyro-layer[data-front] {
+  animation: vyro-glow 650ms ease-out calc(var(--i, 0) * 110ms + 1250ms) both;
+}
+
+/* --i lives on the slot, so give the front layer its own copy of it. */
+.vyro-slot:nth-child(1) .vyro-layer[data-front] { --i: 0; }
+.vyro-slot:nth-child(2) .vyro-layer[data-front] { --i: 1; }
+.vyro-slot:nth-child(3) .vyro-layer[data-front] { --i: 2; }
+.vyro-slot:nth-child(4) .vyro-layer[data-front] { --i: 3; }
+
+@keyframes vyro-drop {
+  0% {
+    transform: translate3d(var(--x0), var(--y0), var(--z0)) rotateX(var(--rx0)) rotateY(var(--ry0)) rotateZ(var(--rz0));
+    animation-timing-function: cubic-bezier(0.16, 0.7, 0.3, 1);
+  }
+  70% {
+    /* Just past the resting pose... */
+    transform: translate3d(0, calc(var(--dy) + 10px), 0) rotateX(calc(var(--rxf) + 9deg))
+      rotateY(calc(var(--ryf) - 9deg)) rotateZ(calc(var(--rzf) + 5deg));
+    animation-timing-function: ease-in-out;
+  }
+  100% {
+    /* ...and a small settle back into it. */
+    transform: translate3d(0, var(--dy), 0) rotateX(var(--rxf)) rotateY(var(--ryf)) rotateZ(var(--rzf));
+  }
+}
+
+@keyframes vyro-light {
+  0%,
+  30% {
+    filter: brightness(0.28);
+  }
+  80%,
+  100% {
+    filter: brightness(1);
+  }
+}
+
+@keyframes vyro-glow {
+  from {
+    text-shadow: 0 0 0 transparent, 0 0 0 transparent;
+  }
+  to {
+    text-shadow: 0 0 0.05em var(--text), 0 0 0.22em var(--gold-bright);
+  }
+}
+
+@keyframes vyro-halo {
+  to {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-vyro[data-play] .vyro-slot,
+  .boot-vyro[data-play] .vyro-letter,
+  .boot-vyro[data-play] .vyro-layer[data-front],
+  .boot-vyro[data-play] .boot-vyro__word::before {
+    animation: none;
+    filter: none;
+  }
+  .boot-vyro[data-play] .boot-vyro__word::before {
+    opacity: 0.3;
+  }
 }
 
 .boot-screen__icon {
