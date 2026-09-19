@@ -1723,6 +1723,10 @@ button {
   /* Follow the theme picked on Home instead of a fixed gold/pink. */
   --neon-gold: var(--gold-bright);
   --neon-magenta: var(--gold-bright);
+  /* 1% of the real (Telegram-tracked) viewport height. The intro sizes its
+     type/gaps off this so it fills a big phone's panel but shrinks with a
+     short one instead of overflowing. */
+  --vu: calc(var(--tg-vh, 100dvh) / 100);
   /* Fill only the space the shell leaves for it (like the other tabs).
      The intro/result screens keep the bottom nav visible, so a fixed
      min-height taller than that space pushed the panel's bottom edge
@@ -1759,9 +1763,15 @@ button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  /* "safe" keeps the top reachable (instead of clipped) if a very short
+     screen ever makes the content taller than the panel. */
+  justify-content: safe center;
   text-align: center;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: clamp(10px, calc(var(--vu) * 3), 26px);
+  padding: 16px 14px;
+  /* Small breathing room above the bottom nav so the rounded bottom
+     corners never sit right on / under it. */
+  margin-bottom: 24px;
   border-radius: var(--radius-lg);
   background: radial-gradient(120% 100% at 50% 0%, var(--ink-glow), transparent 60%), var(--surface);
   border: 1px solid var(--line);
@@ -1774,29 +1784,29 @@ button {
 }
 
 .rider-game__intro-text {
-  max-width: 300px;
+  max-width: 320px;
   color: var(--text-dim);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: clamp(13px, calc(var(--vu) * 1.9), 16px);
+  line-height: 1.4;
   margin: 0;
 }
 
 .rider-game__intro-text--dim {
   color: var(--text-faint);
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  line-height: 1.3;
+  font-size: clamp(11px, calc(var(--vu) * 1.5), 13px);
+  line-height: 1.4;
 }
 
 .rider-game__intro .brand-title {
-  font-size: clamp(20px, 5.5vw, 24px);
+  font-size: clamp(24px, min(calc(var(--vu) * 5), 9vw), 40px);
 }
 
 .rider-game__best {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 4px 14px;
+  gap: 10px;
+  padding: 6px 18px;
   border-radius: 999px;
   background: var(--surface-raised);
   border: 1px solid var(--line);
@@ -1805,7 +1815,7 @@ button {
 
 .rider-game__best-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -1814,17 +1824,17 @@ button {
 .rider-game__best-value {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 15px;
+  font-size: clamp(16px, calc(var(--vu) * 2.4), 22px);
   color: var(--neon-gold);
 }
 
 .rider-game__controls {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: clamp(4px, calc(var(--vu) * 0.8), 8px);
   width: 100%;
-  max-width: 320px;
-  padding: 7px 12px;
+  max-width: 340px;
+  padding: clamp(8px, calc(var(--vu) * 1.5), 14px) 14px;
   border-radius: var(--radius-md);
   background: rgba(10, 4, 24, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1835,16 +1845,16 @@ button {
   align-items: baseline;
   gap: 10px;
   text-align: left;
-  font-size: 11.5px;
-  line-height: 1.3;
+  font-size: clamp(12px, calc(var(--vu) * 1.8), 15px);
+  line-height: 1.35;
   color: var(--text-dim);
 }
 
 .rider-game__controls-key {
   flex: 0 0 auto;
-  min-width: 74px;
+  min-width: 92px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: clamp(11.5px, calc(var(--vu) * 1.7), 14px);
   letter-spacing: 0.02em;
   color: var(--neon-magenta);
 }
@@ -1853,9 +1863,9 @@ button {
   /* .sheet-button is flex: 1 - inside this column layout that stretched
      the button down the whole screen. Keep it a normal pill. */
   flex: 0 0 auto;
-  margin-top: 6px;
-  padding: 10px 34px;
-  font-size: 14px;
+  margin-top: 4px;
+  padding: clamp(11px, calc(var(--vu) * 1.7), 16px) 46px;
+  font-size: clamp(15px, calc(var(--vu) * 2.1), 19px);
   box-shadow: 0 0 22px var(--gold);
   box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 55%, transparent);
 }
@@ -3415,6 +3425,40 @@ button {
   animation: none;
 }
 
+/* Ride intro "build": same idea as the other tabs - the panel fades in and
+   each piece (title, best run, controls, texts, Start) rises in one after
+   the other. Applied to the intro's children, never to .rider-game itself
+   (see above). `backwards` (not `both`) so the last keyframe isn't held:
+   a held transform would override the Start button's :active press
+   feedback. */
+.rider-game__intro {
+  animation: fade-in 0.2s ease both;
+}
+.rider-game__exit {
+  animation: fade-in 0.3s ease 0.2s backwards;
+}
+.rider-game__intro > * {
+  animation: tab-build-rise 420ms cubic-bezier(0.22, 0.9, 0.32, 1) backwards;
+}
+.rider-game__intro > *:nth-child(1) {
+  animation-delay: 40ms;
+}
+.rider-game__intro > *:nth-child(2) {
+  animation-delay: 110ms;
+}
+.rider-game__intro > *:nth-child(3) {
+  animation-delay: 180ms;
+}
+.rider-game__intro > *:nth-child(4) {
+  animation-delay: 250ms;
+}
+.rider-game__intro > *:nth-child(5) {
+  animation-delay: 320ms;
+}
+.rider-game__intro > *:nth-child(n + 6) {
+  animation-delay: 390ms;
+}
+
 /* The player's name gets its own slightly showier reveal instead of the
    plain rise - it's the first thing they see, worth a beat of polish. */
 .profile-header__name,
@@ -3479,6 +3523,9 @@ button {
   .build-fade-only,
   .profile-header__name,
   .brand-title,
+  .rider-game__intro,
+  .rider-game__intro > *,
+  .rider-game__exit,
   .card-build {
     animation: none !important;
   }
