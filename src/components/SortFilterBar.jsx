@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchProfileFilter, fetchFilterOptions, setProfileFilter, clearProfileFilter } from "../api/profileFilterApi.js";
 
 const MODE_LABEL = { character: "Character", series: "Series", rarity: "Rarity" };
@@ -54,7 +55,8 @@ export default function SortFilterBar({ onFilterChange }) {
         )}
       </div>
 
-      {sheetOpen && (
+      {sheetOpen &&
+        createPortal(
         <div className="sheet-overlay sort-sheet-overlay" onClick={() => setSheetOpen(false)}>
           <div className="confirm-sheet sort-sheet" onClick={(event) => event.stopPropagation()}>
             <div className="confirm-sheet__handle" />
@@ -103,7 +105,11 @@ export default function SortFilterBar({ onFilterChange }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        // Rendered outside .tab-header: that element keeps a transform/filter from the
+        // tab-build animation, which makes position:fixed size against the header box
+        // instead of the screen. .app-shell (not body) keeps the theme CSS variables.
+        document.querySelector(".app-shell") || document.body
       )}
     </>
   );
