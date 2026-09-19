@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchChatMessages, sendChatMessage } from "../api/chatApi.js";
+import { play } from "../audio/engine.js";
 
 function bubbleTime(iso) {
   const date = new Date(iso);
@@ -45,6 +46,7 @@ export default function ChatConversation({ character, notify }) {
       ...prev,
       { id: optimisticId, sender: "user", content: text, createdAt: new Date().toISOString() },
     ]);
+    play("sent");
 
     const result = await sendChatMessage(character.id, text);
     if (result.ok) {
@@ -53,6 +55,7 @@ export default function ChatConversation({ character, notify }) {
         result.userMessage,
         result.reply,
       ]);
+      play("received");
     } else {
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
       setDraft(text);

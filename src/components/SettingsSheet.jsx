@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getSettings, setSetting, subscribeSettings, play } from "../audio/engine.js";
 
 const THEMES = [
   {
@@ -35,8 +36,32 @@ const ACCENTS = [
   { id: "blackgold", name: "Black & Gold", preview: "linear-gradient(135deg, #07070a, #ffd94d)", shiny: true },
 ];
 
+function SoundToggle({ label, hint, on, onChange }) {
+  return (
+    <button type="button" className="settings-toggle" role="switch" aria-checked={on} onClick={() => onChange(!on)}>
+      <span className="settings-toggle__text">
+        <span className="settings-toggle__label">{label}</span>
+        <span className="settings-toggle__hint">{hint}</span>
+      </span>
+      <span className="settings-toggle__track" data-on={on || undefined}>
+        <span className="settings-toggle__thumb" />
+      </span>
+    </button>
+  );
+}
+
 export default function SettingsSheet({ open, onClose, accent, onAccentChange }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [audio, setAudio] = useState(getSettings);
+
+  useEffect(() => subscribeSettings(setAudio), []);
+
+  function changeAudio(key, value) {
+    setSetting(key, value);
+    // Turning sound on: confirm with a sound (the tap itself was silent
+    // because sound was still off when it happened).
+    if (value && key === "sfx") play("confirm");
+  }
 
   if (!open) return null;
 
@@ -103,6 +128,24 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
               ))}
             </div>
           )}
+        </div>
+
+        <div className="settings-sheet__section">
+          <p className="settings-sheet__section-label">Sound</p>
+          <div className="settings-toggles">
+            <SoundToggle
+              label="Sound effects"
+              hint="Taps, chat, cards, the intro"
+              on={audio.sfx}
+              onChange={(value) => changeAudio("sfx", value)}
+            />
+            <SoundToggle
+              label="Music"
+              hint="Neon Rider soundtrack"
+              on={audio.music}
+              onChange={(value) => changeAudio("music", value)}
+            />
+          </div>
         </div>
 
         <div className="confirm-sheet__actions">

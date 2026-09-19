@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getRarityTier } from "../data/rarities.js";
 import CardMedia from "./CardMedia.jsx";
+import { play } from "../audio/engine.js";
 
 export default function CardRevealOverlay({ character, onDismiss }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -9,6 +10,8 @@ export default function CardRevealOverlay({ character, onDismiss }) {
   useEffect(() => {
     if (!character) return;
     setImageFailed(false);
+    // The rarer the pull, the bigger the sparkle run.
+    play("reveal", { tier: getRarityTier(character.rarity).glowLevel });
     // mount closed, then flip open next frame so the animation actually plays
     const raf = requestAnimationFrame(() => setVisible(true));
     return () => {

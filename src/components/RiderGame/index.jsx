@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import GameCanvas from "./GameCanvas.jsx";
 import { submitRiderRun } from "../../api/gameApi.js";
+import { play, startMusic, stopMusic, setMusicIntensity } from "../../audio/engine.js";
 
 const STAGE_INTRO = "intro";
 const STAGE_PLAYING = "playing";
@@ -43,14 +44,29 @@ export default function RiderGame({ notify, onBalanceChange, onExit, onImmersive
     return () => onImmersiveChange?.(false);
   }, [stage, onImmersiveChange]);
 
+  // Neon background music for as long as the Ride tab is open; how much of
+  // the track plays follows the stage (menu: pads + bass, run: everything,
+  // result: back down).
+  useEffect(() => {
+    startMusic();
+    return () => stopMusic(0.5);
+  }, []);
+
+  useEffect(() => {
+    setMusicIntensity(stage === STAGE_PLAYING ? 1 : stage === STAGE_RESULT ? 0.3 : 0.5, 0.6);
+  }, [stage]);
+
   function startRun() {
     setResult(null);
     setStage(STAGE_PLAYING);
+    play("gameStart");
   }
 
   async function handleGameOver({ distanceMeters, money }) {
     setStage(STAGE_RESULT);
     setResult({ distanceMeters, reward: money, loading: true });
+    play("gameOver");
+    if (money > bestScore) play("newBest", { delay: 1.1 });
 
     if (money > bestScore) {
       setBestScore(money);

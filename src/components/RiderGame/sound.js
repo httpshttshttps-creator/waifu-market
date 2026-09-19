@@ -1,81 +1,35 @@
-// Small set of synthesized sound effects for the Rider game, using the
-// Web Audio API directly - no external audio files to bundle or license.
-// Browsers require a user gesture before audio can play, so callers must
-// call resumeAudio() from inside a real pointerdown/click handler first.
+// Sound effects for the Rider game. They run on the app-wide audio engine
+// (src/audio) so the master volume, the Settings mute switches and the
+// single shared AudioContext all apply; the effects themselves are defined
+// in src/audio/synth.js. The names below are what GameCanvas.jsx calls.
 
-let audioCtx = null;
+import { unlock, play, getAudio, duckMusic } from "../../audio/engine.js";
 
-function getCtx() {
-  if (!audioCtx) {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return null;
-    audioCtx = new AudioContextClass();
-  }
-  return audioCtx;
-}
-
+// Audio can only start from inside a real user gesture - GameCanvas calls
+// this from its pointerdown handler.
 export function resumeAudio() {
-  const ctx = getCtx();
-  if (ctx && ctx.state === "suspended") ctx.resume();
-}
-
-function tone({ freq = 440, freqEnd = null, duration = 0.12, type = "sine", volume = 0.2 }) {
-  const ctx = getCtx();
-  if (!ctx) return;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, ctx.currentTime);
-  if (freqEnd !== null) {
-    osc.frequency.linearRampToValueAtTime(freqEnd, ctx.currentTime + duration);
-  }
-  gain.gain.setValueAtTime(volume, ctx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + duration);
-}
-
-function noiseBurst({ duration = 0.15, volume = 0.3 }) {
-  const ctx = getCtx();
-  if (!ctx) return;
-  const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * duration));
-  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < bufferSize; i++) {
-    data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
-  }
-  const noise = ctx.createBufferSource();
-  noise.buffer = buffer;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(volume, ctx.currentTime);
-  noise.connect(gain).connect(ctx.destination);
-  noise.start();
+  unlock();
 }
 
 export function playJump() {
-  tone({ freq: 340, freqEnd: 640, duration: 0.14, type: "triangle", volume: 0.16 });
+  play("jump");
 }
 
 export function playLand(intensity = 1) {
-  noiseBurst({ duration: 0.1, volume: 0.22 * Math.min(1.6, intensity) });
+  play("land", { intensity });
 }
 
 export function playCrash() {
-  noiseBurst({ duration: 0.32, volume: 0.4 });
-  tone({ freq: 130, freqEnd: 35, duration: 0.32, type: "sawtooth", volume: 0.22 });
+  play("crash");
+  duckMusic(1.0, 0.12); // let the crash cut through, then bring the music back
 }
 
 export function playScore() {
-  tone({ freq: 820, freqEnd: 1180, duration: 0.11, type: "sine", volume: 0.13 });
+  play("score");
 }
 
-// Nitro-boost whoosh: a fast rising sawtooth sweep layered with a short
-// noise burst for a bit of punch at the front of the sound.
 export function playBoost() {
-  tone({ freq: 200, freqEnd: 900, duration: 0.32, type: "sawtooth", volume: 0.24 });
-  tone({ freq: 500, freqEnd: 1400, duration: 0.22, type: "triangle", volume: 0.16 });
-  noiseBurst({ duration: 0.16, volume: 0.2 });
+  play("boost");
 }
 
 // Continuous engine hum - a single oscillator whose pitch/volume is
@@ -88,8 +42,10 @@ let engineFilter = null;
 let engineGain = null;
 
 export function updateEngine(active, speedFraction) {
-  const ctx = getCtx();
-  if (!ctx) return;
+  const audio = getAudio();
+  if (!audio) return;
+  const { ctx, bus } = audio;
+  if (ctx.state !== "running") return;
 
   if (active && !engineOsc) {
     engineOsc = ctx.createOscillator();
@@ -99,15 +55,15 @@ export function updateEngine(active, speedFraction) {
     engineFilter.type = "lowpass";
     engineFilter.frequency.value = 500;
     engineGain.gain.value = 0.0001;
-    engineOsc.connect(engineFilter).connect(engineGain).connect(ctx.destination);
+    engineOsc.connect(engineFilter).connect(engineGain).connect(bus);
     engineOsc.start();
   }
 
   if (!engineOsc) return;
 
   if (active) {
-    // Louder still - bumped again (and again) so the engine is loud and
-    // unmistakable the moment gas is held, not just once speed builds up.
+    // Loud and unmistakable the moment gas is held, not just once speed
+    // builds up (kept from the previous tuning - the music sits under it).
     const freq = 90 + speedFraction * 170;
     const filterFreq = 550 + speedFraction * 800;
     const volume = 0.3 + speedFraction * 0.26;

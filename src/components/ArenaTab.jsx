@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { play } from "../audio/engine.js";
 import { useTelegram } from "../hooks/useTelegram.js";
 import {
   fetchArenaStatus,
@@ -130,7 +131,9 @@ export default function ArenaTab({ notify, onNavigate }) {
       if (updated.resolved) {
         clearInterval(pollRef.current);
         setBattle(updated);
-        notify?.(updated.result === "attacker" ? "success" : updated.result === "draw" ? "warning" : "error");
+        const outcome = updated.result === "attacker" ? "success" : updated.result === "draw" ? "warning" : "error";
+        notify?.(outcome, { sound: false }); // haptic only - the outcome has its own jingle
+        play(updated.result === "attacker" ? "victory" : updated.result === "draw" ? "draw" : "defeat");
         refreshAll();
       }
     }, 4000);
@@ -139,6 +142,7 @@ export default function ArenaTab({ notify, onNavigate }) {
 
   async function handleFight() {
     haptic?.("medium");
+    play("fight");
     setFighting(true);
     const result = await startArenaFight();
     setFighting(false);

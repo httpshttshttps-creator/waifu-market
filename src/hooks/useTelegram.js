@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { play } from "../audio/engine.js";
 
 /**
  * Thin wrapper around window.Telegram.WebApp.
@@ -177,7 +178,11 @@ export function useTelegram(accentColor = "red", backButton) {
     }
   }
 
-  function notify(type = "success") {
+  // `type` is "success" | "error" | "warning". Every notify() also plays
+  // the matching sound (coin ping / buzz / blip) unless the caller plays a
+  // more specific one itself and passes { sound: false }.
+  function notify(type = "success", { sound = true } = {}) {
+    if (sound) play(type);
     try {
       webApp?.HapticFeedback?.notificationOccurred(type);
     } catch {

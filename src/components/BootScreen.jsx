@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createBootFx, FX } from "./bootFx.js";
+import { play, isRunning, unlock, getSettings, onAudioStateChange } from "../audio/engine.js";
+import { BOOT_SOUNDS } from "../audio/bootSequence.js";
 
 // Boot sequence (all times in ms from the moment the animation starts):
 //   0      VYRO drops in as chunky 3D letters (CSS, see .vyro-* in index.css)
@@ -8,6 +10,12 @@ import { createBootFx, FX } from "./bootFx.js";
 //   3800   the explosion covers the whole screen -> the app mounts underneath
 //   3800+  the explosion fades away (LEAVE_MS) and the app builds in
 // The mini app never shows before the explosion has covered the screen.
+//
+// Sound: every stage has its own synthesized sound (src/audio, timeline in
+// audio/bootSequence.js), fired from the same clock as the visuals. If the
+// webview hasn't unlocked audio yet (autoplay policy) a small "tap for
+// sound" hint is shown, and the sounds still to come play as soon as the
+// player taps anywhere.
 //
 // Each letter is a stack of LAYERS copies of the glyph pushed apart along Z,
 // which reads as a solid extruded letter while it tumbles - plain DOM +
@@ -26,6 +34,9 @@ const LETTERS = [
 ];
 
 const LEAVE_MS = 900;
+// Sounds fire this early to make up for output latency, so they land with
+// the visuals rather than just after them.
+const AUDIO_LEAD_MS = 50;
 // Don't hold the animation back for more than this waiting on the web
 // font - it starts with the fallback font instead.
 const FONT_WAIT_MS = 700;
@@ -34,6 +45,7 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
   const [play, setPlay] = useState(false);
   const [covered, setCovered] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [audioLocked, setAudioLocked] = useState(false);
   const backRef = useRef(null);
   const frontRef = useRef(null);
   const wordRef = useRef(null);
@@ -47,6 +59,7 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
     let raf = 0;
     let coverTimer;
     let fx = null;
+    let stopWatchingAudio = null;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
 
     function cover() {
@@ -58,6 +71,12 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
     function start() {
       if (cancelled) return;
       setPlay(true);
+      // Try to unlock audio right away (works if the webview allows
+      // autoplay); otherwise the hint below asks for a tap.
+      unlock();
+      const syncLocked = () => setAudioLocked(getSettings().sfx && !isRunning());
+      syncLocked();
+      stopWatchingAudio = onAudioStateChange(syncLocked);
       if (reduceMotion) {
         coverTimer = setTimeout(cover, 400);
         return;
@@ -76,9 +95,18 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
         fx = null; // canvas unavailable - the CSS letters + timing still work
       }
       const t0 = performance.now();
+      let nextSound = 0;
       const frame = () => {
         if (cancelled) return;
-        fx?.draw(performance.now() - t0);
+        const t = performance.now() - t0;
+        fx?.draw(t);
+        // Fire the boot sounds that have come due. Ones that are already
+        // more than 300ms late (audio unlocked mid-boot) are skipped so
+        // nothing plays out of sync.
+        while (nextSound < BOOT_SOUNDS.length && BOOT_SOUNDS[nextSound].t - AUDIO_LEAD_MS <= t) {
+          const sound = BOOT_SOUNDS[nextSound++];
+          if (t - sound.t < 300) play(sound.name, { ...sound.options, onlyIfRunning: true });
+        }
         raf = requestAnimationFrame(frame);
       };
       raf = requestAnimationFrame(frame);
@@ -101,6 +129,7 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
       cancelled = true;
       cancelAnimationFrame(raf);
       clearTimeout(coverTimer);
+      stopWatchingAudio?.();
     };
   }, []);
 
@@ -109,6 +138,11 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
   useEffect(() => {
     if (covered && dataReady) setLeaving(true);
   }, [covered, dataReady]);
+
+  // The explosion clearing and the app arriving.
+  useEffect(() => {
+    if (leaving) play("bootReveal", { onlyIfRunning: true });
+  }, [leaving]);
 
   useEffect(() => {
     if (!leaving) return undefined;
@@ -153,6 +187,8 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
       </div>
 
       <canvas ref={frontRef} className="boot-fx boot-fx--front" aria-hidden="true" />
+
+      {audioLocked && !covered && <p className="boot-screen__sound-hint">🔊 tap for sound</p>}
     </div>
   );
 }
