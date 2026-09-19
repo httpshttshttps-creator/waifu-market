@@ -5,6 +5,25 @@ import PlayerProfileSheet from "./PlayerProfileSheet.jsx";
 import TaskPanel from "./TaskPanel.jsx";
 import { SkeletonRowList } from "./SkeletonRow.jsx";
 
+const TOP_N = 10;
+
+function MyRankCard({ rank, name, metric, onOpen }) {
+  const ranked = rank !== null;
+  return (
+    <button
+      type="button"
+      className="leaderboard-row leaderboard-row--flat leaderboard-row--me"
+      onClick={onOpen}
+      disabled={!onOpen}
+    >
+      <span className="leaderboard-me__label">Your rank</span>
+      <span className="leaderboard-me__rank">{ranked ? `#${rank}` : "—"}</span>
+      <span className="leaderboard-me__name">{ranked ? name : "Not ranked yet"}</span>
+      {ranked && <span className="leaderboard-row__count">{metric}</span>}
+    </button>
+  );
+}
+
 function PlayerRow({ rank, row, metric, index, onSelectPlayer }) {
   return (
     <button
@@ -22,7 +41,7 @@ function PlayerRow({ rank, row, metric, index, onSelectPlayer }) {
 }
 
 export default function LeaderboardTab({ notify }) {
-  const { haptic } = useTelegram();
+  const { haptic, user } = useTelegram();
   const [mode, setMode] = useState("collectors");
   const [collectors, setCollectors] = useState(null);
   const [richest, setRichest] = useState(null);
@@ -49,6 +68,10 @@ export default function LeaderboardTab({ notify }) {
   }
 
   const list = mode === "collectors" ? collectors : richest;
+  const topList = list ? list.slice(0, TOP_N) : null;
+  const myIndex = list && user?.id != null ? list.findIndex((row) => String(row.user_id) === String(user.id)) : -1;
+  const myRow = myIndex >= 0 ? list[myIndex] : null;
+  const metricFor = (row) => (mode === "collectors" ? `${row.card_count} 🧑` : `${row.balance} VɎ`);
 
   return (
     <div className="leaderboard-tab">
@@ -78,17 +101,25 @@ export default function LeaderboardTab({ notify }) {
           </p>
         ) : (
           <>
-            {list.map((row, index) => (
+            <MyRankCard
+              rank={myRow ? myIndex + 1 : null}
+              name={myRow?.display_name}
+              metric={myRow ? metricFor(myRow) : ""}
+              onOpen={user?.id != null ? () => setSelectedPlayerId(user.id) : undefined}
+            />
+            {topList.map((row, index) => (
               <PlayerRow
                 key={row.user_id}
                 rank={index + 1}
                 row={row}
-                metric={mode === "collectors" ? `${row.card_count} 🧑` : `${row.balance} VɎ`}
+                metric={metricFor(row)}
                 index={index}
                 onSelectPlayer={setSelectedPlayerId}
               />
             ))}
-            <p className="end-of-list">That's everyone — you've reached the end 🙂</p>
+            <p className="end-of-list">
+              {list.length > TOP_N ? `Showing the top ${TOP_N} 🏆` : "That's everyone — you've reached the end 🙂"}
+            </p>
           </>
         )}
       </div>

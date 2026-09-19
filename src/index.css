@@ -1367,6 +1367,49 @@ button {
   background: var(--surface-raised);
 }
 
+/* "Your rank" card pinned above the top-10 list. Same row shell as the
+   player rows, but with a gold outline so it reads as "you". */
+.leaderboard-row--me {
+  width: 100%;
+  border: 1px solid var(--gold);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.leaderboard-row--me:disabled {
+  cursor: default;
+}
+
+.leaderboard-me__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.leaderboard-me__rank {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--gold-bright);
+  flex-shrink: 0;
+}
+
+.leaderboard-me__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 14px;
+}
+
 .leaderboard-row__avatar {
   flex-shrink: 0;
   width: 28px;
