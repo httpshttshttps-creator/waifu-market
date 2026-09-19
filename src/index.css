@@ -3074,6 +3074,7 @@ button {
   align-self: stretch;
   height: 0;
   margin-bottom: -14px;
+  z-index: 1;
 }
 
 .boot-vyro__word {
@@ -3108,7 +3109,9 @@ button {
 }
 
 .boot-vyro[data-play] .boot-vyro__word::before {
-  animation: vyro-halo 700ms ease-out 1500ms forwards;
+  animation:
+    vyro-halo 700ms ease-out 1500ms forwards,
+    vyro-halo-out 180ms ease-in var(--impact) forwards;
 }
 
 .vyro-slot {
@@ -3143,13 +3146,22 @@ button {
   color: var(--vy-face);
 }
 
+/* Landing (vyro-drop/-light/-glow), then - when the meteor hits at
+   --impact (set by BootScreen from FX.IMPACT) - each letter is blasted
+   away (vyro-blast), scorched orange (vyro-heat) and burns out
+   (vyro-fade). --bd staggers the letters nearest the impact first. */
 .boot-vyro[data-play] .vyro-slot {
   filter: brightness(0.28);
-  animation: vyro-light 1500ms ease-out calc(var(--i) * 110ms) forwards;
+  animation:
+    vyro-light 1500ms ease-out calc(var(--i) * 110ms) forwards,
+    vyro-heat 1000ms ease-out calc(var(--impact) + var(--bd)) forwards,
+    vyro-fade 450ms ease-in calc(var(--impact) + var(--bd) + 750ms) forwards;
 }
 
 .boot-vyro[data-play] .vyro-letter {
-  animation: vyro-drop 1500ms linear calc(var(--i) * 110ms) both;
+  animation:
+    vyro-drop 1500ms linear calc(var(--i) * 110ms) both,
+    vyro-blast 1300ms cubic-bezier(0.12, 0.5, 0.35, 1) calc(var(--impact) + var(--bd)) forwards;
 }
 
 .boot-vyro[data-play] .vyro-layer[data-front] {
@@ -3205,13 +3217,134 @@ button {
   }
 }
 
+@keyframes vyro-halo-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vyro-blast {
+  0% {
+    transform: translate3d(0, var(--dy), 0) rotateX(var(--rxf)) rotateY(var(--ryf)) rotateZ(var(--rzf));
+  }
+  100% {
+    transform: translate3d(var(--bx), var(--by), var(--bz)) rotateX(var(--brx)) rotateY(var(--bry))
+      rotateZ(var(--brz));
+  }
+}
+
+@keyframes vyro-heat {
+  /* Flash-heated, then charred dark so the letters stay readable as
+     silhouettes against the fireball. */
+  0% {
+    filter: brightness(1) sepia(0) saturate(1) hue-rotate(0deg);
+  }
+  14% {
+    filter: brightness(2.2) sepia(1) saturate(5) hue-rotate(-28deg);
+  }
+  45% {
+    filter: brightness(0.5) sepia(0.8) saturate(3) hue-rotate(-28deg);
+  }
+  100% {
+    filter: brightness(0.22) sepia(0.6) saturate(2) hue-rotate(-28deg);
+  }
+}
+
+@keyframes vyro-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Camera shake on impact, decaying. */
+.boot-screen[data-play] {
+  animation: boot-shake 750ms linear var(--impact) both;
+}
+
+@keyframes boot-shake {
+  0% {
+    transform: translate(0, 0);
+  }
+  6% {
+    transform: translate(-13px, 9px) rotate(-0.5deg);
+  }
+  12% {
+    transform: translate(11px, -10px) rotate(0.45deg);
+  }
+  19% {
+    transform: translate(-9px, 7px) rotate(-0.3deg);
+  }
+  27% {
+    transform: translate(7px, -6px);
+  }
+  38% {
+    transform: translate(-5px, 4px);
+  }
+  52% {
+    transform: translate(3px, -2px);
+  }
+  72% {
+    transform: translate(-1px, 1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* The explosion fades out (BootScreen starts this once it has covered the
+   screen and the app is mounted underneath). */
+.boot-screen[data-leaving] {
+  animation: boot-leave 900ms ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes boot-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.boot-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.boot-fx--back {
+  z-index: 0;
+}
+
+/* Keep the static content (icon, MARKET, hint, bar) underneath the fireball
+   canvas - animated elements otherwise get their own stacking context and
+   would paint on top of it. */
+.boot-screen__icon,
+.boot-screen__title,
+.boot-screen__hint,
+.boot-screen__bar {
+  position: relative;
+  z-index: -1;
+}
+
+.boot-fx--front {
+  z-index: 2;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .boot-vyro[data-play] .vyro-slot,
   .boot-vyro[data-play] .vyro-letter,
   .boot-vyro[data-play] .vyro-layer[data-front],
-  .boot-vyro[data-play] .boot-vyro__word::before {
+  .boot-vyro[data-play] .boot-vyro__word::before,
+  .boot-screen[data-play] {
     animation: none;
     filter: none;
+  }
+  .boot-fx {
+    display: none;
   }
   .boot-vyro[data-play] .boot-vyro__word::before {
     opacity: 0.3;

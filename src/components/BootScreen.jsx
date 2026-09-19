@@ -1,44 +1,88 @@
 import { useEffect, useRef, useState } from "react";
+import { createBootFx, FX } from "./bootFx.js";
 
-// VYRO drops in as chunky 3D letters (see the .vyro-* rules in index.css).
+// Boot sequence (all times in ms from the moment the animation starts):
+//   0      VYRO drops in as chunky 3D letters (CSS, see .vyro-* in index.css)
+//   2050   a meteor with a fiery trail enters from the top-right (canvas)
+//   2950   it hits VYRO: letters are blasted apart, big explosion, screen shake
+//   3800   the explosion covers the whole screen -> the app mounts underneath
+//   3800+  the explosion fades away (LEAVE_MS) and the app builds in
+// The mini app never shows before the explosion has covered the screen.
+//
 // Each letter is a stack of LAYERS copies of the glyph pushed apart along Z,
 // which reads as a solid extruded letter while it tumbles - plain DOM +
 // CSS 3D, no WebGL/three.js needed.
 const LAYERS = 16;
 
-// Where each letter starts (off-screen above, close to the camera, mid-
-// tumble) and the small tilt/offset it comes to rest at, so the word
-// lands with a little playful wobble instead of a rigid line.
+// x0/y0/z0 + r*0: where each letter starts (off-screen above, close to the
+// camera, mid-tumble). *f + dy: the small tilt/offset it rests at.
+// bx/by/bz + br*: where it is thrown when the meteor hits; bd: tiny delay so
+// the letters nearest the impact go first.
 const LETTERS = [
-  { ch: "V", x0: "-38vw", y0: "-74vh", z0: "320px", rx0: "-520deg", ry0: "380deg", rz0: "-160deg", rxf: "-4deg", ryf: "7deg", rzf: "-5deg", dy: "4px" },
-  { ch: "Y", x0: "14vw", y0: "-88vh", z0: "260px", rx0: "430deg", ry0: "-470deg", rz0: "140deg", rxf: "5deg", ryf: "-6deg", rzf: "4deg", dy: "-5px" },
-  { ch: "R", x0: "-10vw", y0: "-66vh", z0: "380px", rx0: "-380deg", ry0: "520deg", rz0: "200deg", rxf: "-3deg", ryf: "5deg", rzf: "-3deg", dy: "3px" },
-  { ch: "O", x0: "36vw", y0: "-80vh", z0: "300px", rx0: "480deg", ry0: "-360deg", rz0: "-120deg", rxf: "6deg", ryf: "-7deg", rzf: "6deg", dy: "-3px" },
+  { ch: "V", x0: "-38vw", y0: "-74vh", z0: "320px", rx0: "-520deg", ry0: "380deg", rz0: "-160deg", rxf: "-4deg", ryf: "7deg", rzf: "-5deg", dy: "4px", bx: "-105vw", by: "-38vh", bz: "420px", brx: "480deg", bry: "-620deg", brz: "-300deg", bd: "45ms" },
+  { ch: "Y", x0: "14vw", y0: "-88vh", z0: "260px", rx0: "430deg", ry0: "-470deg", rz0: "140deg", rxf: "5deg", ryf: "-6deg", rzf: "4deg", dy: "-5px", bx: "-25vw", by: "-95vh", bz: "360px", brx: "-560deg", bry: "420deg", brz: "240deg", bd: "0ms" },
+  { ch: "R", x0: "-10vw", y0: "-66vh", z0: "380px", rx0: "-380deg", ry0: "520deg", rz0: "200deg", rxf: "-3deg", ryf: "5deg", rzf: "-3deg", dy: "3px", bx: "35vw", by: "90vh", bz: "480px", brx: "540deg", bry: "560deg", brz: "-220deg", bd: "0ms" },
+  { ch: "O", x0: "36vw", y0: "-80vh", z0: "300px", rx0: "480deg", ry0: "-360deg", rz0: "-120deg", rxf: "6deg", ryf: "-7deg", rzf: "6deg", dy: "-3px", bx: "110vw", by: "-30vh", bz: "440px", brx: "-500deg", bry: "600deg", brz: "320deg", bd: "45ms" },
 ];
 
-// The mini app stays on this screen until the whole VYRO animation has
-// played: last letter lands ~1.8s after start, its glow finishes ~2.25s,
-// plus a short hold so the finished logo is actually seen. Keep in sync
-// with the timings in the .vyro-* CSS.
-const INTRO_MS = 2600;
+const LEAVE_MS = 900;
 // Don't hold the animation back for more than this waiting on the web
 // font - it starts with the fallback font instead.
 const FONT_WAIT_MS = 700;
 
-export default function BootScreen({ onIntroDone }) {
+export default function BootScreen({ dataReady, onCovered, onFinished }) {
   const [play, setPlay] = useState(false);
-  const doneRef = useRef(onIntroDone);
-  doneRef.current = onIntroDone;
+  const [covered, setCovered] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const backRef = useRef(null);
+  const frontRef = useRef(null);
+  const wordRef = useRef(null);
+  const coveredRef = useRef(onCovered);
+  const finishedRef = useRef(onFinished);
+  coveredRef.current = onCovered;
+  finishedRef.current = onFinished;
 
   useEffect(() => {
     let cancelled = false;
-    let timer;
+    let raf = 0;
+    let coverTimer;
+    let fx = null;
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+    function cover() {
+      if (cancelled) return;
+      setCovered(true);
+      coveredRef.current?.();
+    }
 
     function start() {
       if (cancelled) return;
       setPlay(true);
-      timer = setTimeout(() => doneRef.current?.(), reduceMotion ? 400 : INTRO_MS);
+      if (reduceMotion) {
+        coverTimer = setTimeout(cover, 400);
+        return;
+      }
+      try {
+        fx = createBootFx({
+          back: backRef.current,
+          front: frontRef.current,
+          // Meteor aims at the middle of the VYRO word.
+          getImpact: (canvasRect) => {
+            const r = wordRef.current.getBoundingClientRect();
+            return { x: r.left + r.width / 2 - canvasRect.left, y: r.top + r.height / 2 - canvasRect.top };
+          },
+        });
+      } catch {
+        fx = null; // canvas unavailable - the CSS letters + timing still work
+      }
+      const t0 = performance.now();
+      const frame = () => {
+        if (cancelled) return;
+        fx?.draw(performance.now() - t0);
+        raf = requestAnimationFrame(frame);
+      };
+      raf = requestAnimationFrame(frame);
+      coverTimer = setTimeout(cover, FX.COVER);
     }
 
     if (reduceMotion || !document.fonts?.load) {
@@ -55,16 +99,36 @@ export default function BootScreen({ onIntroDone }) {
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+      clearTimeout(coverTimer);
     };
   }, []);
 
+  // Once the explosion has covered the screen AND the data is in, the app
+  // is mounted underneath (App.jsx) - fade the explosion out to reveal it.
+  useEffect(() => {
+    if (covered && dataReady) setLeaving(true);
+  }, [covered, dataReady]);
+
+  useEffect(() => {
+    if (!leaving) return undefined;
+    const timer = setTimeout(() => finishedRef.current?.(), LEAVE_MS);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+
   return (
-    <div className="boot-screen">
+    <div
+      className="boot-screen"
+      data-play={play || undefined}
+      data-leaving={leaving || undefined}
+      style={{ "--impact": `${FX.IMPACT}ms` }}
+    >
+      <canvas ref={backRef} className="boot-fx boot-fx--back" aria-hidden="true" />
+
       <div className="boot-vyro" data-play={play || undefined} role="img" aria-label="VYRO">
-        <div className="boot-vyro__word" aria-hidden="true">
+        <div className="boot-vyro__word" ref={wordRef} aria-hidden="true">
           {LETTERS.map(({ ch, ...pose }, i) => (
-            <span className="vyro-slot" key={`${ch}${i}`} style={{ "--i": i }}>
+            <span className="vyro-slot" key={`${ch}${i}`} style={{ "--i": i, "--bd": pose.bd }}>
               <span
                 className="vyro-letter"
                 style={Object.fromEntries(Object.entries(pose).map(([name, value]) => [`--${name}`, value]))}
@@ -87,6 +151,8 @@ export default function BootScreen({ onIntroDone }) {
       <div className="boot-screen__bar">
         <div className="boot-screen__bar-fill" />
       </div>
+
+      <canvas ref={frontRef} className="boot-fx boot-fx--front" aria-hidden="true" />
     </div>
   );
 }

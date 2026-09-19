@@ -47,11 +47,14 @@ export default function App() {
   // tab you're about to land on - see changeTab below and the
   // data-direction rules in index.css.
   const [tabDirection, setTabDirection] = useState(null);
-  // The app opens once BOTH the first data load and the VYRO boot
-  // animation (BootScreen) have finished - whichever is slower decides.
+  // The app mounts once the first data load is in AND the boot explosion
+  // has covered the screen (BootScreen -> onCovered) - whichever is slower
+  // decides. The BootScreen overlay then stays on top while it fades out,
+  // and is removed when it reports it's finished (bootDone).
   const [dataReady, setDataReady] = useState(false);
-  const [bootIntroDone, setBootIntroDone] = useState(false);
-  const appReady = dataReady && bootIntroDone;
+  const [introCovered, setIntroCovered] = useState(false);
+  const [bootDone, setBootDone] = useState(false);
+  const appReady = dataReady && introCovered;
 
   const [characters, setCharacters] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -318,6 +321,18 @@ export default function App() {
     setSellCandidate(null);
   }
 
+  // Same element (and key) in both returns below, so React keeps this one
+  // BootScreen instance alive when the app mounts underneath it - its
+  // animation must not restart at that point.
+  const bootOverlay = bootDone ? null : (
+    <BootScreen
+      key="boot-overlay"
+      dataReady={dataReady}
+      onCovered={() => setIntroCovered(true)}
+      onFinished={() => setBootDone(true)}
+    />
+  );
+
   if (!appReady) {
     // Wrapped in .app-shell[data-accent] too - BootScreen's colors are
     // var(--gold)/var(--gold-bright), which only resolve to the picked
@@ -326,7 +341,7 @@ export default function App() {
     // of the saved theme.
     return (
       <div className="app-shell" data-accent={accentColor}>
-        <BootScreen onIntroDone={() => setBootIntroDone(true)} />
+        {bootOverlay}
       </div>
     );
   }
@@ -452,6 +467,8 @@ export default function App() {
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />
 
       <CardRevealOverlay character={revealCharacter} onDismiss={() => setRevealCharacter(null)} />
+
+      {bootOverlay}
     </div>
   );
 }
