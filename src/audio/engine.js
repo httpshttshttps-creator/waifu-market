@@ -145,7 +145,13 @@ export function play(name, options = {}) {
     if (performance.now() - lastGestureAt > GESTURE_WINDOW_MS) return;
     tryResume();
   }
-  fn(ctx, graph.sfxOut, ctx.currentTime + 0.005 + (options.delay ?? 0), options);
+  try {
+    fn(ctx, graph.sfxOut, ctx.currentTime + 0.005 + (options.delay ?? 0), options);
+  } catch (err) {
+    // A sound failing (odd webview, bad node state) must never take the app
+    // down with it - drop the sound and carry on.
+    console.warn(`Sound "${name}" failed`, err);
+  }
 }
 
 // ------------------------------------------------------------------ music
@@ -153,26 +159,42 @@ export function play(name, options = {}) {
 export function startMusic() {
   musicWanted = true;
   if (!settings.music) return;
-  const a = ensure();
-  if (!a) return;
-  if (!music) music = createMusic(a.ctx, a.graph.musicOut, noiseBuffer(a.ctx));
-  tryResume();
-  music.setIntensity(musicIntensity, 0.05);
-  music.start();
+  try {
+    const a = ensure();
+    if (!a) return;
+    if (!music) music = createMusic(a.ctx, a.graph.musicOut, noiseBuffer(a.ctx));
+    tryResume();
+    music.setIntensity(musicIntensity, 0.05);
+    music.start();
+  } catch (err) {
+    console.warn("Music failed to start", err);
+  }
 }
 
 export function stopMusic(fadeSeconds = 0.6) {
   musicWanted = false;
-  music?.stop(fadeSeconds);
+  try {
+    music?.stop(fadeSeconds);
+  } catch {
+    /* already gone - fine */
+  }
 }
 
 export function setMusicIntensity(value, rampSeconds = 0.5) {
   musicIntensity = value;
-  music?.setIntensity(value, rampSeconds);
+  try {
+    music?.setIntensity(value, rampSeconds);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function duckMusic(seconds = 0.8, depth = 0.15) {
-  music?.duck(seconds, depth);
+  try {
+    music?.duck(seconds, depth);
+  } catch {
+    /* ignore */
+  }
 }
 
 // -------------------------------------------------------------- UI sounds

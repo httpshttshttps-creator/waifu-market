@@ -25,6 +25,7 @@ import RiderGame from "./components/RiderGame/index.jsx";
 import CardRevealOverlay from "./components/CardRevealOverlay.jsx";
 import { SkeletonGrid } from "./components/SkeletonCard.jsx";
 import BootScreen from "./components/BootScreen.jsx";
+import BootBoundary from "./components/BootBoundary.jsx";
 import SortFilterBar from "./components/SortFilterBar.jsx";
 
 export default function App() {
@@ -325,12 +326,19 @@ export default function App() {
   // BootScreen instance alive when the app mounts underneath it - its
   // animation must not restart at that point.
   const bootOverlay = bootDone ? null : (
-    <BootScreen
+    <BootBoundary
       key="boot-overlay"
-      dataReady={dataReady}
-      onCovered={() => setIntroCovered(true)}
-      onFinished={() => setBootDone(true)}
-    />
+      onFail={() => {
+        setIntroCovered(true);
+        setBootDone(true);
+      }}
+    >
+      <BootScreen
+        dataReady={dataReady}
+        onCovered={() => setIntroCovered(true)}
+        onFinished={() => setBootDone(true)}
+      />
+    </BootBoundary>
   );
 
   if (!appReady) {

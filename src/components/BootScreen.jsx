@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createBootFx, FX } from "./bootFx.js";
-import { play, isRunning, unlock, getSettings, onAudioStateChange } from "../audio/engine.js";
+import { play as playSound, isRunning, unlock, getSettings, onAudioStateChange } from "../audio/engine.js";
 import { BOOT_SOUNDS } from "../audio/bootSequence.js";
 
 // Boot sequence (all times in ms from the moment the animation starts):
@@ -98,16 +98,22 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
       let nextSound = 0;
       const frame = () => {
         if (cancelled) return;
+        // Schedule the next frame first: nothing below (drawing, sounds) is
+        // allowed to be able to stop the animation or the timers.
+        raf = requestAnimationFrame(frame);
         const t = performance.now() - t0;
-        fx?.draw(t);
+        try {
+          fx?.draw(t);
+        } catch {
+          fx = null; // drawing broke - give up on the canvas, keep the rest going
+        }
         // Fire the boot sounds that have come due. Ones that are already
         // more than 300ms late (audio unlocked mid-boot) are skipped so
         // nothing plays out of sync.
         while (nextSound < BOOT_SOUNDS.length && BOOT_SOUNDS[nextSound].t - AUDIO_LEAD_MS <= t) {
           const sound = BOOT_SOUNDS[nextSound++];
-          if (t - sound.t < 300) play(sound.name, { ...sound.options, onlyIfRunning: true });
+          if (t - sound.t < 300) playSound(sound.name, { ...sound.options, onlyIfRunning: true });
         }
-        raf = requestAnimationFrame(frame);
       };
       raf = requestAnimationFrame(frame);
       coverTimer = setTimeout(cover, FX.COVER);
@@ -141,7 +147,7 @@ export default function BootScreen({ dataReady, onCovered, onFinished }) {
 
   // The explosion clearing and the app arriving.
   useEffect(() => {
-    if (leaving) play("bootReveal", { onlyIfRunning: true });
+    if (leaving) playSound("bootReveal", { onlyIfRunning: true });
   }, [leaving]);
 
   useEffect(() => {

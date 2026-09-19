@@ -42,6 +42,14 @@ let engineFilter = null;
 let engineGain = null;
 
 export function updateEngine(active, speedFraction) {
+  try {
+    updateEngineUnsafe(active, speedFraction);
+  } catch {
+    // never let audio trouble interrupt the game loop
+  }
+}
+
+function updateEngineUnsafe(active, speedFraction) {
   const audio = getAudio();
   if (!audio) return;
   const { ctx, bus } = audio;
