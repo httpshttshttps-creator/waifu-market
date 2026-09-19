@@ -1269,6 +1269,35 @@ button {
   padding-bottom: 12px;
 }
 
+/* Owned-card footer: the price ticket and Sell button used to size to
+   their content, so a 4-digit price pushed Sell out of the card, and the
+   row floated at a different height depending on whether the series name
+   wrapped. Now the footer is pinned to the card bottom, the Sell button
+   has one fixed size, and the ticket takes whatever room is left. */
+.owned-card .character-card__footer {
+  margin-top: auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 10px 8px;
+}
+
+.owned-card .price-ticket {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 12px;
+  padding: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.owned-card .buy-button {
+  flex: 0 0 auto;
+  width: 46px;
+  padding: 8px 0;
+  text-align: center;
+}
+
 .quantity-badge {
   position: absolute;
   top: 8px;
@@ -1691,13 +1720,15 @@ button {
 /* ---------------- rider game ---------------- */
 
 .rider-game {
-  --neon-gold: #f2c14e;
-  --neon-magenta: #ff6ec7;
-  /* Ride is always shown immersively now (bottom nav hidden, see
-     .app-shell[data-immersive]), so this only needs to account for
-     app-shell's own (now-reduced) top/bottom padding, not the bottom
-     nav's reserved space. */
-  min-height: calc(var(--tg-vh, 100dvh) - 60px);
+  /* Follow the theme picked on Home instead of a fixed gold/pink. */
+  --neon-gold: var(--gold-bright);
+  --neon-magenta: var(--gold-bright);
+  /* Fill only the space the shell leaves for it (like the other tabs).
+     The intro/result screens keep the bottom nav visible, so a fixed
+     min-height taller than that space pushed the panel's bottom edge
+     under the nav, which made it look like it kept going. */
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1732,8 +1763,9 @@ button {
   gap: 6px;
   padding: 10px 12px;
   border-radius: var(--radius-lg);
-  background: radial-gradient(120% 100% at 50% 0%, rgba(58, 15, 31, 0.5), transparent 60%), rgba(20, 6, 14, 0.6);
-  border: 1px solid rgba(242, 193, 78, 0.25);
+  background: radial-gradient(120% 100% at 50% 0%, var(--ink-glow), transparent 60%), var(--surface);
+  border: 1px solid var(--line);
+  border-color: color-mix(in srgb, var(--gold) 45%, transparent);
   /* Sized to fit on-screen without scrolling on virtually every phone
      (see the trimmed paddings/gaps below) - this is only a safety net
      for the rare shorter screen, so content is never silently clipped
@@ -1766,8 +1798,9 @@ button {
   gap: 8px;
   padding: 4px 14px;
   border-radius: 999px;
-  background: rgba(242, 193, 78, 0.12);
-  border: 1px solid rgba(242, 193, 78, 0.3);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
 }
 
 .rider-game__best-label {
@@ -1817,11 +1850,14 @@ button {
 }
 
 .rider-game__start {
-  margin-top: 2px;
-  padding: 8px 30px;
+  /* .sheet-button is flex: 1 - inside this column layout that stretched
+     the button down the whole screen. Keep it a normal pill. */
+  flex: 0 0 auto;
+  margin-top: 6px;
+  padding: 10px 34px;
   font-size: 14px;
-  background: linear-gradient(180deg, var(--neon-gold), #b8863a);
-  box-shadow: 0 0 22px rgba(242, 193, 78, 0.45);
+  box-shadow: 0 0 22px var(--gold);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 55%, transparent);
 }
 
 .rider-game__stage {
