@@ -225,14 +225,33 @@ function isSheet(node) {
 }
 
 function installUiSounds() {
-  function onPointerDown(event) {
-    lastGestureAt = performance.now();
-    unlock();
-    const hit = soundForTarget(event.target);
-    if (hit) play(hit[0], hit[1]);
-  }
-  document.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
-  // Keyboard / assistive activation has no pointerdown.
+  // A finger going down on a button is not a press yet - it may be the start
+  // of a scroll (dragging through the Leaderboard touches dozens of
+  // buttons). So the pointer-down only unlocks audio; the sound plays on
+  // "click", which the browser only fires for a completed tap/press.
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      lastGestureAt = performance.now();
+      unlock();
+    },
+    { capture: true, passive: true }
+  );
+
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (!event.isTrusted) return; // ignore programmatic .click() calls
+      lastGestureAt = performance.now();
+      unlock();
+      const hit = soundForTarget(event.target);
+      if (hit) play(hit[0], hit[1]);
+    },
+    { capture: true }
+  );
+
+  // Keyboard / assistive activation has no pointerdown (its click is
+  // handled above).
   document.addEventListener(
     "keydown",
     () => {

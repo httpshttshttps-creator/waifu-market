@@ -83,22 +83,43 @@ export function useTelegram(accentColor = "red", backButton) {
   // plain window resize so anything (like the game canvas) that only
   // listens for that event still picks it up.
   useEffect(() => {
+    let lastHeight = null;
+
     function applyViewportHeight() {
-      const height = webApp?.viewportStableHeight || webApp?.viewportHeight || window.innerHeight;
+      // Telegram's number can be TALLER than what is really on screen
+      // (fullscreen on Android reports a height that reaches under the
+      // system bar). Anything pinned to the bottom of the shell - the chat
+      // composer, mostly - then ended up partly off-screen. Never go above
+      // the real visible height.
+      const telegramHeight = webApp?.viewportStableHeight || webApp?.viewportHeight || 0;
+      const visibleHeight = window.innerHeight;
+      const height =
+        telegramHeight && visibleHeight > 200 ? Math.min(telegramHeight, visibleHeight) : telegramHeight || visibleHeight;
       document.documentElement.style.setProperty("--tg-vh", `${height}px`);
-      window.dispatchEvent(new Event("resize"));
+      // Only announce a real change - dispatching "resize" unconditionally
+      // re-triggered this very function (it listens for resize below) and
+      // recursed forever outside Telegram.
+      if (height !== lastHeight) {
+        lastHeight = height;
+        window.dispatchEvent(new Event("resize"));
+      }
     }
 
     applyViewportHeight();
 
+    // Follow the real window too (the on-screen keyboard shrinks it).
+    window.addEventListener("resize", applyViewportHeight);
+
     if (webApp?.onEvent) {
       webApp.onEvent("viewportChanged", applyViewportHeight);
-      return () => webApp.offEvent?.("viewportChanged", applyViewportHeight);
+      return () => {
+        window.removeEventListener("resize", applyViewportHeight);
+        webApp.offEvent?.("viewportChanged", applyViewportHeight);
+      };
     }
 
     // Not running inside Telegram (e.g. local dev in a regular browser) -
-    // window resize is the closest equivalent.
-    window.addEventListener("resize", applyViewportHeight);
+    // window resize (listened to above) is the closest equivalent.
     return () => window.removeEventListener("resize", applyViewportHeight);
   }, [webApp]);
 

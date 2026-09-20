@@ -267,7 +267,7 @@ button {
     radial-gradient(130% 40% at 50% 32%, var(--ink-glow) 0%, transparent 60%),
     var(--ink);
   padding: calc(max(20px, env(safe-area-inset-top)) + var(--tg-content-safe-top, 0px)) 16px
-    calc(84px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+    calc(84px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
 }
 
 /* Ride is the only immersive full-screen tab now (see App.jsx's
@@ -275,7 +275,7 @@ button {
    there's no fixed bar to reserve space for, and no reason to leave
    ~84px of dead padding under its content. */
 .app-shell[data-immersive="true"] {
-  padding-bottom: calc(env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  padding-bottom: calc(max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
 }
 
 .app-shell__inner {
@@ -792,7 +792,7 @@ button {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   border: 1px solid var(--line);
   border-bottom: none;
-  padding: 10px 20px calc(20px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  padding: 10px 20px calc(20px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
   animation: slide-up 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
@@ -1197,7 +1197,7 @@ button {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  bottom: calc(84px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
   transform: translateX(-50%);
   background: var(--surface-raised);
   border: 1px solid var(--gold);
@@ -1229,7 +1229,7 @@ button {
   display: flex;
   justify-content: center;
   gap: 4px;
-  padding: 8px 16px calc(10px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  padding: 8px 16px calc(10px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
   /* Fully opaque now (no more see-through blur) - a solid bar, not a
      glass panel, per feedback. */
   background: var(--ink);
@@ -2305,7 +2305,7 @@ button {
   /* Chat is immersive again (bottom nav hidden while it's open, see
      App.jsx's `immersive`) - back to sitting just above the raw device
      safe area since there's no fixed nav bar to clear. */
-  bottom: max(20px, calc(env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px)));
+  bottom: max(20px, calc(max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px)));
   z-index: 55;
   width: 52px;
   height: 52px;
@@ -2479,6 +2479,7 @@ button {
   align-items: flex-end;
   gap: 8px;
   padding-top: 10px;
+  padding-bottom: 12px;
 }
 
 .chat-composer__input {
@@ -3545,7 +3546,7 @@ button {
   /* So the very last row/card never sits flush against (or under) the
      bottom nav / device safe area - lets every scrollable tab scroll a
      little past its last item instead of stopping exactly at it. */
-  padding-bottom: calc(24px + env(safe-area-inset-bottom) + var(--tg-content-safe-bottom, 0px));
+  padding-bottom: calc(24px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom, 0px)) + var(--tg-content-safe-bottom, 0px));
 }
 
 /* Small centered footer shown under a fully-loaded, non-paginated list
