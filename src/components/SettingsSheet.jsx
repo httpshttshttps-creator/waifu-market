@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import GearIcon from "./GearIcon.jsx";
 import { landGear, returnGear } from "../fx/gearFlight.js";
+import { useExitPresence } from "../fx/exitPresence.js";
+import { runBombExit } from "../fx/bombExit.js";
 import { getSettings, setSetting, subscribeSettings, play } from "../audio/engine.js";
 
 const THEMES = [
@@ -64,10 +66,21 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
   useLayoutEffect(() => {
     if (open) landGear(gearSlotRef.current);
   }, [open]);
-  // Sheet closed: the gear pops back into the Home header.
+
+  // Closing: Done turns into a bomb and the sheet blows up (fx/bombExit.js).
+  // The sheet stays mounted until that has played.
+  const { mounted, exiting, finish } = useExitPresence(open);
+  const overlayRef = useRef(null);
+  const sheetRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!exiting) return undefined;
+    return runBombExit({ overlay: overlayRef.current, sheet: sheetRef.current, onDone: finish });
+  }, [exiting, finish]);
+
+  // Sheet gone: the gear pops back into the Home header.
   useEffect(() => {
-    if (!open) returnGear();
-  }, [open]);
+    if (!mounted) returnGear();
+  }, [mounted]);
 
   function changeAudio(key, value) {
     setSetting(key, value);
@@ -76,11 +89,11 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
     if (value && key === "sfx") play("confirm");
   }
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   return (
-    <div className="sheet-overlay" onClick={onClose}>
-      <div className="confirm-sheet settings-sheet" onClick={(event) => event.stopPropagation()}>
+    <div ref={overlayRef} className="sheet-overlay" data-exiting={exiting || undefined} onClick={onClose}>
+      <div ref={sheetRef} className="confirm-sheet settings-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="confirm-sheet__handle" />
 
         <p className="settings-sheet__title">

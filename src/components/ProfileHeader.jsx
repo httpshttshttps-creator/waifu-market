@@ -78,14 +78,15 @@ export default function ProfileHeader({ name, balance, cardCount, onOpenSettings
   }
 
   function cheerName() {
-    // Replay the name's glow/bounce, then start the show.
+    // While a show is running, further taps do nothing (no restart, no pile-up).
+    if (!launchFireworks()) return;
+    // Replay the name's glow/bounce alongside the show.
     const el = nameRef.current;
     if (el) {
       el.classList.remove("is-cheering");
       void el.offsetWidth; // restart the animation
       el.classList.add("is-cheering");
     }
-    launchFireworks();
   }
 
   const activate = (handler) => (event) => {

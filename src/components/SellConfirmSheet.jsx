@@ -1,15 +1,34 @@
+import { useLayoutEffect, useRef } from "react";
 import { getRarityTier } from "../data/rarities.js";
+import { useExitPresence } from "../fx/exitPresence.js";
+import { runRabbitExit } from "../fx/rabbitExit.js";
 
 export default function SellConfirmSheet({ character, price, balance, pending, onConfirm, onCancel }) {
-  if (!character) return null;
+  // The parent nulls `character` the moment the sheet closes; keep what we
+  // last showed so the sheet can play its closing animation (a rabbit drops
+  // in and hops it shut - fx/rabbitExit.js) before it goes.
+  const last = useRef({ character, price, balance });
+  if (character) last.current = { character, price, balance };
 
-  const tier = getRarityTier(character.rarity);
-  const [artFrom, artTo] = character.gradient;
-  const balanceAfter = balance + price;
+  const { mounted, exiting, finish } = useExitPresence(Boolean(character));
+  const overlayRef = useRef(null);
+  const sheetRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!exiting) return undefined;
+    return runRabbitExit({ overlay: overlayRef.current, sheet: sheetRef.current, onDone: finish });
+  }, [exiting, finish]);
+
+  if (!mounted) return null;
+
+  const shown = character ? { character, price, balance } : last.current;
+  const tier = getRarityTier(shown.character.rarity);
+  const [artFrom, artTo] = shown.character.gradient;
+  const balanceAfter = shown.balance + shown.price;
 
   return (
-    <div className="sheet-overlay" onClick={onCancel}>
-      <div className="confirm-sheet" onClick={(event) => event.stopPropagation()}>
+    <div ref={overlayRef} className="sheet-overlay" data-exiting={exiting || undefined} onClick={onCancel}>
+      <div ref={sheetRef} className="confirm-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="confirm-sheet__handle" />
 
         <div className="confirm-sheet__row">
@@ -17,12 +36,12 @@ export default function SellConfirmSheet({ character, price, balance, pending, o
             className="confirm-sheet__thumb"
             style={{ "--art-from": artFrom, "--art-to": artTo }}
           >
-            {character.name.charAt(0)}
+            {shown.character.name.charAt(0)}
           </div>
           <div>
-            <p className="confirm-sheet__title">{character.name}</p>
+            <p className="confirm-sheet__title">{shown.character.name}</p>
             <p className="confirm-sheet__subtitle">
-              {character.series} · {tier.label}
+              {shown.character.series} · {tier.label}
             </p>
           </div>
         </div>
@@ -30,11 +49,11 @@ export default function SellConfirmSheet({ character, price, balance, pending, o
         <div className="confirm-sheet__ledger">
           <div className="confirm-sheet__ledger-row">
             <span>Sell price</span>
-            <span>{price} VɎ</span>
+            <span>{shown.price} VɎ</span>
           </div>
           <div className="confirm-sheet__ledger-row">
             <span>Balance</span>
-            <span>{balance} VɎ</span>
+            <span>{shown.balance} VɎ</span>
           </div>
           <div className="confirm-sheet__ledger-row" data-emphasis="true">
             <span>After sale</span>

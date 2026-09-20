@@ -35,13 +35,13 @@ const SHAPES = {
     }),
 };
 
+// Returns true if a show started. A show that's still running can't be
+// restarted (or piled onto) - mashing the name just does nothing until it
+// has finished.
 export function launchFireworks() {
-  if (prefersReducedMotion()) return;
-  if (show) {
-    show.addRockets(5, 200);
-    return;
-  }
+  if (prefersReducedMotion() || show) return false;
   show = createShow();
+  return true;
 }
 
 function createShow() {
@@ -287,5 +287,5 @@ function createShow() {
     frame(t);
   });
 
-  return { addRockets };
+  return {};
 }

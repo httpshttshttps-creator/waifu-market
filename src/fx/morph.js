@@ -76,3 +76,78 @@ export function runMorph({ morph, panel, from, onDone }) {
     anims.forEach((a) => a.cancel());
   };
 }
+
+// The reverse trip, used when the Sort menu closes: the panel squeezes back
+// into the small square and shrinks (spinning) until it's gone. The panel's
+// content is a snapshot inside the box, so it gets squeezed along with it
+// instead of just vanishing.
+export function runUnmorph({ morph, panel, overlay, onDone }) {
+  const P = panel.getBoundingClientRect();
+  const c = { x: P.left + P.width / 2, y: P.top + P.height / 2 };
+  const cs = getComputedStyle(panel);
+  overlay.dataset.silentClose = "true";
+
+  Object.assign(morph.style, {
+    left: `${P.left}px`,
+    top: `${P.top}px`,
+    width: `${P.width}px`,
+    height: `${P.height}px`,
+    background: cs.backgroundColor,
+    borderColor: cs.borderColor,
+    borderRadius: "22px",
+    display: "block",
+    padding: "0",
+    boxShadow: "0 0 0 transparent",
+  });
+
+  const snapshot = panel.cloneNode(true);
+  snapshot.classList.add("no-anim");
+  snapshot.removeAttribute("data-closing");
+  snapshot.removeAttribute("data-morphing");
+  Object.assign(snapshot.style, {
+    position: "absolute",
+    left: "-1px",
+    top: "-1px",
+    width: `${P.width}px`,
+    height: `${P.height}px`,
+    margin: "0",
+    visibility: "visible",
+    background: "transparent",
+    border: "none",
+  });
+  morph.appendChild(snapshot);
+
+  const glow = "0 0 26px var(--gold)";
+  const noGlow = "0 0 0 transparent";
+  const frame = (w, h, radius, transform, extra = {}) => ({
+    left: `${c.x - w / 2}px`,
+    top: `${c.y - h / 2}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+    borderRadius: `${radius}px`,
+    transform,
+    ...extra,
+  });
+
+  const anims = [];
+  anims.push(
+    snapshot.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: "ease-in", fill: "forwards" }),
+    morph.animate(
+      [
+        { ...frame(P.width, P.height, 22, "rotate(0deg) scale(1)", { boxShadow: noGlow, opacity: 1 }), offset: 0, easing: "ease-out" },
+        { ...frame(P.width + 10, P.height + 10, 24, "rotate(0deg) scale(1)", { boxShadow: noGlow, opacity: 1 }), offset: 0.1, easing: "cubic-bezier(0.6, 0, 0.3, 1)" },
+        { ...frame(SQ, SQ, 14, "rotate(0deg) scale(1)", { boxShadow: glow, opacity: 1 }), offset: 0.52, easing: "ease-out" },
+        { ...frame(SQ * 1.12, SQ * 1.12, 15, "rotate(70deg) scale(1)", { boxShadow: glow, opacity: 1 }), offset: 0.62, easing: "cubic-bezier(0.5, 0, 0.9, 0.4)" },
+        { ...frame(SQ, SQ, 14, "rotate(260deg) scale(0)", { boxShadow: glow, opacity: 0 }), offset: 1 },
+      ],
+      { duration: 720, fill: "forwards" }
+    ),
+    overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, delay: 180, easing: "ease-in", fill: "forwards" })
+  );
+  anims[1].onfinish = () => onDone();
+
+  return () => {
+    anims.forEach((a) => a.cancel());
+    delete overlay.dataset.silentClose;
+  };
+}

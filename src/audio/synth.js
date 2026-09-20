@@ -359,6 +359,60 @@ export const SFX = {
     voice(ctx, out, { t: t + 0.07, type: "sine", f0: 760, f1: 470, dur: 0.12, peak: 0.1, attack: 0.002, wet: 0.15 });
   },
 
+  // ----- closing animations -----
+
+  // Sell sheet: the rabbit drops in, lands, gets dizzy, hops twice.
+  bunnyExit(ctx, out, t) {
+    noise(ctx, out, { t, dur: 0.5, peak: 0.13, shape: "swell", filter: { type: "bandpass", f0: 1800, f1: 500, Q: 1 } });
+    voice(ctx, out, { t, type: "sine", f0: 900, f1: 200, dur: 0.5, peak: 0.05, attack: 0.1 });
+    // Landing thump + a soft boing.
+    voice(ctx, out, { t: t + 0.52, type: "sine", f0: 170, f1: 55, dur: 0.22, peak: 0.32, attack: 0.002 });
+    noise(ctx, out, { t: t + 0.52, dur: 0.06, peak: 0.14, attack: 0.001, filter: { type: "lowpass", f0: 1800, f1: 300 } });
+    voice(ctx, out, { t: t + 0.6, type: "triangle", f0: 330, f1: 170, dur: 0.25, peak: 0.08 });
+    // Dizzy: wobbly little descending tweets.
+    for (let i = 0; i < 4; i++) {
+      voice(ctx, out, { t: t + 0.8 + i * 0.26, type: "sine", f0: 980 - i * 90, f1: 760 - i * 90, dur: 0.2, peak: 0.06, attack: 0.02, wet: 0.3 });
+    }
+    // Shaking it off.
+    noise(ctx, out, { t: t + 1.78, dur: 0.22, peak: 0.05, filter: { type: "bandpass", f0: 1400, Q: 1.5 } });
+    // Hop 1: boing, landing, the sheet rattles.
+    voice(ctx, out, { t: t + 2.16, type: "sine", f0: 260, f1: 640, dur: 0.17, peak: 0.16, attack: 0.003 });
+    voice(ctx, out, { t: t + 2.51, type: "sine", f0: 140, f1: 55, dur: 0.2, peak: 0.3, attack: 0.002 });
+    for (let i = 0; i < 5; i++) {
+      noise(ctx, out, { t: t + 2.53 + i * 0.07, dur: 0.05, peak: 0.07 * (1 - i * 0.15), attack: 0.001, filter: { type: "bandpass", f0: 260 + Math.random() * 200, Q: 3 } });
+    }
+    // Hop 2: higher boing, then the slam and the sheet dropping away.
+    voice(ctx, out, { t: t + 2.77, type: "sine", f0: 330, f1: 780, dur: 0.2, peak: 0.16, attack: 0.003 });
+    voice(ctx, out, { t: t + 3.19, type: "sine", f0: 120, f1: 45, dur: 0.3, peak: 0.36, attack: 0.002 });
+    noise(ctx, out, { t: t + 3.19, dur: 0.07, peak: 0.2, attack: 0.001, filter: { type: "lowpass", f0: 2200, f1: 300 } });
+    noise(ctx, out, { t: t + 3.25, dur: 0.45, peak: 0.13, filter: { type: "lowpass", f0: 1600, f1: 200 } });
+  },
+
+  // Settings sheet: Done squeezes into a bomb, the fuse burns, it blows.
+  bombExit(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 700, f1: 250, dur: 0.12, peak: 0.16, attack: 0.003 });
+    voice(ctx, out, { t: t + 0.3, type: "sine", f0: 200, f1: 520, dur: 0.1, peak: 0.18, attack: 0.003 });
+    // Fuse hiss + ticking.
+    noise(ctx, out, { t: t + 0.42, dur: 1.1, peak: 0.05, attack: 0.1, filter: { type: "bandpass", f0: 5200, Q: 0.9 } });
+    for (let i = 0; i < 4; i++) {
+      voice(ctx, out, { t: t + 0.42 + i * 0.28, type: "sine", f0: 1500, f1: 950, dur: 0.035, peak: 0.09, attack: 0.001 });
+    }
+    // Boom (restrained) and pieces whooshing away.
+    voice(ctx, out, { t: t + 1.52, type: "sine", f0: 120, f1: 38, dur: 0.7, peak: 0.34, attack: 0.002, wet: 0.15 });
+    noise(ctx, out, { t: t + 1.52, dur: 0.06, peak: 0.2, attack: 0.001, filter: { type: "highpass", f0: 1800 } });
+    noise(ctx, out, { t: t + 1.52, dur: 0.5, peak: 0.22, attack: 0.003, wet: 0.25, filter: { type: "lowpass", f0: 3000, f1: 200 } });
+    for (let i = 0; i < 6; i++) {
+      noise(ctx, out, { t: t + 1.56 + i * 0.03, dur: 0.6, peak: 0.045, shape: "swell", wet: 0.2, filter: { type: "bandpass", f0: 500 + Math.random() * 500, f1: 3200 + Math.random() * 2000, Q: 1.2 } });
+    }
+  },
+
+  // Sort menu folding back into the square and vanishing.
+  unmorph(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 880, f1: 420, dur: 0.15, peak: 0.14, attack: 0.003 });
+    noise(ctx, out, { t: t + 0.25, dur: 0.5, peak: 0.1, shape: "swell", filter: { type: "bandpass", f0: 2200, f1: 500, Q: 1 } });
+    voice(ctx, out, { t: t + 0.62, type: "sine", f0: 1500, f1: 2400, dur: 0.08, peak: 0.08, attack: 0.002 });
+  },
+
   // ----- fireworks -----
 
   fireLaunch(ctx, out, t) {

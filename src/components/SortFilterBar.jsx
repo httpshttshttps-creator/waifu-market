@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { runMorph } from "../fx/morph.js";
+import { runMorph, runUnmorph } from "../fx/morph.js";
 import { play } from "../audio/engine.js";
 import { fetchProfileFilter, fetchFilterOptions, setProfileFilter, clearProfileFilter } from "../api/profileFilterApi.js";
 
@@ -18,6 +18,7 @@ export default function SortFilterBar({ onFilterChange }) {
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
   const morphRef = useRef(null);
+  const overlayRef = useRef(null);
   const fromRef = useRef(null);
 
   useEffect(() => {
@@ -61,6 +62,36 @@ export default function SortFilterBar({ onFilterChange }) {
     return runMorph({ morph, panel, from: fromRef.current, onDone: () => setPhase("ready") });
   }, [sheetOpen, phase]);
 
+  // Closing: the panel folds back into the square and shrinks away.
+  useLayoutEffect(() => {
+    if (!sheetOpen || phase !== "closing") return undefined;
+    const morph = morphRef.current;
+    const panel = panelRef.current;
+    const overlay = overlayRef.current;
+    if (!morph || !panel || !overlay) {
+      setSheetOpen(false);
+      setPhase("ready");
+      return undefined;
+    }
+    play("unmorph");
+    return runUnmorph({
+      morph,
+      panel,
+      overlay,
+      onDone: () => {
+        setSheetOpen(false);
+        setPhase("ready");
+      },
+    });
+  }, [sheetOpen, phase]);
+
+  function requestClose() {
+    if (phase === "closing") return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    if (reduceMotion) setSheetOpen(false);
+    else setPhase("closing");
+  }
+
   // When the menu closes the button springs back.
   const wasOpen = useRef(false);
   useEffect(() => {
@@ -76,14 +107,14 @@ export default function SortFilterBar({ onFilterChange }) {
   async function pick(filterType, value) {
     const result = await setProfileFilter(filterType, value);
     setFilter({ filter_type: result.filter_type, filter_value: result.filter_value });
-    setSheetOpen(false);
+    requestClose();
     onFilterChange?.();
   }
 
   async function clear() {
     const result = await clearProfileFilter();
     setFilter({ filter_type: result.filter_type, filter_value: result.filter_value });
-    setSheetOpen(false);
+    requestClose();
     onFilterChange?.();
   }
 
@@ -119,9 +150,16 @@ export default function SortFilterBar({ onFilterChange }) {
 
       {sheetOpen &&
         createPortal(
-        <div className="sheet-overlay sort-sheet-overlay" onClick={() => setSheetOpen(false)}>
+        <div
+          ref={overlayRef}
+          className="sheet-overlay sort-sheet-overlay"
+          data-exiting={phase === "closing" || undefined}
+          onClick={requestClose}
+        >
+          {phase === "closing" && <div ref={morphRef} key="unmorph" className="sort-morph" aria-hidden="true" />}
           {phase === "morph" && fromRef.current && (
             <div
+              key="morph"
               ref={morphRef}
               className="sort-morph"
               aria-hidden="true"
@@ -142,6 +180,7 @@ export default function SortFilterBar({ onFilterChange }) {
             ref={panelRef}
             className="confirm-sheet sort-sheet"
             data-morphing={phase === "morph" || undefined}
+            data-closing={phase === "closing" || undefined}
             data-ready={phase === "ready" || undefined}
             onClick={(event) => event.stopPropagation()}
           >
@@ -187,7 +226,7 @@ export default function SortFilterBar({ onFilterChange }) {
               <button type="button" className="sheet-button" onClick={clear}>
                 Clear filter
               </button>
-              <button type="button" className="sheet-button sheet-button--confirm" onClick={() => setSheetOpen(false)}>
+              <button type="button" className="sheet-button sheet-button--confirm" onClick={requestClose}>
                 Done
               </button>
             </div>

@@ -278,7 +278,9 @@ function installUiSounds() {
           if (isSheet(node)) play("sheetOpen");
         });
         record.removedNodes.forEach((node) => {
-          if (isSheet(node)) play("sheetClose");
+          // Sheets with their own closing animation (rabbit, bomb, ...) play
+          // their own sounds.
+          if (isSheet(node) && !node.dataset.silentClose) play("sheetClose");
         });
       }
     });
