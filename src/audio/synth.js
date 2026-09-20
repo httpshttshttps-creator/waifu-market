@@ -325,6 +325,62 @@ export const SFX = {
     }
   },
 
+  // ----- Home flourishes -----
+
+  // The settings gear spinning up, flying and touching down: a rising whir
+  // with a ratchet ticking along underneath.
+  gearSpin(ctx, out, t) {
+    voice(ctx, out, { t, type: "sawtooth", f0: 90, f1: 520, dur: 0.8, peak: 0.08, attack: 0.05, filter: { type: "lowpass", f0: 300, f1: 2600 } });
+    voice(ctx, out, { t, type: "triangle", f0: 180, f1: 1040, dur: 0.8, peak: 0.045 });
+    noise(ctx, out, { t, dur: 0.95, peak: 0.1, shape: "swell", filter: { type: "bandpass", f0: 400, f1: 2400, Q: 1 } });
+    for (let i = 0; i < 14; i++) {
+      const at = t + 0.04 + Math.pow(i / 13, 0.85) * 0.85;
+      noise(ctx, out, { t: at, dur: 0.018, peak: 0.07, attack: 0.001, filter: { type: "highpass", f0: 3500 } });
+    }
+  },
+
+  gearLand(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 520, f1: 250, dur: 0.14, peak: 0.2, attack: 0.002 });
+    noise(ctx, out, { t, dur: 0.03, peak: 0.12, attack: 0.001, filter: { type: "highpass", f0: 2500 } });
+    bell(ctx, out, { t, f: 1320, peak: 0.09, dur: 0.55, wet: 0.3 });
+  },
+
+  // Sort button -> menu: squeeze, swing, spring open.
+  morph(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 1100, f1: 420, dur: 0.11, peak: 0.14, attack: 0.003 });
+    noise(ctx, out, { t: t + 0.25, dur: 0.5, peak: 0.13, shape: "swell", filter: { type: "bandpass", f0: 400, f1: 2200, Q: 1 } });
+    voice(ctx, out, { t: t + 0.7, type: "sine", f0: 260, f1: 660, dur: 0.13, peak: 0.2, attack: 0.003 });
+    bell(ctx, out, { t: t + 0.72, f: 1568, peak: 0.1, dur: 0.6, wet: 0.35 });
+  },
+
+  // A tap on the Balance / Cards Owned numbers.
+  pop(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 300, f1: 760, dur: 0.09, peak: 0.2, attack: 0.002 });
+    voice(ctx, out, { t: t + 0.07, type: "sine", f0: 760, f1: 470, dur: 0.12, peak: 0.1, attack: 0.002, wet: 0.15 });
+  },
+
+  // ----- fireworks -----
+
+  fireLaunch(ctx, out, t) {
+    voice(ctx, out, { t, type: "sine", f0: 520, f1: 2100, dur: 0.55, peak: 0.045, attack: 0.1, wet: 0.2 });
+    noise(ctx, out, { t, dur: 0.5, peak: 0.05, shape: "swell", filter: { type: "highpass", f0: 1500, f1: 4200 } });
+  },
+
+  fireBurst(ctx, out, t, o = {}) {
+    const size = o.size ?? 1;
+    voice(ctx, out, { t, type: "sine", f0: 150, f1: 52, dur: 0.6, peak: 0.28 * size, attack: 0.002, wet: 0.2 });
+    noise(ctx, out, { t, dur: 0.5, peak: 0.3 * size, attack: 0.002, wet: 0.4, filter: { type: "lowpass", f0: 3600, f1: 260 } });
+    for (let i = 0; i < 6; i++) {
+      voice(ctx, out, { t: t + 0.05 + Math.random() * 0.45, type: "sine", f0: 2000 + Math.random() * 4200, dur: 0.16, peak: 0.028, attack: 0.001, wet: 0.5 });
+    }
+  },
+
+  fireCrackle(ctx, out, t) {
+    for (let i = 0; i < 12; i++) {
+      noise(ctx, out, { t: t + Math.random() * 0.7, dur: 0.02, peak: 0.08, attack: 0.001, wet: 0.2, filter: { type: "bandpass", f0: 3000 + Math.random() * 4000, Q: 4 } });
+    }
+  },
+
   // ----- boot sequence (timeline in bootSequence.js) -----
 
   // The four letters tumbling in from above: overlapping falling whooshes.

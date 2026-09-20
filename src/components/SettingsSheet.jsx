@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import GearIcon from "./GearIcon.jsx";
+import { landGear, returnGear } from "../fx/gearFlight.js";
 import { getSettings, setSetting, subscribeSettings, play } from "../audio/engine.js";
 
 const THEMES = [
@@ -56,6 +58,17 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
 
   useEffect(() => subscribeSettings(setAudio), []);
 
+  // The header gear is flying down to this sheet - hand it the spot in the
+  // title to land in (see fx/gearFlight.js).
+  const gearSlotRef = useRef(null);
+  useLayoutEffect(() => {
+    if (open) landGear(gearSlotRef.current);
+  }, [open]);
+  // Sheet closed: the gear pops back into the Home header.
+  useEffect(() => {
+    if (!open) returnGear();
+  }, [open]);
+
   function changeAudio(key, value) {
     setSetting(key, value);
     // Turning sound on: confirm with a sound (the tap itself was silent
@@ -70,7 +83,12 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
       <div className="confirm-sheet settings-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="confirm-sheet__handle" />
 
-        <p className="settings-sheet__title">⚙️ Settings</p>
+        <p className="settings-sheet__title">
+          <span className="settings-sheet__gear" ref={gearSlotRef}>
+            <GearIcon size={22} />
+          </span>
+          Settings
+        </p>
 
         <div className="settings-sheet__section">
           <p className="settings-sheet__section-label">Theme</p>
