@@ -278,69 +278,112 @@ function buildTrapBody(trap) {
 // single biggest cause of a choppy-feeling game on real phones.
 
 function drawSpaceBackground(ctx, width, height, time, cameraX = 0) {
+  // Space is intentionally built as several parallax layers rather than one
+  // giant black-hole shape. The gameplay remains the same 2-D side scroller,
+  // but the visual stack makes it feel like the bike is crossing an alien
+  // planet with a distant black hole dominating the sky.
   const minDim = Math.min(width, height);
-  const cx = width * 0.73;
-  const cy = height * 0.44;
-  const holeR = minDim * 0.30;
-  const diskRx = holeR * 1.72;
-  const diskRy = holeR * 0.48;
-  const pulse = Math.sin(time * 0.9) * 0.035 + 0.965;
+  const holeX = width * 0.73;
+  const holeY = height * 0.31;
+  const holeR = minDim * 0.155;
+  const diskOuter = holeR * 2.25;
+  const diskInner = holeR * 1.08;
+  const drift = time * 0.025;
 
-  // Deep space base with a subtle red-violet horizon glow.
   const bg = ctx.createLinearGradient(0, 0, 0, height);
   bg.addColorStop(0, "#020107");
-  bg.addColorStop(0.48, "#090313");
-  bg.addColorStop(1, "#18030a");
+  bg.addColorStop(0.38, "#080513");
+  bg.addColorStop(0.68, "#140714");
+  bg.addColorStop(1, "#070509");
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
 
-  const horizon = ctx.createRadialGradient(width * 0.68, height * 0.50, 0, width * 0.68, height * 0.50, height * 0.72);
-  horizon.addColorStop(0, "rgba(255, 73, 35, 0.16)");
-  horizon.addColorStop(0.42, "rgba(133, 26, 85, 0.08)");
-  horizon.addColorStop(1, "rgba(0, 0, 0, 0)");
-  ctx.fillStyle = horizon;
-  ctx.fillRect(0, 0, width, height);
-
-  // Star field. The camera offset gives the stars a very slow parallax drift.
+  // Very soft nebula bands behind everything.
   ctx.save();
-  for (let i = 0; i < 95; i++) {
-    const seed = i * 17.731;
-    const x = ((Math.sin(seed) * 0.5 + 0.5) * width - cameraX * (0.018 + (i % 4) * 0.004)) % width;
-    const y = (Math.cos(seed * 0.71) * 0.5 + 0.5) * height * 0.72;
-    const wrappedX = x < 0 ? x + width : x;
-    const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * (0.8 + (i % 5) * 0.13) + seed));
-    const r = 0.45 + (i % 3) * 0.45;
-    ctx.globalAlpha = twinkle * (i % 7 === 0 ? 0.95 : 0.65);
-    ctx.fillStyle = i % 11 === 0 ? "#ffb7a6" : "#d9e8ff";
-    ctx.beginPath();
-    ctx.arc(wrappedX, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  ctx.globalCompositeOperation = "screen";
+  const nebula = ctx.createRadialGradient(holeX, holeY, holeR * 0.4, holeX, holeY, diskOuter * 1.65);
+  nebula.addColorStop(0, "rgba(255, 78, 34, 0.17)");
+  nebula.addColorStop(0.32, "rgba(167, 30, 93, 0.10)");
+  nebula.addColorStop(0.72, "rgba(71, 17, 80, 0.05)");
+  nebula.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = nebula;
+  ctx.fillRect(0, 0, width, height * 0.82);
   ctx.restore();
 
-  // Distant floating rocks. They are decorative only; actual collision
-  // obstacles still come from the existing terrain/trap system.
-  ctx.save();
-  const rockParallax = 0.10;
-  for (let i = -2; i < 11; i++) {
-    const seed = i * 31.17;
-    let x = i * 145 - ((cameraX * rockParallax) % 145);
-    if (x < -120) x += 1450;
-    const y = height * (0.28 + (Math.sin(seed) * 0.5 + 0.5) * 0.30);
-    const size = 10 + (Math.cos(seed * 0.7) * 0.5 + 0.5) * 28;
+  // Distant star field, with two parallax speeds.
+  for (let layer = 0; layer < 2; layer++) {
     ctx.save();
-    ctx.translate(x, y + Math.sin(time * 0.18 + seed) * 3);
-    ctx.rotate(Math.sin(seed) + time * 0.035);
-    ctx.fillStyle = "#100d18";
-    ctx.strokeStyle = "rgba(255, 77, 42, 0.32)";
-    ctx.lineWidth = 1.5;
+    const parallax = layer === 0 ? 0.012 : 0.028;
+    for (let i = 0; i < (layer === 0 ? 110 : 48); i++) {
+      const seed = i * 19.173 + layer * 311.7;
+      let x = ((Math.sin(seed) * 0.5 + 0.5) * width) - cameraX * parallax;
+      x = ((x % width) + width) % width;
+      const y = (Math.cos(seed * 0.73) * 0.5 + 0.5) * height * (layer === 0 ? 0.62 : 0.74);
+      const twinkle = 0.32 + 0.68 * (0.5 + 0.5 * Math.sin(time * (0.7 + (i % 5) * 0.12) + seed));
+      const r = layer === 0 ? 0.45 + (i % 3) * 0.38 : 0.8 + (i % 2) * 0.65;
+      ctx.globalAlpha = twinkle * (layer === 0 ? 0.62 : 0.82);
+      ctx.fillStyle = i % 13 === 0 ? "#ffb89f" : i % 17 === 0 ? "#b8d8ff" : "#f5f0e8";
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Distant alien planet silhouette / mountain horizon.
+  ctx.save();
+  const horizonY = height * 0.63;
+  const scroll = cameraX * 0.035;
+  ctx.fillStyle = "rgba(4, 4, 10, 0.92)";
+  ctx.beginPath();
+  ctx.moveTo(0, height);
+  ctx.lineTo(0, horizonY + 35);
+  for (let x = -80; x <= width + 100; x += 70) {
+    const wx = x + scroll;
+    const h = 22 + Math.abs(Math.sin(wx * 0.017)) * 85 + Math.abs(Math.sin(wx * 0.043)) * 28;
+    ctx.lineTo(x, horizonY - h);
+    ctx.lineTo(x + 35, horizonY - h * 0.36);
+  }
+  ctx.lineTo(width, height);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalAlpha = 0.34;
+  ctx.strokeStyle = "#4c1b2a";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let x = -80; x <= width + 100; x += 70) {
+    const wx = x + scroll;
+    const h = 22 + Math.abs(Math.sin(wx * 0.017)) * 85 + Math.abs(Math.sin(wx * 0.043)) * 28;
+    if (x === -80) ctx.moveTo(x, horizonY - h);
+    else ctx.lineTo(x, horizonY - h);
+  }
+  ctx.stroke();
+  ctx.restore();
+
+  // Floating asteroids. These move more slowly than the actual terrain so
+  // the player gets a convincing sense of depth without extra physics bodies.
+  ctx.save();
+  for (let i = -2; i < 12; i++) {
+    const seed = i * 29.71;
+    const parallax = 0.075 + (i % 3) * 0.018;
+    let x = i * 150 - ((cameraX * parallax) % 150);
+    if (x < -100) x += 1800;
+    const y = height * (0.34 + (Math.sin(seed) * 0.5 + 0.5) * 0.28) + Math.sin(time * 0.2 + seed) * 5;
+    const size = 8 + (Math.cos(seed * 0.63) * 0.5 + 0.5) * 24;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(seed) + time * 0.018);
+    ctx.fillStyle = "#0b0b12";
+    ctx.strokeStyle = "rgba(255, 72, 39, 0.28)";
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(-size, size * 0.25);
-    ctx.lineTo(-size * 0.45, -size * 0.75);
-    ctx.lineTo(size * 0.35, -size);
-    ctx.lineTo(size, -size * 0.1);
-    ctx.lineTo(size * 0.35, size * 0.85);
-    ctx.lineTo(-size * 0.55, size * 0.72);
+    ctx.lineTo(-size * 0.38, -size * 0.75);
+    ctx.lineTo(size * 0.28, -size);
+    ctx.lineTo(size, -size * 0.18);
+    ctx.lineTo(size * 0.42, size * 0.78);
+    ctx.lineTo(-size * 0.58, size * 0.68);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -348,59 +391,89 @@ function drawSpaceBackground(ctx, width, height, time, cameraX = 0) {
   }
   ctx.restore();
 
-  // Black hole shadow.
+  // ---------------- colossal black hole ----------------
+  // Back halo first, then the disk, then the event horizon, then a bright
+  // foreground arc. This ordering creates a simple lensing illusion without
+  // requiring a bitmap or WebGL.
   ctx.save();
-  const halo = ctx.createRadialGradient(cx, cy, holeR * 0.55, cx, cy, holeR * 1.45);
+  const halo = ctx.createRadialGradient(holeX, holeY, holeR * 0.7, holeX, holeY, diskOuter * 0.9);
   halo.addColorStop(0, "rgba(0,0,0,0.98)");
-  halo.addColorStop(0.55, "rgba(0,0,0,0.98)");
-  halo.addColorStop(0.72, "rgba(255, 62, 31, 0.18)");
-  halo.addColorStop(1, "rgba(255, 62, 31, 0)");
+  halo.addColorStop(0.55, "rgba(0,0,0,0.96)");
+  halo.addColorStop(0.70, "rgba(255, 67, 34, 0.15)");
+  halo.addColorStop(1, "rgba(255, 50, 35, 0)");
   ctx.fillStyle = halo;
   ctx.beginPath();
-  ctx.arc(cx, cy, holeR * 1.45, 0, Math.PI * 2);
+  ctx.arc(holeX, holeY, diskOuter * 0.9, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
-  // Animated accretion disk: layered elliptical rings give the same broad,
-  // fiery shape as the reference while staying entirely procedural.
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(-0.11 + Math.sin(time * 0.12) * 0.015);
-  for (let i = 0; i < 17; i++) {
-    const p = i / 16;
-    const wobble = Math.sin(time * 0.7 + i * 0.8) * 0.018;
-    const rx = diskRx * (0.68 + p * 0.42) * pulse;
-    const ry = diskRy * (0.66 + p * 0.34) * (1 + wobble);
-    const alpha = 0.10 + (1 - Math.abs(p - 0.55)) * 0.045;
-    ctx.shadowColor = i < 7 ? "#ff6b28" : "#ff2d55";
-    ctx.shadowBlur = 9 + (1 - p) * 10;
-    ctx.strokeStyle = i % 4 === 0 ? `rgba(255, 220, 132, ${alpha + 0.12})` : `rgba(255, 66, 34, ${alpha})`;
-    ctx.lineWidth = 3 + (1 - p) * 5;
+  ctx.translate(holeX, holeY);
+  ctx.rotate(-0.16 + Math.sin(time * 0.08) * 0.012);
+  ctx.globalCompositeOperation = "screen";
+  for (let i = 0; i < 20; i++) {
+    const p = i / 19;
+    const rx = diskInner * (0.88 + p * 1.02);
+    const ry = holeR * (0.22 + p * 0.13);
+    const wobble = Math.sin(time * 0.7 + i * 0.65) * 0.014;
+    ctx.shadowColor = i < 7 ? "#ffd78a" : "#ff482d";
+    ctx.shadowBlur = 8 + (1 - p) * 13;
+    ctx.strokeStyle = i % 4 === 0
+      ? `rgba(255, 230, 155, ${0.18 + (1 - p) * 0.24})`
+      : `rgba(255, 67, 35, ${0.09 + (1 - p) * 0.16})`;
+    ctx.lineWidth = 2.2 + (1 - p) * 4.8;
     ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx * (1 + wobble), ry, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
+  ctx.restore();
 
-  // Bright inner ring.
-  ctx.shadowColor = "#fff0c7";
-  ctx.shadowBlur = 20;
-  ctx.strokeStyle = "rgba(255, 239, 194, 0.92)";
-  ctx.lineWidth = Math.max(4, holeR * 0.055);
+  // Event horizon.
+  ctx.save();
+  ctx.shadowColor = "rgba(255, 70, 38, 0.55)";
+  ctx.shadowBlur = 24;
+  ctx.fillStyle = "#000000";
   ctx.beginPath();
-  ctx.ellipse(0, 0, holeR * 1.18, holeR * 0.30, 0, 0, Math.PI * 2);
+  ctx.arc(holeX, holeY, holeR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Bright front half of the accretion disk, visibly crossing in front of
+  // the event horizon like the reference render.
+  ctx.save();
+  ctx.translate(holeX, holeY);
+  ctx.rotate(-0.16 + Math.sin(time * 0.08) * 0.012);
+  ctx.globalCompositeOperation = "screen";
+  ctx.shadowColor = "#ff5a31";
+  ctx.shadowBlur = 16;
+  ctx.strokeStyle = "rgba(255, 116, 52, 0.72)";
+  ctx.lineWidth = Math.max(4, holeR * 0.07);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, holeR * 1.58, holeR * 0.39, 0, Math.PI * 0.08, Math.PI * 0.92);
+  ctx.stroke();
+  ctx.shadowColor = "#ffe4a8";
+  ctx.shadowBlur = 20;
+  ctx.strokeStyle = "rgba(255, 238, 191, 0.92)";
+  ctx.lineWidth = Math.max(2.5, holeR * 0.035);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, holeR * 1.26, holeR * 0.25, 0, Math.PI * 0.08, Math.PI * 0.92);
   ctx.stroke();
   ctx.restore();
 
-  // Event horizon drawn last so the center stays absolutely black.
+  // Tiny lensing streaks pulled toward the hole.
   ctx.save();
-  const horizonGlow = ctx.createRadialGradient(cx, cy, holeR * 0.78, cx, cy, holeR * 1.03);
-  horizonGlow.addColorStop(0, "#000000");
-  horizonGlow.addColorStop(0.86, "#000000");
-  horizonGlow.addColorStop(1, "rgba(0,0,0,0.55)");
-  ctx.fillStyle = horizonGlow;
-  ctx.beginPath();
-  ctx.arc(cx, cy, holeR, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = "#ff8c64";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2 + drift;
+    const r0 = holeR * 1.38 + (i % 3) * 8;
+    const r1 = r0 + 12 + (i % 4) * 6;
+    ctx.beginPath();
+    ctx.moveTo(holeX + Math.cos(a) * r0, holeY + Math.sin(a) * r0 * 0.34);
+    ctx.lineTo(holeX + Math.cos(a + 0.03) * r1, holeY + Math.sin(a + 0.03) * r1 * 0.34);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -484,14 +557,19 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     if (last.x < cameraX - 50 || first.x > cameraX + viewWidth + 50) continue;
 
     if (SPACE_THEME_ACTIVE) {
+      // A dark volcanic surface with a subtle warm horizon. The fill extends
+      // to the bottom of the camera, while all detail is derived from world X
+      // so it scrolls naturally with the existing terrain physics.
       const groundGradient = ctx.createLinearGradient(0, first.y, 0, fillBottomY);
-      groundGradient.addColorStop(0, "#16090c");
-      groundGradient.addColorStop(0.35, "#0b080d");
-      groundGradient.addColorStop(1, "#030307");
+      groundGradient.addColorStop(0, "#211015");
+      groundGradient.addColorStop(0.10, "#120b11");
+      groundGradient.addColorStop(0.42, "#09080d");
+      groundGradient.addColorStop(1, "#020206");
       ctx.fillStyle = groundGradient;
     } else {
       ctx.fillStyle = SCENE_COLORS.groundFill;
     }
+
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -500,47 +578,80 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.closePath();
     ctx.fill();
 
+    if (SPACE_THEME_ACTIVE) {
+      // Rocky bands immediately under the track edge.
+      ctx.save();
+      ctx.globalAlpha = 0.48;
+      ctx.strokeStyle = "#3a1c20";
+      ctx.lineWidth = 1.4;
+      for (let x = Math.floor(first.x / 95) * 95; x < last.x; x += 95) {
+        const y = first.y + 18 + Math.abs(Math.sin(x * 0.021)) * 32;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 22, y - 4);
+        ctx.lineTo(x + 42, y + 9);
+        ctx.lineTo(x + 64, y + 2);
+        ctx.stroke();
+      }
+
+      // Lava fissures. Sparse enough to stay readable and cheap on phones.
+      ctx.shadowColor = "#ff3e23";
+      ctx.shadowBlur = 7;
+      ctx.strokeStyle = "rgba(255, 70, 38, 0.42)";
+      ctx.lineWidth = 1.6;
+      for (let x = Math.floor(first.x / 220) * 220; x < last.x; x += 220) {
+        const y = first.y + 42 + Math.abs(Math.sin(x * 0.013)) * 52;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 18, y + 7);
+        ctx.lineTo(x + 33, y - 3);
+        ctx.lineTo(x + 56, y + 13);
+        ctx.lineTo(x + 77, y + 5);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Large foreground stones. They are visual only, so the existing
+      // collision/obstacle system remains completely unchanged.
+      ctx.save();
+      for (let x = Math.floor(first.x / 360) * 360; x < last.x; x += 360) {
+        const seed = x * 0.017;
+        const size = 12 + (Math.sin(seed) * 0.5 + 0.5) * 26;
+        const y = first.y + 70 + Math.abs(Math.cos(seed * 1.7)) * 85;
+        ctx.fillStyle = "#07070b";
+        ctx.strokeStyle = "rgba(118, 39, 36, 0.42)";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(x - size, y + size * 0.5);
+        ctx.lineTo(x - size * 0.45, y - size * 0.8);
+        ctx.lineTo(x + size * 0.35, y - size);
+        ctx.lineTo(x + size, y - size * 0.1);
+        ctx.lineTo(x + size * 0.45, y + size * 0.7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // The actual gameplay track remains the exact terrain polyline.
+    ctx.save();
     ctx.shadowColor = SCENE_COLORS.groundGlowShadow;
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = SPACE_THEME_ACTIVE ? 12 : 18;
     ctx.strokeStyle = SCENE_COLORS.groundGlow;
+    ctx.lineWidth = SPACE_THEME_ACTIVE ? 5 : 7;
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
     ctx.stroke();
 
-    // A thinner, dimmer parallel line a little below the main glow -
-    // reads as a second energy conduit running alongside the track
-    // instead of a single flat ribbon.
-    ctx.save();
     ctx.shadowBlur = 6;
     ctx.strokeStyle = SCENE_COLORS.groundGlowDim;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = SPACE_THEME_ACTIVE ? 2 : 2.5;
     ctx.beginPath();
     ctx.moveTo(first.x, first.y + 10);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y + 10);
     ctx.stroke();
-
-    if (SPACE_THEME_ACTIVE) {
-      // Procedural volcanic cracks: decorative only, generated from world X
-      // so they scroll naturally with the terrain and cost no image asset.
-      ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.shadowColor = "#ff3b22";
-      ctx.shadowBlur = 7;
-      ctx.strokeStyle = "rgba(255, 69, 35, 0.42)";
-      ctx.lineWidth = 1.3;
-      const startX = Math.floor(first.x / 180) * 180;
-      for (let x = startX; x < last.x; x += 180) {
-        const yBase = first.y + 22 + Math.abs(Math.sin(x * 0.013)) * 30;
-        ctx.beginPath();
-        ctx.moveTo(x, yBase);
-        ctx.lineTo(x + 18, yBase + 7);
-        ctx.lineTo(x + 31, yBase - 2);
-        ctx.lineTo(x + 47, yBase + 12);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
     ctx.restore();
   }
   ctx.restore();
@@ -548,11 +659,11 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
 
 function drawSpike(ctx, trap) {
   ctx.save();
-  const glow = SPACE_THEME_ACTIVE ? "#ff4b2f" : "#ff4d4d";
+  const glow = SPACE_THEME_ACTIVE ? "#ff5a32" : "#ff4d4d";
   ctx.shadowColor = glow;
-  ctx.shadowBlur = SPACE_THEME_ACTIVE ? 14 : 10;
-  ctx.strokeStyle = SPACE_THEME_ACTIVE ? "#ffbf7a" : "#ff8080";
-  ctx.fillStyle = SPACE_THEME_ACTIVE ? "rgba(255, 74, 35, 0.34)" : "rgba(255, 77, 77, 0.28)";
+  ctx.shadowBlur = SPACE_THEME_ACTIVE ? 16 : 10;
+  ctx.strokeStyle = SPACE_THEME_ACTIVE ? "#ffd28a" : "#ff8080";
+  ctx.fillStyle = SPACE_THEME_ACTIVE ? "rgba(255, 82, 39, 0.24)" : "rgba(255, 77, 77, 0.28)";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(trap.x, trap.y - trap.height);
