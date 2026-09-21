@@ -1,15 +1,33 @@
+import { useEffect, useRef } from "react";
 import { getRarityTier } from "../data/rarities.js";
+import { useExitPresence } from "../fx/exitPresence.js";
+
+const EXIT_MS = 300;
 
 export default function BuyConfirmSheet({ character, balance, pending, onConfirm, onCancel }) {
-  if (!character) return null;
+  // Keep the last card shown so the sheet can slide away (a short, simple
+  // exit) instead of vanishing the instant the parent clears it.
+  const last = useRef({ character, balance });
+  if (character) last.current = { character, balance };
 
-  const tier = getRarityTier(character.rarity);
-  const [artFrom, artTo] = character.gradient;
-  const affordable = balance >= character.price;
-  const balanceAfter = balance - character.price;
+  const { mounted, exiting, finish } = useExitPresence(Boolean(character));
+
+  useEffect(() => {
+    if (!exiting) return undefined;
+    const timer = setTimeout(finish, EXIT_MS + 20);
+    return () => clearTimeout(timer);
+  }, [exiting, finish]);
+
+  if (!mounted) return null;
+
+  const shown = character ? { character, balance } : last.current;
+  const tier = getRarityTier(shown.character.rarity);
+  const [artFrom, artTo] = shown.character.gradient;
+  const affordable = shown.balance >= shown.character.price;
+  const balanceAfter = shown.balance - shown.character.price;
 
   return (
-    <div className="sheet-overlay" onClick={onCancel}>
+    <div className="sheet-overlay" data-exit={exiting ? "simple" : undefined} onClick={onCancel}>
       <div className="confirm-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="confirm-sheet__handle" />
 
@@ -18,25 +36,25 @@ export default function BuyConfirmSheet({ character, balance, pending, onConfirm
             className="confirm-sheet__thumb"
             style={{ "--art-from": artFrom, "--art-to": artTo }}
           >
-            {character.name.charAt(0)}
+            {shown.character.name.charAt(0)}
           </div>
           <div>
-            <p className="confirm-sheet__title">{character.name}</p>
+            <p className="confirm-sheet__title">{shown.character.name}</p>
             <p className="confirm-sheet__subtitle">
-              {character.series} · {tier.label}
+              {shown.character.series} · {tier.label}
             </p>
-            <p className="confirm-sheet__subtitle">Seller {character.seller}</p>
+            <p className="confirm-sheet__subtitle">Seller {shown.character.seller}</p>
           </div>
         </div>
 
         <div className="confirm-sheet__ledger">
           <div className="confirm-sheet__ledger-row">
             <span>Price</span>
-            <span>{character.price} VɎ</span>
+            <span>{shown.character.price} VɎ</span>
           </div>
           <div className="confirm-sheet__ledger-row">
             <span>Balance</span>
-            <span>{balance} VɎ</span>
+            <span>{shown.balance} VɎ</span>
           </div>
           <div className="confirm-sheet__ledger-row" data-emphasis="true">
             <span>Left after</span>

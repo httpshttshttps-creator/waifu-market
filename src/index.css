@@ -363,6 +363,8 @@ button {
 }
 
 .filter-chip {
+  position: relative;
+  overflow: hidden;
   flex-shrink: 0;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -372,17 +374,85 @@ button {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  /* pops in one after another when the tab builds */
+  animation: chip-in 420ms cubic-bezier(0.3, 1.4, 0.5, 1) backwards;
+  animation-delay: calc(140ms + var(--i, 0) * 45ms);
+}
+
+/* The gold fill grows out of the middle of the chip (and shrinks back when
+   another chip is chosen). */
+.filter-chip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--gold);
+  transform: scale(0);
+  transition: transform 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.filter-chip__label {
+  position: relative;
+  z-index: 1;
 }
 
 .filter-chip:hover {
   border-color: var(--text-faint);
 }
 
+.filter-chip:active {
+  transform: scale(0.94);
+}
+
 .filter-chip[data-active="true"] {
-  background: var(--gold);
   border-color: var(--gold);
   color: #fff2f0;
+  animation:
+    chip-in 420ms cubic-bezier(0.3, 1.4, 0.5, 1) backwards,
+    chip-pop 520ms cubic-bezier(0.3, 1.6, 0.5, 1);
+  animation-delay: calc(140ms + var(--i, 0) * 45ms), 0ms;
+}
+
+.filter-chip[data-active="true"]::before {
+  transform: scale(1);
+}
+
+.filter-chip__ripple {
+  position: absolute;
+  z-index: 1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: scale(0);
+  pointer-events: none;
+  animation: chip-ripple 520ms ease-out forwards;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+}
+
+@keyframes chip-pop {
+  0% {
+    transform: scale(0.88);
+  }
+  55% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes chip-ripple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
 }
 
 /* ---------------- Home tab sort/filter bar ---------------- */
@@ -565,23 +635,124 @@ button {
   font-size: 13px;
 }
 
+.search-box {
+  position: relative;
+  margin-bottom: 18px;
+  animation: chip-in 460ms cubic-bezier(0.3, 1.3, 0.5, 1) 420ms backwards;
+}
+
 .search-input {
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  padding: 11px 14px;
+  padding: 11px 40px 11px 40px;
   color: var(--text);
   font-size: 14px;
-  margin-bottom: 18px;
-}
-
-.search-input::placeholder {
-  color: var(--text-faint);
+  transition: border-color 0.2s ease, box-shadow 0.3s ease;
 }
 
 .search-input:focus-visible {
   border-color: var(--gold);
+}
+
+.search-box:focus-within .search-input {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--surface-raised), 0 0 16px -2px var(--gold);
+}
+
+.search-box__icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  margin-top: -8.5px;
+  color: var(--text-faint);
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.search-box:focus-within .search-box__icon,
+.search-box[data-filled] .search-box__icon {
+  color: var(--gold-bright);
+}
+
+.search-box:focus-within .search-box__icon {
+  animation: search-wiggle 650ms cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+@keyframes search-wiggle {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  30% {
+    transform: scale(1.3) rotate(-18deg);
+  }
+  60% {
+    transform: scale(1.12) rotate(10deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* A bright line sweeps across the bottom edge when the box is focused. */
+.search-box__sweep {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold-bright), transparent);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  pointer-events: none;
+}
+
+.search-box:focus-within .search-box__sweep {
+  animation: search-sweep 800ms ease forwards;
+}
+
+@keyframes search-sweep {
+  0% {
+    opacity: 1;
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  55% {
+    opacity: 1;
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+  56% {
+    transform-origin: right;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: right;
+  }
+}
+
+.search-box__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  animation: chip-in 300ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.search-box__clear:active {
+  transform: scale(0.85);
 }
 
 /* ---------------- grid ---------------- */
@@ -1160,6 +1331,164 @@ button {
   100% {
     transform: scale(1);
     filter: drop-shadow(0 0 0 transparent);
+  }
+}
+
+.market-title {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---- Market: tap the balance ---- */
+.balance-pill {
+  position: relative;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.balance-pill__inner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.balance-pill__inner[data-popping] {
+  animation: stat-jelly 700ms cubic-bezier(0.3, 1, 0.4, 1);
+}
+
+.balance-pill__inner[data-popping] .balance-pill__amount {
+  animation: stat-glow 700ms ease-out;
+}
+
+.balance-pill__amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-pill__ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--gold-bright);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  animation: pill-ring 700ms ease-out;
+}
+
+@keyframes pill-ring {
+  from {
+    transform: scale(0.92);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.5, 1.9);
+    opacity: 0;
+  }
+}
+
+/* ---- Market: the title's hidden door (fx/marketDoor.js) ---- */
+.mdoor {
+  position: fixed;
+  z-index: 250;
+  pointer-events: none;
+}
+
+.mdoor__hole {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 420px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: #0c0806;
+}
+
+.mdoor__wood {
+  position: absolute;
+  inset: 0;
+}
+
+.mdoor__wood-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mdoor__smile,
+.mdoor__eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.mdoor__slab {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  transform-origin: 50% 50%;
+}
+
+.mdoor__half {
+  position: relative;
+  width: 50%;
+  height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface));
+}
+
+.mdoor__half--l {
+  border-radius: 12px 0 0 12px;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.mdoor__half--r {
+  border-radius: 0 12px 12px 0;
+  border-left: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: inset -1px 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.mdoor__text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.mdoor__drips {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+/* ---- Buy sheet: a short, simple exit ---- */
+.sheet-overlay[data-exit="simple"] {
+  animation: overlay-out 300ms ease-in forwards;
+  pointer-events: none;
+}
+
+.sheet-overlay[data-exit="simple"] .confirm-sheet {
+  animation: sheet-out 300ms cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+}
+
+.sheet-overlay[data-exit="simple"] .confirm-sheet > *,
+.sheet-overlay[data-exit="simple"] .confirm-sheet__ledger-row,
+.sheet-overlay[data-exit="simple"] .confirm-sheet__actions .sheet-button,
+.sheet-overlay[data-exit="simple"] .confirm-sheet__thumb {
+  animation: none;
+}
+
+@keyframes overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    transform: translateY(60%) scale(0.96);
+    opacity: 0;
   }
 }
 
@@ -3411,6 +3740,8 @@ button {
 /* ---------------- Card reveal overlay (graphics upgrade) ---------------- */
 
 .reveal-overlay {
+  --rays-opacity: 0.14;
+  --flash-opacity: 0;
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -3418,17 +3749,205 @@ button {
   align-items: center;
   justify-content: center;
   background: rgba(8, 4, 18, 0);
-  transition: background 0.3s ease;
+  transition: background 0.35s ease;
   padding: 24px;
+  overflow: hidden;
 }
 
 .reveal-overlay[data-visible="true"] {
-  background: rgba(8, 4, 18, 0.82);
+  background: rgba(8, 4, 18, 0.86);
+}
+
+.reveal-overlay[data-tier="1"] {
+  --rays-opacity: 0.24;
+  --flash-opacity: 0.28;
+}
+
+.reveal-overlay[data-tier="2"] {
+  --rays-opacity: 0.36;
+  --flash-opacity: 0.5;
+}
+
+/* Slowly turning rays in the rarity's colour behind the card. */
+.reveal-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 130vmax;
+  height: 130vmax;
+  margin: -65vmax 0 0 -65vmax;
+  background: repeating-conic-gradient(from 0deg, var(--card-accent) 0 5deg, transparent 5deg 20deg);
+  -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+  mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+  opacity: 0;
+  pointer-events: none;
+  animation:
+    reveal-rays-in 800ms ease 760ms forwards,
+    reveal-rays-spin 30s linear infinite;
+}
+
+@keyframes reveal-rays-in {
+  to {
+    opacity: var(--rays-opacity);
+  }
+}
+
+@keyframes reveal-rays-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.reveal-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, #fff 0%, transparent 62%);
+  opacity: 0;
+  pointer-events: none;
+  animation: reveal-flash 520ms ease-out 900ms;
+}
+
+@keyframes reveal-flash {
+  0% {
+    opacity: 0;
+  }
+  22% {
+    opacity: var(--flash-opacity);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.reveal-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* The card flies up face-down, (for better pulls) shakes with suspense,
+   flips over at 760ms and its details rise in. */
+.reveal-stage {
+  position: relative;
+  width: min(280px, 100%);
+  perspective: 1000px;
+  animation: reveal-fly 480ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+.reveal-overlay:not([data-tier="0"]) .reveal-stage {
+  animation:
+    reveal-fly 480ms cubic-bezier(0.2, 0.9, 0.3, 1) both,
+    reveal-shake 280ms ease-in-out 480ms;
+}
+
+@keyframes reveal-fly {
+  0% {
+    transform: translateY(105vh) rotate(-18deg) scale(0.6);
+  }
+  70% {
+    transform: translateY(-14px) rotate(3deg) scale(1.04);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes reveal-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  20% {
+    transform: rotate(-3deg) scale(1.03);
+  }
+  40% {
+    transform: rotate(3deg) scale(1.05);
+  }
+  60% {
+    transform: rotate(-2.4deg) scale(1.04);
+  }
+  80% {
+    transform: rotate(1.6deg) scale(1.02);
+  }
+}
+
+.reveal-flip {
+  display: grid;
+  transform-style: preserve-3d;
+  transform: rotateY(180deg);
+  animation: reveal-flip 640ms cubic-bezier(0.3, 0.8, 0.3, 1.1) 760ms forwards;
+}
+
+@keyframes reveal-flip {
+  0% {
+    transform: rotateY(180deg) translateZ(0);
+  }
+  50% {
+    transform: rotateY(84deg) translateZ(70px) scale(1.08);
+  }
+  80% {
+    transform: rotateY(-8deg) translateZ(20px) scale(1.03);
+  }
+  100% {
+    transform: rotateY(0deg) translateZ(0) scale(1);
+  }
+}
+
+.reveal-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.reveal-face--back {
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--card-accent, var(--line));
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.12), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.05) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, #221d38, #120f22);
+  box-shadow: 0 0 40px -6px var(--card-accent, transparent), inset 0 0 40px rgba(0, 0, 0, 0.5);
+}
+
+.reveal-back__emblem {
+  font-size: 76px;
+  line-height: 1;
+  color: var(--card-accent);
+  text-shadow: 0 0 20px var(--card-accent);
+  animation: reveal-emblem 700ms ease-in-out infinite alternate;
+}
+
+@keyframes reveal-emblem {
+  from {
+    transform: scale(0.94);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+.reveal-back__brand {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.5em;
+  padding-left: 0.5em;
+  color: var(--text-dim);
 }
 
 .reveal-card {
   position: relative;
-  width: min(280px, 100%);
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--card-accent, var(--line));
   border-radius: var(--radius-lg);
@@ -3437,19 +3956,64 @@ button {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  transform: perspective(900px) rotateY(-90deg) scale(0.85);
-  opacity: 0;
-  transition: transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.35s ease;
   box-shadow: 0 0 30px -6px var(--card-accent, transparent);
-}
-
-.reveal-overlay[data-visible="true"] .reveal-card {
-  transform: perspective(900px) rotateY(0deg) scale(1);
-  opacity: 1;
 }
 
 .reveal-card[data-glow="2"] {
   animation: card-glow-pulse 2.2s ease-in-out infinite;
+}
+
+/* A sheen sweeps across the card just after it turns over. */
+.reveal-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.32) 50%, transparent 65%);
+  transform: translateX(-130%);
+  pointer-events: none;
+  animation: reveal-shine 900ms ease 1300ms forwards;
+}
+
+@keyframes reveal-shine {
+  to {
+    transform: translateX(130%);
+  }
+}
+
+.reveal-card > * {
+  animation: reveal-rise 460ms cubic-bezier(0.2, 0.9, 0.3, 1.1) backwards;
+  animation-delay: 1050ms;
+}
+.reveal-card > *:nth-child(2) {
+  animation-name: reveal-art;
+  animation-delay: 1100ms;
+}
+.reveal-card > *:nth-child(3) {
+  animation-delay: 1200ms;
+}
+.reveal-card > *:nth-child(4) {
+  animation-delay: 1260ms;
+}
+.reveal-card > *:nth-child(5) {
+  animation-delay: 1320ms;
+}
+.reveal-card > *:nth-child(6) {
+  animation-delay: 1400ms;
+}
+
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes reveal-art {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+    filter: brightness(2.2) blur(2px);
+  }
 }
 
 .reveal-card__eyebrow {
@@ -3574,6 +4138,8 @@ button {
 }
 
 .empty-state__cta {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--gold);
   background: transparent;
   color: var(--gold-bright);
@@ -3582,10 +4148,91 @@ button {
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  /* pops in a beat after the message, then keeps pulsing softly so it gets noticed */
+  animation:
+    cta-pop 620ms cubic-bezier(0.3, 1.6, 0.5, 1) 320ms backwards,
+    cta-pulse 2.4s ease-out 1.3s infinite;
 }
 
 .empty-state__cta:hover {
   background: var(--surface-raised);
+}
+
+.empty-state__cta:active {
+  transform: scale(0.92);
+}
+
+.empty-state__cta-label {
+  position: relative;
+  display: inline-block;
+}
+
+/* A light glides across it every few seconds. */
+.empty-state__cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.28) 50%, transparent 60%);
+  transform: translateX(-130%);
+  animation: cta-shimmer 3.6s ease-in-out 1.6s infinite;
+  pointer-events: none;
+}
+
+@keyframes cta-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) rotate(-8deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.1) rotate(2deg);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes cta-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--gold);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+@keyframes cta-shimmer {
+  0%,
+  55% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(130%);
+  }
+}
+
+.cta-spark {
+  position: fixed;
+  z-index: 900;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  pointer-events: none;
+}
+
+.cta-spark--white {
+  background: #fff;
+}
+
+.cta-spark-ring {
+  position: fixed;
+  z-index: 900;
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--gold-bright);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 /* ---------------- Arena battle scene (graphics upgrade) ---------------- */
@@ -3960,6 +4607,31 @@ button {
   }
   .boot-fx {
     display: none;
+  }
+  .filter-chip,
+  .filter-chip[data-active="true"],
+  .search-box,
+  .search-box__clear,
+  .search-box:focus-within .search-box__icon,
+  .search-box:focus-within .search-box__sweep,
+  .empty-state__cta,
+  .empty-state__cta::before,
+  .balance-pill__inner[data-popping],
+  .balance-pill__ring,
+  .reveal-rays,
+  .reveal-flash,
+  .reveal-stage,
+  .reveal-card > *,
+  .reveal-card::after,
+  .reveal-back__emblem {
+    animation: none;
+  }
+  .reveal-flip {
+    animation: none;
+    transform: none;
+  }
+  .reveal-rays {
+    opacity: var(--rays-opacity);
   }
   .confirm-sheet,
   .confirm-sheet > *,

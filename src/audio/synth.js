@@ -219,12 +219,15 @@ export const SFX = {
   // is, the longer the sparkle run and the bigger the finish.
   reveal(ctx, out, t, o = {}) {
     const tier = clamp(o.tier ?? 0, 0, 3);
-    noise(ctx, out, { t, dur: 0.5, peak: 0.1, shape: "swell", wet: 0.2, filter: { type: "bandpass", f0: 400, f1: 3400, Q: 1.4 } });
-    voice(ctx, out, { t, type: "sine", f0: 300, f1: 900, dur: 0.45, peak: 0.07, attack: 0.05, wet: 0.2 });
+    // Suspense riser while the card climbs and (for good pulls) shakes...
+    noise(ctx, out, { t, dur: 0.78, peak: 0.1, shape: "swell", wet: 0.2, filter: { type: "bandpass", f0: 400, f1: 3400, Q: 1.4 } });
+    voice(ctx, out, { t, type: "sine", f0: 300, f1: 900, dur: 0.72, peak: 0.07, attack: 0.05, wet: 0.2 });
+    // ...then the flip at ~0.76s: a soft thump and the sparkle run.
+    voice(ctx, out, { t: t + 0.76, type: "sine", f0: 200, f1: 80, dur: 0.16, peak: 0.16, attack: 0.002 });
 
     const scale = [0, 3, 5, 7, 10, 12, 15, 17, 19];
     const count = 4 + tier * 2;
-    const start = t + 0.34;
+    const start = t + 0.78;
     for (let i = 0; i < count; i++) {
       bell(ctx, out, { t: start + i * 0.075, f: semis(659.25, scale[Math.min(i, scale.length - 1)]), peak: 0.13, dur: 0.85, wet: 0.4 });
     }
@@ -236,7 +239,7 @@ export const SFX = {
       }
     }
     if (tier >= 2) {
-      voice(ctx, out, { t: t + 0.3, type: "sine", f0: 95, f1: 42, dur: 0.7, peak: 0.26, attack: 0.005, wet: 0.2 });
+      voice(ctx, out, { t: t + 0.76, type: "sine", f0: 95, f1: 42, dur: 0.7, peak: 0.26, attack: 0.005, wet: 0.2 });
       noise(ctx, out, { t: end, dur: 0.9, peak: 0.05, wet: 0.5, filter: { type: "highpass", f0: 5000 } });
     }
   },
@@ -357,6 +360,49 @@ export const SFX = {
   pop(ctx, out, t) {
     voice(ctx, out, { t, type: "sine", f0: 300, f1: 760, dur: 0.09, peak: 0.2, attack: 0.002 });
     voice(ctx, out, { t: t + 0.07, type: "sine", f0: 760, f1: 470, dur: 0.12, peak: 0.1, attack: 0.002, wet: 0.15 });
+  },
+
+  // Empty-state button (Clear filters / Browse the Market): a little sparkle.
+  sparkle(ctx, out, t) {
+    [2093, 2637, 3136].forEach((f, i) => bell(ctx, out, { t: t + i * 0.05, f, peak: 0.09, dur: 0.5, wet: 0.4 }));
+    noise(ctx, out, { t, dur: 0.06, peak: 0.04, attack: 0.001, filter: { type: "highpass", f0: 6000 } });
+  },
+
+  // The Market title's hidden door: pressed in, scraping open on a smiley
+  // painted in blood, dripping, then scraping shut. Deliberately low and
+  // uneasy.
+  marketDoor(ctx, out, t) {
+    const scrape = (at, dur) => {
+      noise(ctx, out, { t: t + at, dur, peak: 0.17, shape: "swell", filter: { type: "bandpass", f0: 260, f1: 560, Q: 2 } });
+      voice(ctx, out, { t: t + at, type: "sawtooth", f0: 48, f1: 40, dur: dur + 0.05, peak: 0.12, attack: 0.1, filter: { type: "lowpass", f0: 170 } });
+      voice(ctx, out, { t: t + at + 0.05, type: "sawtooth", f0: 190, f1: 150, dur: dur * 0.8, peak: 0.035, attack: 0.15, filter: { type: "lowpass", f0: 900 } });
+      voice(ctx, out, { t: t + at + 0.05, type: "sawtooth", f0: 197, f1: 155, dur: dur * 0.8, peak: 0.03, attack: 0.15, filter: { type: "lowpass", f0: 900 } });
+    };
+    // Pressed in.
+    voice(ctx, out, { t, type: "sine", f0: 120, f1: 55, dur: 0.22, peak: 0.3, attack: 0.002 });
+    noise(ctx, out, { t, dur: 0.1, peak: 0.12, attack: 0.001, filter: { type: "lowpass", f0: 1200, f1: 200 } });
+    // Sliding open.
+    scrape(0.64, 0.7);
+    // The uneasy room tone: a low drone, a detuned partner, and a thin tritone.
+    voice(ctx, out, { t: t + 1.0, type: "sine", f0: 55, dur: 3.6, peak: 0.1, attack: 1.2, wet: 0.3 });
+    voice(ctx, out, { t: t + 1.0, type: "sine", f0: 58.3, dur: 3.6, peak: 0.08, attack: 1.4, wet: 0.3 });
+    voice(ctx, out, { t: t + 1.3, type: "sine", f0: 440, dur: 3, peak: 0.014, attack: 1.5, wet: 0.6 });
+    voice(ctx, out, { t: t + 1.3, type: "sine", f0: 622, dur: 3, peak: 0.012, attack: 1.6, wet: 0.6 });
+    noise(ctx, out, { t: t + 1.2, dur: 3, peak: 0.012, shape: "swell", wet: 0.4, filter: { type: "bandpass", f0: 3000, Q: 6 } });
+    // Drips.
+    [1.9, 2.45, 3.0, 3.35, 3.9, 4.15].forEach((at) => {
+      voice(ctx, out, { t: t + at, type: "sine", f0: 1100, f1: 340, dur: 0.1, peak: 0.1, attack: 0.001, wet: 0.5 });
+      noise(ctx, out, { t: t + at, dur: 0.02, peak: 0.03, attack: 0.001, filter: { type: "highpass", f0: 4000 } });
+    });
+    // Heartbeat-like thumps when the smile/eye twitch.
+    [2.5, 2.95, 3.5].forEach((at) => {
+      voice(ctx, out, { t: t + at, type: "sine", f0: 72, f1: 48, dur: 0.16, peak: 0.16, attack: 0.003 });
+    });
+    // Sliding shut, and the panel clunking back out.
+    scrape(4.3, 0.57);
+    voice(ctx, out, { t: t + 4.87, type: "sine", f0: 130, f1: 60, dur: 0.2, peak: 0.28, attack: 0.002 });
+    noise(ctx, out, { t: t + 4.87, dur: 0.06, peak: 0.12, attack: 0.001, filter: { type: "lowpass", f0: 1500, f1: 250 } });
+    voice(ctx, out, { t: t + 5.05, type: "sine", f0: 150, f1: 80, dur: 0.16, peak: 0.18, attack: 0.002 });
   },
 
   // ----- closing animations -----
