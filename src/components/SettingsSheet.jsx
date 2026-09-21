@@ -26,6 +26,13 @@ const THEMES = [
     swatch: ["#0a0612", "#5b3aa8"],
     comingSoon: true,
   },
+  {
+    id: "space",
+    name: "Space",
+    tagline: "Black hole Rider · Premium",
+    swatch: ["#05030a", "#ff3b22"],
+    premiumOnly: true,
+  },
 ];
 
 // Accent recolors for the Classic theme - same layout/background, just a
@@ -54,7 +61,7 @@ function SoundToggle({ label, hint, on, onChange }) {
   );
 }
 
-export default function SettingsSheet({ open, onClose, accent, onAccentChange }) {
+export default function SettingsSheet({ open, onClose, accent, onAccentChange, theme = "default", isPremium = false, onThemeChange }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [audio, setAudio] = useState(getSettings);
 
@@ -108,23 +115,24 @@ export default function SettingsSheet({ open, onClose, accent, onAccentChange })
 
           <div className="theme-grid">
             {THEMES.map((t) => {
-              const active = t.id === "default";
+              const active = t.id === theme;
               const isClassic = t.id === "default";
+              const locked = t.comingSoon || (t.premiumOnly && !isPremium);
               return (
                 <button
                   key={t.id}
                   type="button"
                   className="theme-option"
                   data-active={active || undefined}
-                  data-locked={t.comingSoon || undefined}
-                  disabled={t.comingSoon}
-                  onClick={isClassic ? () => setDrawerOpen((o) => !o) : undefined}
+                  data-locked={locked || undefined}
+                  disabled={locked}
+                  onClick={isClassic ? () => setDrawerOpen((o) => !o) : locked ? undefined : () => onThemeChange?.(t.id)}
                 >
                   <span
                     className="theme-option__swatch"
                     style={{ background: `linear-gradient(135deg, ${t.swatch[0]}, ${t.swatch[1]})` }}
                   >
-                    {t.comingSoon && <span className="theme-option__lock">⏳</span>}
+                    {locked && <span className="theme-option__lock">{t.premiumOnly && !isPremium ? "🔒" : "⏳"}</span>}
                     {active && <span className="theme-option__check">✓</span>}
                   </span>
                   <span className="theme-option__name">

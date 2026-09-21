@@ -43,6 +43,14 @@ export default function App() {
     }
   });
 
+  const [themeId, setThemeId] = useState(() => {
+    try {
+      return window.localStorage.getItem("theme.id") || "default";
+    } catch {
+      return "default";
+    }
+  });
+
   const [activeTab, setActiveTab] = useState("home");
   // Which side the tab-build animation should slide in from, for the
   // tab you're about to land on - see changeTab below and the
@@ -62,7 +70,7 @@ export default function App() {
   const [ownedIds, setOwnedIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
 
-  const [profile, setProfile] = useState({ name: "", cardCount: 0, cards: [] });
+  const [profile, setProfile] = useState({ name: "", cardCount: 0, isPremium: false, cards: [] });
   const [profileLoading, setProfileLoading] = useState(true);
   const [sellPrices, setSellPrices] = useState({});
 
@@ -140,6 +148,23 @@ export default function App() {
       /* storage unavailable - the choice just won't persist across reloads */
     }
   }
+
+  function changeTheme(id) {
+    if (id === "space" && !profile.isPremium) return;
+    setThemeId(id);
+    try {
+      window.localStorage.setItem("theme.id", id);
+    } catch {
+      /* storage unavailable - the choice just won't persist across reloads */
+    }
+  }
+
+  useEffect(() => {
+    if (themeId === "space" && !profile.isPremium) {
+      setThemeId("default");
+      try { window.localStorage.setItem("theme.id", "default"); } catch {}
+    }
+  }, [profile.isPremium, themeId]);
 
   // Listings, balance, and the owned-cards collection all live in the
   // bot's database and can change from OUTSIDE this app at any moment -
@@ -348,7 +373,7 @@ export default function App() {
     // wrapper the boot screen always showed the default red regardless
     // of the saved theme.
     return (
-      <div className="app-shell" data-accent={accentColor}>
+      <div className="app-shell" data-accent={accentColor} data-theme={themeId}>
         {bootOverlay}
       </div>
     );
@@ -372,7 +397,7 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell" data-accent={accentColor} data-immersive={immersive || undefined}>
+    <div className="app-shell" data-accent={accentColor} data-theme={themeId} data-immersive={immersive || undefined}>
       <div className="app-shell__inner">
         <div className="tab-build" data-direction={tabDirection || undefined} key={activeTab}>
           {activeTab === "home" && (
@@ -435,6 +460,7 @@ export default function App() {
             onBalanceChange={setBalance}
             onExit={exitImmersive}
             onImmersiveChange={setRidePlaying}
+            spaceTheme={themeId === "space"}
           />
         )}
 
@@ -470,6 +496,9 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         accent={accentColor}
         onAccentChange={changeAccentColor}
+        theme={themeId}
+        isPremium={profile.isPremium}
+        onThemeChange={changeTheme}
       />
 
       <Toast message={toastMessage} onDone={() => setToastMessage("")} />

@@ -277,7 +277,138 @@ function buildTrapBody(trap) {
 // expensive, and stacking many large-blur passes per frame is the
 // single biggest cause of a choppy-feeling game on real phones.
 
-function drawBackground(ctx, width, height) {
+function drawSpaceBackground(ctx, width, height, time, cameraX = 0) {
+  const minDim = Math.min(width, height);
+  const cx = width * 0.73;
+  const cy = height * 0.44;
+  const holeR = minDim * 0.30;
+  const diskRx = holeR * 1.72;
+  const diskRy = holeR * 0.48;
+  const pulse = Math.sin(time * 0.9) * 0.035 + 0.965;
+
+  // Deep space base with a subtle red-violet horizon glow.
+  const bg = ctx.createLinearGradient(0, 0, 0, height);
+  bg.addColorStop(0, "#020107");
+  bg.addColorStop(0.48, "#090313");
+  bg.addColorStop(1, "#18030a");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  const horizon = ctx.createRadialGradient(width * 0.68, height * 0.50, 0, width * 0.68, height * 0.50, height * 0.72);
+  horizon.addColorStop(0, "rgba(255, 73, 35, 0.16)");
+  horizon.addColorStop(0.42, "rgba(133, 26, 85, 0.08)");
+  horizon.addColorStop(1, "rgba(0, 0, 0, 0)");
+  ctx.fillStyle = horizon;
+  ctx.fillRect(0, 0, width, height);
+
+  // Star field. The camera offset gives the stars a very slow parallax drift.
+  ctx.save();
+  for (let i = 0; i < 95; i++) {
+    const seed = i * 17.731;
+    const x = ((Math.sin(seed) * 0.5 + 0.5) * width - cameraX * (0.018 + (i % 4) * 0.004)) % width;
+    const y = (Math.cos(seed * 0.71) * 0.5 + 0.5) * height * 0.72;
+    const wrappedX = x < 0 ? x + width : x;
+    const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * (0.8 + (i % 5) * 0.13) + seed));
+    const r = 0.45 + (i % 3) * 0.45;
+    ctx.globalAlpha = twinkle * (i % 7 === 0 ? 0.95 : 0.65);
+    ctx.fillStyle = i % 11 === 0 ? "#ffb7a6" : "#d9e8ff";
+    ctx.beginPath();
+    ctx.arc(wrappedX, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Distant floating rocks. They are decorative only; actual collision
+  // obstacles still come from the existing terrain/trap system.
+  ctx.save();
+  const rockParallax = 0.10;
+  for (let i = -2; i < 11; i++) {
+    const seed = i * 31.17;
+    let x = i * 145 - ((cameraX * rockParallax) % 145);
+    if (x < -120) x += 1450;
+    const y = height * (0.28 + (Math.sin(seed) * 0.5 + 0.5) * 0.30);
+    const size = 10 + (Math.cos(seed * 0.7) * 0.5 + 0.5) * 28;
+    ctx.save();
+    ctx.translate(x, y + Math.sin(time * 0.18 + seed) * 3);
+    ctx.rotate(Math.sin(seed) + time * 0.035);
+    ctx.fillStyle = "#100d18";
+    ctx.strokeStyle = "rgba(255, 77, 42, 0.32)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-size, size * 0.25);
+    ctx.lineTo(-size * 0.45, -size * 0.75);
+    ctx.lineTo(size * 0.35, -size);
+    ctx.lineTo(size, -size * 0.1);
+    ctx.lineTo(size * 0.35, size * 0.85);
+    ctx.lineTo(-size * 0.55, size * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // Black hole shadow.
+  ctx.save();
+  const halo = ctx.createRadialGradient(cx, cy, holeR * 0.55, cx, cy, holeR * 1.45);
+  halo.addColorStop(0, "rgba(0,0,0,0.98)");
+  halo.addColorStop(0.55, "rgba(0,0,0,0.98)");
+  halo.addColorStop(0.72, "rgba(255, 62, 31, 0.18)");
+  halo.addColorStop(1, "rgba(255, 62, 31, 0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(cx, cy, holeR * 1.45, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Animated accretion disk: layered elliptical rings give the same broad,
+  // fiery shape as the reference while staying entirely procedural.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-0.11 + Math.sin(time * 0.12) * 0.015);
+  for (let i = 0; i < 17; i++) {
+    const p = i / 16;
+    const wobble = Math.sin(time * 0.7 + i * 0.8) * 0.018;
+    const rx = diskRx * (0.68 + p * 0.42) * pulse;
+    const ry = diskRy * (0.66 + p * 0.34) * (1 + wobble);
+    const alpha = 0.10 + (1 - Math.abs(p - 0.55)) * 0.045;
+    ctx.shadowColor = i < 7 ? "#ff6b28" : "#ff2d55";
+    ctx.shadowBlur = 9 + (1 - p) * 10;
+    ctx.strokeStyle = i % 4 === 0 ? `rgba(255, 220, 132, ${alpha + 0.12})` : `rgba(255, 66, 34, ${alpha})`;
+    ctx.lineWidth = 3 + (1 - p) * 5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Bright inner ring.
+  ctx.shadowColor = "#fff0c7";
+  ctx.shadowBlur = 20;
+  ctx.strokeStyle = "rgba(255, 239, 194, 0.92)";
+  ctx.lineWidth = Math.max(4, holeR * 0.055);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, holeR * 1.18, holeR * 0.30, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Event horizon drawn last so the center stays absolutely black.
+  ctx.save();
+  const horizonGlow = ctx.createRadialGradient(cx, cy, holeR * 0.78, cx, cy, holeR * 1.03);
+  horizonGlow.addColorStop(0, "#000000");
+  horizonGlow.addColorStop(0.86, "#000000");
+  horizonGlow.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = horizonGlow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, holeR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawBackground(ctx, width, height, time = 0, cameraX = 0) {
+  if (SPACE_THEME_ACTIVE) {
+    drawSpaceBackground(ctx, width, height, time, cameraX);
+    return;
+  }
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
   gradient.addColorStop(0, SCENE_COLORS.skyTop);
   gradient.addColorStop(1, SCENE_COLORS.skyBottom);
@@ -286,15 +417,10 @@ function drawBackground(ctx, width, height) {
 }
 
 function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
+  if (SPACE_THEME_ACTIVE) return;
   ctx.save();
-  // Bumped from 0.18 - against the now-darker sky below, the old value
-  // barely registered as a silhouette at all.
   ctx.fillStyle = "rgba(0, 0, 0, 0.32)";
   const parallax = 0.25;
-  // Raised from 0.74 - hugging the very bottom of the frame left the
-  // entire upper ~70% of the screen as one flat, featureless gradient.
-  // Sitting further up means these peaks actually break up that empty
-  // space instead of only ever grazing the road line below.
   const baseY = viewHeight * 0.58;
   const spacing = 260;
   const scrollX = cameraX * parallax;
@@ -318,6 +444,7 @@ function drawSkyline(ctx, cameraX, viewWidth, viewHeight) {
 // actual track - scrolls faster (bigger parallax factor) and sits lower/
 // darker, giving the background real depth instead of one flat layer.
 function drawMidground(ctx, cameraX, viewWidth, viewHeight) {
+  if (SPACE_THEME_ACTIVE) return;
   ctx.save();
   ctx.fillStyle = "rgba(0, 0, 0, 0.42)";
   const parallax = 0.55;
@@ -356,7 +483,15 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     const first = span[0];
     if (last.x < cameraX - 50 || first.x > cameraX + viewWidth + 50) continue;
 
-    ctx.fillStyle = SCENE_COLORS.groundFill;
+    if (SPACE_THEME_ACTIVE) {
+      const groundGradient = ctx.createLinearGradient(0, first.y, 0, fillBottomY);
+      groundGradient.addColorStop(0, "#16090c");
+      groundGradient.addColorStop(0.35, "#0b080d");
+      groundGradient.addColorStop(1, "#030307");
+      ctx.fillStyle = groundGradient;
+    } else {
+      ctx.fillStyle = SCENE_COLORS.groundFill;
+    }
     ctx.beginPath();
     ctx.moveTo(first.x, first.y);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y);
@@ -384,6 +519,28 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
     ctx.moveTo(first.x, first.y + 10);
     for (let i = 1; i < span.length; i++) ctx.lineTo(span[i].x, span[i].y + 10);
     ctx.stroke();
+
+    if (SPACE_THEME_ACTIVE) {
+      // Procedural volcanic cracks: decorative only, generated from world X
+      // so they scroll naturally with the terrain and cost no image asset.
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.shadowColor = "#ff3b22";
+      ctx.shadowBlur = 7;
+      ctx.strokeStyle = "rgba(255, 69, 35, 0.42)";
+      ctx.lineWidth = 1.3;
+      const startX = Math.floor(first.x / 180) * 180;
+      for (let x = startX; x < last.x; x += 180) {
+        const yBase = first.y + 22 + Math.abs(Math.sin(x * 0.013)) * 30;
+        ctx.beginPath();
+        ctx.moveTo(x, yBase);
+        ctx.lineTo(x + 18, yBase + 7);
+        ctx.lineTo(x + 31, yBase - 2);
+        ctx.lineTo(x + 47, yBase + 12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
   ctx.restore();
@@ -391,10 +548,11 @@ function drawGround(ctx, terrain, cameraX, viewWidth, fillBottomY) {
 
 function drawSpike(ctx, trap) {
   ctx.save();
-  ctx.shadowColor = "#ff4d4d";
-  ctx.shadowBlur = 10;
-  ctx.strokeStyle = "#ff8080";
-  ctx.fillStyle = "rgba(255, 77, 77, 0.28)";
+  const glow = SPACE_THEME_ACTIVE ? "#ff4b2f" : "#ff4d4d";
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = SPACE_THEME_ACTIVE ? 14 : 10;
+  ctx.strokeStyle = SPACE_THEME_ACTIVE ? "#ffbf7a" : "#ff8080";
+  ctx.fillStyle = SPACE_THEME_ACTIVE ? "rgba(255, 74, 35, 0.34)" : "rgba(255, 77, 77, 0.28)";
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(trap.x, trap.y - trap.height);
@@ -408,10 +566,10 @@ function drawSpike(ctx, trap) {
 
 function drawPitFloor(ctx, trap) {
   ctx.save();
-  ctx.shadowColor = "#ff4d4d";
-  ctx.shadowBlur = 8;
-  ctx.strokeStyle = "#ff8080";
-  ctx.fillStyle = "rgba(255, 77, 77, 0.25)";
+  ctx.shadowColor = SPACE_THEME_ACTIVE ? "#ff3b22" : "#ff4d4d";
+  ctx.shadowBlur = SPACE_THEME_ACTIVE ? 12 : 8;
+  ctx.strokeStyle = SPACE_THEME_ACTIVE ? "#ff9d5c" : "#ff8080";
+  ctx.fillStyle = SPACE_THEME_ACTIVE ? "rgba(255, 59, 34, 0.30)" : "rgba(255, 77, 77, 0.25)";
   ctx.lineWidth = 2;
   const spikeWidth = 26;
   const count = Math.max(1, Math.round((trap.x2 - trap.x1) / spikeWidth));
@@ -780,6 +938,8 @@ let SCENE_COLORS = {
   groundGlowDim: "rgba(255, 138, 61, 0.55)",
 };
 
+let SPACE_THEME_ACTIVE = false;
+
 // How far down (px) the HUD gets shifted so it never sits under the
 // device's own notch/status bar or Telegram's floating fullscreen
 // controls - see applySafeAreaOffset, called once per mount below.
@@ -832,7 +992,8 @@ const WHEEL_PALETTE = {
 // Kept independent of RIDE_THEME_COLORS above on purpose: that one
 // deliberately CROSS-maps (red theme -> yellow neon road/blue bike) and
 // stays untouched - this is only for the background + plain ground.
-function applyThemeColors(el) {
+function applyThemeColors(el, spaceTheme = false) {
+  SPACE_THEME_ACTIVE = Boolean(spaceTheme);
   const accentId = el.closest(".app-shell")?.getAttribute("data-accent") || "red";
   const theme = RIDE_THEME_COLORS[accentId] || RIDE_THEME_COLORS.red;
   const body = theme.body;
@@ -884,6 +1045,28 @@ function applyThemeColors(el) {
     // itself" - a shade of groundFill's own color, not the glow color.
     groundGlowDim: hexToRgba(darkenHex(ground, 0.25), 0.6),
   };
+
+  if (SPACE_THEME_ACTIVE) {
+    CYBERBIKE_PALETTE = {
+      darkestPurple: "#050507",
+      darkBody: "#0d1017",
+      bodyPurple: "#1b2028",
+      brightBodyPurple: "#e2a51f",
+      neonPurple: "#ff4a2b",
+      violet: "#ffb52e",
+      whiteGlow: "#fff3d0",
+      cyan: "#d9f7ff",
+      brightCyan: "#ffffff",
+    };
+    SCENE_COLORS = {
+      skyTop: "#020107",
+      skyBottom: "#18030a",
+      groundFill: "#09070b",
+      groundGlow: "#ff3b22",
+      groundGlowShadow: "#ff6a2e",
+      groundGlowDim: "rgba(255, 56, 32, 0.42)",
+    };
+  }
 }
 
 // Traced vertex lists, exactly as given in the reference (1536x700 master canvas).
@@ -947,25 +1130,28 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
     ctx.translate(wx, wy);
     ctx.rotate(spinAngle);
 
-    ctx.shadowColor = WHEEL_PALETTE.whiteGlow;
-    ctx.shadowBlur = 28;
+    const wheelOuter = SPACE_THEME_ACTIVE ? "#ff4a2b" : WHEEL_PALETTE.whiteGlow;
+    const wheelInner = SPACE_THEME_ACTIVE ? "#9b3cff" : WHEEL_PALETTE.neonPurple;
+    const wheelDark = SPACE_THEME_ACTIVE ? "#16080d" : WHEEL_PALETTE.darkestPurple;
+    ctx.shadowColor = wheelOuter;
+    ctx.shadowBlur = SPACE_THEME_ACTIVE ? 22 : 28;
     ctx.beginPath();
     ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = WHEEL_PALETTE.whiteGlow;
+    ctx.strokeStyle = wheelOuter;
     ctx.lineWidth = wheelRadius * (12 / CYBERBIKE_REF.outerRadius);
     ctx.stroke();
 
     const innerR = wheelRadius * (CYBERBIKE_REF.innerRadius / CYBERBIKE_REF.outerRadius);
-    ctx.shadowColor = WHEEL_PALETTE.neonPurple;
-    ctx.shadowBlur = 14;
+    ctx.shadowColor = wheelInner;
+    ctx.shadowBlur = SPACE_THEME_ACTIVE ? 12 : 14;
     ctx.beginPath();
     ctx.arc(0, 0, innerR, 0, Math.PI * 2);
-    ctx.strokeStyle = WHEEL_PALETTE.neonPurple;
+    ctx.strokeStyle = wheelInner;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = WHEEL_PALETTE.darkestPurple;
+    ctx.strokeStyle = wheelDark;
     ctx.lineWidth = 2;
     const spokeR = innerR - 4;
     for (let i = 0; i < 8; i++) {
@@ -1064,8 +1250,8 @@ function CyberBike(ctx, bike, rearSpinAngle, gasHeld) {
   // anchored via the same reference→world transform as the rest of the body.
   if (gasHeld) {
     const tail = toWorld(CYBERBIKE_TAIL_TIP[0], CYBERBIKE_TAIL_TIP[1]);
-    ctx.fillStyle = "rgba(255, 176, 89, 0.85)";
-    ctx.shadowColor = "#ff8a3d";
+    ctx.fillStyle = SPACE_THEME_ACTIVE ? "rgba(255, 83, 40, 0.9)" : "rgba(255, 176, 89, 0.85)";
+    ctx.shadowColor = SPACE_THEME_ACTIVE ? "#ff3b22" : "#ff8a3d";
     ctx.shadowBlur = 8;
     const flickerOffset = 2 + Math.random() * 3;
     const jitter = (Math.random() - 0.5) * 4;
@@ -1113,7 +1299,70 @@ function drawSpeedLines(ctx, lines, width, boosted) {
 // Three-part HUD: instant speed on the left, distance covered in the
 // center pill, and the running total of money earned this run on the
 // right - all live, all updating every frame.
+function drawSpaceHud(ctx, hud, width, pulseFraction) {
+  const { speedKmh, distanceMeters, money } = hud;
+  const panel = (x, y, w, h) => {
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, "rgba(18, 7, 13, 0.88)");
+    g.addColorStop(1, "rgba(3, 3, 8, 0.82)");
+    ctx.fillStyle = g;
+    ctx.strokeStyle = "rgba(255, 69, 38, 0.58)";
+    ctx.lineWidth = 1.4;
+    roundedRectPath(ctx, x, y, w, h, 18);
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  const leftW = 118;
+  const rightW = 118;
+  const y = 10;
+  panel(10, y, leftW, 52);
+  panel(width - rightW - 10, y, rightW, 52);
+
+  ctx.save();
+  ctx.font = "700 9px 'IBM Plex Mono', monospace";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(255, 168, 134, 0.9)";
+  ctx.fillText("SPEED", 23, y + 8);
+  ctx.font = "700 17px 'IBM Plex Mono', monospace";
+  ctx.fillStyle = "#fff4df";
+  ctx.fillText(`${Math.round(speedKmh)} km/h`, 23, y + 24);
+
+  ctx.textAlign = "right";
+  ctx.font = "700 9px 'IBM Plex Mono', monospace";
+  ctx.fillStyle = "rgba(255, 168, 134, 0.9)";
+  ctx.fillText("EARNED", width - 23, y + 8);
+  ctx.font = "700 17px 'IBM Plex Mono', monospace";
+  ctx.fillStyle = "#ffd66b";
+  ctx.fillText(`${money} VɎ`, width - 23, y + 24);
+  ctx.restore();
+
+  const pillW = 86;
+  const pillX = width / 2 - pillW / 2;
+  const pulse = 1 + pulseFraction * 0.08;
+  ctx.save();
+  ctx.translate(width / 2, 31);
+  ctx.scale(pulse, pulse);
+  ctx.translate(-width / 2, -31);
+  roundedRectPath(ctx, pillX, 10, pillW, 42, 21);
+  ctx.fillStyle = "rgba(4, 3, 9, 0.92)";
+  ctx.fill();
+  ctx.strokeStyle = pulseFraction > 0 ? "#ffd36b" : "rgba(255, 88, 50, 0.72)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.font = "700 18px 'IBM Plex Mono', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#fff4df";
+  ctx.fillText(`${Math.floor(distanceMeters)}m`, width / 2, 31);
+  ctx.restore();
+}
+
 function drawHud(ctx, hud, width, pulseFraction) {
+  if (SPACE_THEME_ACTIVE) {
+    drawSpaceHud(ctx, hud, width, pulseFraction);
+    return;
+  }
   const { speedKmh, distanceMeters, money } = hud;
 
   // ---- center: distance pill (same pill chrome the old timer used) ----
@@ -1298,7 +1547,7 @@ function createLandingDust(x, y, intensity) {
 
 // ---------------- component ----------------
 
-export default function GameCanvas({ onGameOver }) {
+export default function GameCanvas({ onGameOver, spaceTheme = false }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const gasRef = useRef(false);
@@ -1314,7 +1563,7 @@ export default function GameCanvas({ onGameOver }) {
     // player picked in Settings (see applyThemeColors above) - reads the
     // live --gold/--gold-bright/--ink CSS custom properties straight off
     // this DOM node, which inherit down from .app-shell[data-accent].
-    applyThemeColors(container);
+    applyThemeColors(container, spaceTheme);
     applySafeAreaOffset();
 
     const engine = Engine.create();
@@ -2053,7 +2302,7 @@ export default function GameCanvas({ onGameOver }) {
 
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawBackground(ctx, canvas.width, canvas.height);
+      drawBackground(ctx, canvas.width, canvas.height, elapsedRef, renderCameraX);
 
       ctx.save();
       ctx.scale(dpr, dpr);
