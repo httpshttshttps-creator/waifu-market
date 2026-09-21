@@ -112,8 +112,6 @@ export async function fetchProfile() {
       name: "Player",
       balance: MOCK_STARTING_BALANCE,
       cardCount: CHARACTERS.length,
-      // Dev-only mock: lets the Space theme be tested without a live bot API.
-      isPremium: true,
       cards: CHARACTERS.map((character) => ({
         id: character.id,
         name: character.name,
@@ -126,17 +124,10 @@ export async function fetchProfile() {
     };
   }
   const data = await apiFetch("/api/market/profile");
-  const isPremium = Boolean(
-    data.is_premium ??
-      data.isPremium ??
-      data.premium ??
-      data.is_premium_user
-  );
   return {
     name: data.name,
     balance: data.balance,
     cardCount: data.card_count,
-    isPremium,
     cards: data.cards.map(normalizeOwnedCard),
   };
 }

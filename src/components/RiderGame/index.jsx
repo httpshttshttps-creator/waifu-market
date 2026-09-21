@@ -30,7 +30,7 @@ function writeBestScore(money) {
   }
 }
 
-export default function RiderGame({ notify, onBalanceChange, onExit, onImmersiveChange, spaceTheme = false }) {
+export default function RiderGame({ notify, onBalanceChange, onExit, onImmersiveChange }) {
   const [stage, setStage] = useState(STAGE_INTRO);
   const [result, setResult] = useState(null);
   const [runKey, setRunKey] = useState(0);
@@ -139,7 +139,7 @@ export default function RiderGame({ notify, onBalanceChange, onExit, onImmersive
       )}
 
       {stage === STAGE_PLAYING && (
-        <GameCanvas key={runKey} onGameOver={handleGameOver} spaceTheme={spaceTheme} />
+        <GameCanvas key={runKey} onGameOver={handleGameOver} />
       )}
 
       {stage === STAGE_RESULT && result && (
